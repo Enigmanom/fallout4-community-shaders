@@ -395,6 +395,12 @@ namespace cs::features
 		                    static_cast<float>(_overlayFrequency.QuadPart);
 		_lastUpdate = counter;
 
+		// The open hitch would dominate the graph scale.
+		if (_graphWarmup > 0) {
+			--_graphWarmup;
+			return;
+		}
+
 		const float oldFrame = _history.GetData()[_history.GetHeadIdx()];
 		_history.Push(_frameMs);
 		const auto samples = _history.GetData();
@@ -443,6 +449,7 @@ namespace cs::features
 		if (!settings.ShowInOverlay && !_testing) {
 			QueryPerformanceCounter(&_lastFrame);
 			_overlayFrequency = {};
+			_graphWarmup = Settings::kGraphWarmupFrames;
 			return;
 		}
 		// FO4: DearModdingUI supplies the native-frame UI cadence independently of the deferred scene.
