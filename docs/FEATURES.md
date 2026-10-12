@@ -114,7 +114,7 @@ Ordered by user value over effort, respecting dependencies.
 5. **Mid-size, few dependencies:** Cloud Shadows (L; feeds EHF); Subsurface Scattering (M); Volumetric
    Shadows producer + DFLight (M); Hair Specular opaque slices (M); Grass Collision (M, actor-bounds RE).
 6. **RE-gated:** Interior Sun; Extended Translucency alpha models.
-7. **Providers:** DC → IBL; LLF 3D light grid + light-limit visualization before EHF local-light scattering;
+7. **Providers:** LLF 3D light grid + light-limit visualization before EHF local-light scattering;
    then provider adapters in DC/SSGI/EHF.
 8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; Unified Water optical;
    VL controls; CS Editor; Screenshot; HDR Display (L).
