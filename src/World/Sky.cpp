@@ -76,4 +76,10 @@ namespace cs::engine
 		}
 		return true;
 	}
+
+	bool IsMainOrLoadingMenuOpen() noexcept
+	{
+		const auto* ui = RE::UI::GetSingleton();
+		return ui && (ui->GetMenuOpen<RE::MainMenu>() || ui->GetMenuOpen<RE::LoadingMenu>());
+	}
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Settings/SettingsSchema.h"
+#include "World/Weather.h"
 
 #include <algorithm>
 #include <charconv>
@@ -84,6 +85,23 @@ namespace cs::weather
 			return true;
 		}
 
+		// FO4: the engine clears previous weather before the transition ends.
+		Settings EvaluateCurrentWeather(const Schema& a_schema, const Settings& a_base)
+		{
+			const auto weather = engine::SnapshotWeather();
+			const auto key = [](const RE::TESWeather* a_weather) {
+				if (a_weather) {
+					if (auto* file = a_weather->GetFile(0))
+						return Key(a_weather->GetFormID() & (file->IsLight() ? 0xFFFu : 0xFFFFFFu), file->GetFilename());
+				}
+				return std::string{};
+			};
+			const auto current = key(weather.current);
+			if (weather.previous)
+				_enginePrevious = key(weather.previous);
+			return Evaluate(a_schema, a_base, _enginePrevious, current, weather.transitionPct);
+		}
+
 		Settings Evaluate(const Schema& a_schema, const Settings& a_base,
 			std::string_view a_previous, std::string_view a_current, float a_factor)
 		{
@@ -139,7 +157,7 @@ namespace cs::weather
 		}
 		std::map<std::string, Override, std::less<>> _overrides;
 		Settings _start{}, _live{};
-		std::string _previous, _current;
+		std::string _previous, _current, _enginePrevious;
 		float _factor = 1;
 		bool _initialized = false;
 	};

@@ -1,8 +1,15 @@
 #ifndef FO4_FOG_CONSUMER
 #define FO4_FOG_CONSUMER
 
+#include "FO4/ImageBasedLightingConsumer.hlsli"
+
 // Fog sites compile away unless a fog feature consumes them.
-#define FO4_FOG_VANILLA_COLOR(color) (color)
+// The IBL tint precedes the height fog, as upstream.
+#ifdef IBL
+#	define FO4_FOG_VANILLA_COLOR(color) FO4IBL::Fog(color)
+#else
+#	define FO4_FOG_VANILLA_COLOR(color) (color)
+#endif
 #ifdef EXPONENTIAL_HEIGHT_FOG
 #	include "FO4/ExponentialHeightFogConsumer.hlsli"
 // A vanilla fog tint joins here, ahead of the height fog composition.

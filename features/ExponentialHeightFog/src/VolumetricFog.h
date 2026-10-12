@@ -71,7 +71,7 @@ namespace cs::features::exponential_height_fog
 		bool _skyReady = false;
 		DirectX::XMFLOAT2 _previousRatio{ 1.0f, 1.0f };
 		// Render-thread counters persist across resource resets.
-		std::uint64_t _volumeAllocations{}, _skyAllocations{}, _volumeFrames{}, _historyFrames{}, _skylightingFrames{}, _skyDispatches{}, _dispatches{};
+		std::uint64_t _volumeAllocations{}, _skyAllocations{}, _volumeFrames{}, _historyFrames{}, _skylightingFrames{}, _iblFrames{}, _skyDispatches{}, _dispatches{};
 		bool _temporalEnabled{};
 	};
 }

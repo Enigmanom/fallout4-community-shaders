@@ -13,11 +13,18 @@
 
 #ifdef DYNAMIC_CUBEMAPS
 #	include "FO4/DynamicCubemaps/Composite.hlsli"
-#	define SAMPLE_MATERIAL_ENVIRONMENT(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular) \
-		DynamicCubemaps::GetMaterialEnvironment(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular)
+#	define SAMPLE_MATERIAL_ENVIRONMENT(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular, nativeWeight) \
+		DynamicCubemaps::GetMaterialEnvironment(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, FO4_PROBE_ARGS(skylightingSpecular, nativeWeight))
 #else
-#	define SAMPLE_MATERIAL_ENVIRONMENT(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular) \
+#	define SAMPLE_MATERIAL_ENVIRONMENT(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular, nativeWeight) \
 		cube.SampleLevel(probeSampler, float4(direction, slice), lod).xyz
+#endif
+
+// FO4: the site's light sum; only IBL divides radiance terms by it.
+#ifdef IBL
+#	define FO4_PROBE_WEIGHT(weight) (weight)
+#else
+#	define FO4_PROBE_WEIGHT(weight) 0
 #endif
 
 #ifdef BSDFCOMPOSITE_PS_AMBIENT_IBL_CB31_FAMILY
@@ -270,7 +277,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float mipLevel = (1.0 - shadingData.x) * 6.0;
 		mipLevel = pos.z * 0.001953125 + mipLevel;
 		float arraySlice = floor(matSliceFloat * 255.0 - 1.0);
-		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIBLProbeCube, g_sIBLProbeCube, reflWorld, arraySlice, mipLevel, shadingData.x, cb12_idx30_ibl_desaturation.y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, normalView, shadingData.x));
+		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIBLProbeCube, g_sIBLProbeCube, reflWorld, arraySlice, mipLevel, shadingData.x, cb12_idx30_ibl_desaturation.y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, normalView, shadingData.x), FO4_PROBE_WEIGHT(ambientPairSum));
 		float luma = dot(cubeSample, float3(0.299, 0.587, 0.114));
 		float desatW = cb12_idx30_ibl_desaturation.y * 0.9;
 		iblColor = lerp(cubeSample, luma.xxx, desatW);
@@ -490,6 +497,17 @@ struct PS_OUTPUT
 	float4 color: SV_Target0;
 };
 
+#	ifdef IBL
+float3 AmbientPairWeight(float2 uv)
+{
+	float3 ambientPair = g_tAmbientDiffuseA.SampleLevel(g_sAmbientDiffuseA, uv, 0).xyz;
+#		ifdef TILELIGHT
+	ambientPair += g_tAmbientDiffuseB.SampleLevel(g_sAmbientDiffuseB, uv, 0).xyz;
+#		endif
+	return ambientPair * 3.0;
+}
+#	endif
+
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT output;
@@ -610,7 +628,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float mipLevel = (1.0 - shadingData.x) * 6.0;
 		mipLevel = positionView.z * 0.001953125 + mipLevel;
 		float arraySlice = floor(material.y * 255.0 - 1.0);
-		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIblProbeCube, g_sIblProbeCube, reflectionWorld, arraySlice, mipLevel, shadingData.x, IblDesaturation.y, FO4_SKYLIGHTING_SPECULAR(positionView, normalView, shadingData.x));
+		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIblProbeCube, g_sIblProbeCube, reflectionWorld, arraySlice, mipLevel, shadingData.x, IblDesaturation.y, FO4_SKYLIGHTING_SPECULAR(positionView, normalView, shadingData.x), FO4_PROBE_WEIGHT(AmbientPairWeight(uv)));
 		float luminance = dot(cubeSample, float3(0.299, 0.587, 0.114));
 		iblColor = lerp(
 			cubeSample, luminance.xxx, IblDesaturation.y * 0.9);
@@ -769,7 +787,7 @@ PS_OUTPUT main(PS_INPUT input)
 			FogNearHighColorAndClamp.xyz,
 			FogFarHighColor.xyz,
 			fogIntensity);
-		float3 fogColor = lerp(fogColorLow, fogColorHigh, fogBlend);
+		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(fogColorLow, fogColorHigh, fogBlend));
 		float combinedFog = fogIntensity * fogBlendWeight;
 		float fogMixFactor = combinedFog * nearEscape;
 
@@ -1058,7 +1076,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		float mipLevel = (1.0 - surface.x) * 6.0;
 		mipLevel = viewPosition.z * 0.001953125 + mipLevel;
 		float arraySlice = floor(material.x * 255.0 - 1.0);
-		environment = SAMPLE_MATERIAL_ENVIRONMENT(environmentTexture, environmentSampler, environmentCoordinate, arraySlice, mipLevel, surface.x, ambientFrame[30].y, FO4_SKYLIGHTING_SPECULAR(viewPosition, normal, surface.x));
+		environment = SAMPLE_MATERIAL_ENVIRONMENT(environmentTexture, environmentSampler, environmentCoordinate, arraySlice, mipLevel, surface.x, ambientFrame[30].y, FO4_SKYLIGHTING_SPECULAR(viewPosition, normal, surface.x), FO4_PROBE_WEIGHT(sampleDirectLighting(coordinate)));
 		float luminance = dot(environment, float3(0.299, 0.587, 0.114));
 		environment = lerp(environment, luminance.xxx, ambientFrame[30].y * 0.9);
 	}
@@ -1152,7 +1170,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		float heightAlpha = 1.0 - heightWeight + heightWeight * ambientFrame[44].w;
 		float3 lowFog = lerp(ambientFrame[42].xyz, ambientFrame[44].xyz, fogCurve);
 		float3 highFog = lerp(ambientFrame[43].xyz, ambientFrame[45].xyz, fogCurve);
-		float3 fogColor = lerp(lowFog, highFog, heightWeight);
+		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightWeight));
 		FO4_FOG_ORIGINAL(originalFogColor, fogColor);
 		float fogAmount = fogCurve * heightAlpha;
 		fogAmount *= nearDistanceScale;
@@ -1317,7 +1335,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 		lod = pos.z * 0.001953125 + lod;
 		float idx = floor(prm.x * 255.0 - 1.0);
 
-		cube = SAMPLE_MATERIAL_ENVIRONMENT(TexCube, SampCube, rw, idx, lod, surf.x, g_PF[30].y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, nn.xyz, surf.x));
+		cube = SAMPLE_MATERIAL_ENVIRONMENT(TexCube, SampCube, rw, idx, lod, surf.x, g_PF[30].y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, nn.xyz, surf.x), FO4_PROBE_WEIGHT(TexB.SampleLevel(SampB, uv, 0).xyz * 3.0));
 		float lum = dot(cube, float3(0.299, 0.587, 0.114));
 		cube = lerp(cube, lum.xxx, g_PF[30].y * 0.9);
 	}
@@ -1371,7 +1389,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 
 		float3 cA = lerp(g_PF[42].xyz, g_PF[44].xyz, fk);
 		float3 cB = lerp(g_PF[43].xyz, g_PF[45].xyz, fk);
-		float3 fogC = lerp(cA, cB, fogH);
+		float3 fogC = FO4_FOG_VANILLA_COLOR(lerp(cA, cB, fogH));
 		FO4_FOG_ORIGINAL(originalFogColor, fogC);
 		float amt = (fk * alpha) * t2v;
 
@@ -1985,7 +2003,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 fogColorBD = lerp(FogNearHighColor_and_clamp.xyz,
 			FogFarHighColor_and_padding.xyz,
 			fogIntensity);
-		float3 fogColor = lerp(fogColorAC, fogColorBD, fogBlend);
+		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(fogColorAC, fogColorBD, fogBlend));
 
 		float combinedFog = fogIntensity * fogBlendWeight;
 
@@ -2291,6 +2309,17 @@ struct PSInput
 #	endif
 };
 
+#	ifdef IBL
+float3 CubeDiffuseWeight(float2 uv)
+{
+	float3 diffuse = diffuseTexture.SampleLevel(diffuseSampler, uv, 0.0).xyz;
+#		ifdef TILED_LIGHTS
+	diffuse += tileDiffuseTexture.SampleLevel(tileDiffuseSampler, uv, 0.0).xyz;
+#		endif
+	return diffuse * 3.0;
+}
+#	endif
+
 float4 main(PSInput input) : SV_Target0
 {
 	float4 result;
@@ -2431,7 +2460,7 @@ float4 main(PSInput input) : SV_Target0
 			6.0,
 			worldPosition.z * 0.001953125);
 		float probeSlice = floor(material.x * 255.0 - 1.0);
-		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, scene[30].y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x));
+		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, scene[30].y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x), FO4_PROBE_WEIGHT(CubeDiffuseWeight(uv)));
 		float probeLuma = dot(probeColor, float3(0.299, 0.587, 0.114));
 		probeColor = lerp(probeColor, probeLuma.xxx, scene[30].y * 0.9);
 	}
@@ -2549,7 +2578,7 @@ float4 main(PSInput input) : SV_Target0
 			6.0,
 			worldPosition.z * 0.001953125);
 		float probeSlice = floor(material.x * 255.0 - 1.0);
-		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, scene[30].y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x));
+		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, scene[30].y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x), FO4_PROBE_WEIGHT(diffuse));
 		float probeLuma = dot(probeColor, float3(0.299, 0.587, 0.114));
 		probeColor = lerp(probeColor, probeLuma.xxx, scene[30].y * 0.9);
 	}
@@ -2607,7 +2636,7 @@ float4 main(PSInput input) : SV_Target0
 			lerp(scene[42].xyz, scene[44].xyz, fogCurve);
 		float3 highFog =
 			lerp(scene[43].xyz, scene[45].xyz, fogCurve);
-		float3 fogColor = lerp(lowFog, highFog, heightWeight);
+		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightWeight));
 		FO4_FOG_ORIGINAL(originalFogColor, fogColor);
 		float fogAmount = fogCurve * heightAlpha * nearDistanceScale;
 
@@ -3281,7 +3310,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		float heightScale = 1.0 - heightFactor + heightFactor * scene[44].w;
 		float3 lowFog = lerp(scene[42].xyz, scene[44].xyz, fogCurve);
 		float3 highFog = lerp(scene[43].xyz, scene[45].xyz, fogCurve);
-		float3 fogColor = lerp(lowFog, highFog, heightFactor);
+		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightFactor));
 		float fogMix = fogCurve * heightScale * nearEscape;
 
 		float3 viewDirection = normalize(reconstructed.xyz);

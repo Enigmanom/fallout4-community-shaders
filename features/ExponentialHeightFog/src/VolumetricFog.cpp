@@ -1,6 +1,7 @@
 #include "VolumetricFog.h"
 #include "ExponentialHeightFogMath.h"
 
+#include "ImageBasedLighting.h"
 #include "Render/CanonicalDepth.h"
 #include "Render/Engine.h"
 #include "Render/FrameProfiler.h"
@@ -25,21 +26,25 @@ namespace cs::features::exponential_height_fog
 			{ "ExponentialHeightFog/far_depth", "ExponentialHeightFog/far_material",
 				"ExponentialHeightFog/far_scattering", "ExponentialHeightFog/far_integration" } } };
 
+		using IBLResources = std::array<ID3D11ShaderResourceView*, ImageBasedLighting::kSHSlotCount>;
+
 		class ScatteringInputs
 		{
 		public:
 			explicit ScatteringInputs(ID3D11DeviceContext* a_context, ID3D11ShaderResourceView* a_integrated = nullptr,
-				ID3D11ShaderResourceView* a_integratedFar = nullptr, ID3D11ShaderResourceView* a_skylighting = nullptr) :
+				ID3D11ShaderResourceView* a_integratedFar = nullptr, ID3D11ShaderResourceView* a_skylighting = nullptr,
+				const IBLResources& a_ibl = {}) :
 				_context(a_context)
 			{
 				for (std::size_t i = 0; i < _slots.size(); ++i)
 					_context->CSGetShaderResources(_slots[i], 1, _saved[i].put());
 				auto* terrain = TerrainShadows::GetSingleton();
 				for (const auto slot : _slots) {
-					ID3D11ShaderResourceView* srv = slot == 19 ? a_integrated :
-					                                slot == 22 ? a_integratedFar :
-					                                slot == 50 ? a_skylighting :
-					                                             (slot == 60 && terrain->IsHealthy() ? terrain->GetShadowHeightSRV() : nullptr);
+					ID3D11ShaderResourceView* srv = slot == 19                                                                               ? a_integrated :
+					                                slot == 22                                                                               ? a_integratedFar :
+					                                slot == 50                                                                               ? a_skylighting :
+					                                slot >= ImageBasedLighting::kSHSlot && slot < ImageBasedLighting::kSHSlot + a_ibl.size() ? a_ibl[slot - ImageBasedLighting::kSHSlot] :
+					                                                                                                                           (slot == 60 && terrain->IsHealthy() ? terrain->GetShadowHeightSRV() : nullptr);
 					_context->CSSetShaderResources(slot, 1, &srv);
 				}
 			}
@@ -52,7 +57,7 @@ namespace cs::features::exponential_height_fog
 			}
 
 		private:
-			static constexpr std::array<UINT, 7> _slots{ 19, 22, 50, 60, 76, 77, 98 };
+			static constexpr std::array<UINT, 7> _slots{ 19, 22, 50, 60, ImageBasedLighting::kSHSlot, ImageBasedLighting::kSHSlot + 1, 98 };
 			ID3D11DeviceContext* _context;
 			std::array<winrt::com_ptr<ID3D11ShaderResourceView>, _slots.size()> _saved;
 		};
@@ -283,7 +288,8 @@ namespace cs::features::exponential_height_fog
 		const bool farHistory = consecutive && ranges.farEnabled && _far.hasHistory;
 		Constants cb{};
 		auto* skylighting = cs::features::Skylighting::GetSingleton()->GetProbeArraySRV();
-		const std::uint32_t flags = (depth ? 2u : 0u) | (skylighting ? 8u : 0u);
+		const auto ibl = cs::features::ImageBasedLighting::GetSingleton()->GetSHResources();
+		const std::uint32_t flags = (depth ? 2u : 0u) | (ibl ? 4u : 0u) | (skylighting ? 8u : 0u);
 		const float nearFade = a_settings.volumetricFogNearFadeInDistance > 0 ? 1.0f / a_settings.volumetricFogNearFadeInDistance : 100000000.0f;
 		cb.gridSizeAndFlags = { _near.grid.x, _near.grid.y, _near.grid.z, flags | (depth && history && _near.hasDepthHistory ? 16u : 0u) };
 		cb.invGridSizeAndNearFade = { 1.0f / static_cast<float>(_near.grid.x), 1.0f / static_cast<float>(_near.grid.y), 1.0f / static_cast<float>(_near.grid.z), nearFade };
@@ -329,7 +335,7 @@ namespace cs::features::exponential_height_fog
 		render::ScopedComputeSharedDataBinding shared(a_context);
 		if (!shared.IsActive())
 			return false;
-		ScatteringInputs inputs(a_context, nullptr, nullptr, skylighting);
+		ScatteringInputs inputs(a_context, nullptr, nullptr, skylighting, ibl.value_or(IBLResources{}));
 		ID3D11Buffer* cameraBuffer = _cameraConstants->CB();
 		a_context->CSSetConstantBuffers(render::kFrameDataSlot, 1, &cameraBuffer);
 		ID3D11Buffer* buffer = _constants->CB();
@@ -389,6 +395,8 @@ namespace cs::features::exponential_height_fog
 		++_volumeFrames;
 		if (skylighting)
 			++_skylightingFrames;
+		if (ibl)
+			++_iblFrames;
 		if (history)
 			++_historyFrames;
 		return true;
@@ -402,6 +410,7 @@ namespace cs::features::exponential_height_fog
 			.Field("volume_frames", _volumeFrames)
 			.Field("history_frames", _historyFrames)
 			.Field("skylighting_frames", _skylightingFrames)
+			.Field("ibl_frames", _iblFrames)
 			.Field("temporal_enabled", _temporalEnabled)
 			.Field("sky_dispatches", _skyDispatches);
 		render::profiling::CollectPassTimings(a_sink, "ExponentialHeightFog/");

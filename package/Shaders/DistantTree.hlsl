@@ -2,6 +2,7 @@
 #	ifndef RENDER_DEPTH
 #		define FO4_FOG_SAMPLER s15
 #		include "FO4/FogConsumer.hlsli"
+#		include "FO4/ImageBasedLightingConsumer.hlsli"
 #	endif
 #	if defined(TERRAIN_SHADOWS) && !defined(RENDER_DEPTH)
 #		include "FO4/TerrainShadowsConsumer.hlsli"
@@ -51,20 +52,21 @@ PS_OUTPUT main(PS_INPUT input)
 #			ifdef TERRAIN_SHADOWS
 												  * TerrainShadows::GetShadowFromScreenPosition(input.HPosition.xyz)
 #			endif
-											  + AmbientColor.xyz);
+											  + FO4_IBL_FORWARD_AMBIENT(AmbientColor.xyz, input.HPosition.xyz));
 #		else
 	float3 diffuseColor =
 #			ifdef TERRAIN_SHADOWS
 		baseColor.xyz * (input.TexCoord.z * DiffuseColor *
 								TerrainShadows::GetShadowFromScreenPosition(input.HPosition.xyz) +
-							AmbientColor.xyz);
+							FO4_IBL_FORWARD_AMBIENT(AmbientColor.xyz, input.HPosition.xyz));
 #			else
-		baseColor.xyz * (input.TexCoord.z * DiffuseColor + AmbientColor.xyz);
+		baseColor.xyz * (input.TexCoord.z * DiffuseColor + FO4_IBL_FORWARD_AMBIENT(AmbientColor.xyz, input.HPosition.xyz));
 #			endif
 #		endif
-	float3 fogColor = input.FogParam.xyz;
+	float3 vanillaFogColor = FO4_FOG_VANILLA_COLOR(input.FogParam.xyz);
+	float3 fogColor = vanillaFogColor;
 	float fogOpacity = input.FogParam.w;
-	FO4_FOG_REPLACE_FORWARD(input.HPosition.xyz, input.FogParam.xyz, fogColor, fogOpacity);
+	FO4_FOG_REPLACE_FORWARD(input.HPosition.xyz, vanillaFogColor, fogColor, fogOpacity);
 	float3 color = lerp(diffuseColor, fogColor, fogOpacity);
 	psout.Color.xyz = color * AmbientColor.w;
 	psout.Color.w = 1;

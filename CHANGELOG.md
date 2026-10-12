@@ -4,6 +4,7 @@
 
 - Frame Generation: updated Streamline to fix a black screen when loading a save with FSR 4 frame generation enabled and Gamma 2.2 color inputs.
 - Terrain Shadows: ships heightmaps for the base-game and DLC worldspaces; other worldspaces still need an xLODGen export.
+- Image Based Lighting: ported Skyrim CS's spherical-harmonics ambient, specular and fog tint from the environment and sky cubemaps, with weather profiles and Exponential Height Fog scattering; requires Dynamic Cubemaps, off until `EnableIBL` is set; static IBL is not included.
 - Terrain Variation: ported Skyrim CS's stochastic terrain sampling, LOD terrain tiling fix and landscape-textured mesh support, with a live enable toggle; mesh support covers natural landscape textures only, and Extended Materials and TruePBR height and RMAOS consumers are pending.
 - Performance Overlay: starts hidden each session; press F10 (rebindable) to show it, as in Skyrim CS. The frametime graph now scales with resolution.
 

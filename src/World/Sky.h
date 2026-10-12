@@ -18,4 +18,7 @@ namespace cs::engine
 
 	// Interior cell, no-sky worldspace, or Sky::mode != kFull.
 	bool IsInterior() noexcept;
+
+	// The main menu or a loading screen is open.
+	bool IsMainOrLoadingMenuOpen() noexcept;
 }

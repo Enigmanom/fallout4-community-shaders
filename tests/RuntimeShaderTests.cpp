@@ -54,6 +54,8 @@ namespace
 			{ "DynamicCubemaps/BC6HEncodeCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
 			{ "FO4/DynamicCubemaps/CubemapPreviewCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
 
+			{ "IBL/DiffuseIBLCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
+
 			{ "ExponentialHeightFog/VolumetricFogConservativeDepthCS.hlsl", "cs_5_0", {}, kFogGridAxes },
 			{ "ExponentialHeightFog/VolumetricFogMaterialCS.hlsl", "cs_5_0", {}, kFogGridAxes },
 			{ "ExponentialHeightFog/VolumetricFogLightScatteringCS.hlsl", "cs_5_0", {}, { Toggle("TERRAIN_SHADOWS", "1"), kFogGridAxes[0] } },

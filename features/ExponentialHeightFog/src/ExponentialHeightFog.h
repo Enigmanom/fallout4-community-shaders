@@ -28,6 +28,7 @@ namespace cs::features
 		bool ValidateShaderInjections(std::string&) override;
 		void DrawSettings() override;
 		void RestoreDefaultSettings() override;
+		bool HasWeatherProfiles() const override { return true; }
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(telemetry::Sink&) const override;
 		std::span<const FeatureDebugView> GetDebugViews() const noexcept override;
@@ -45,7 +46,6 @@ namespace cs::features
 		void Bind(ID3D11DeviceContext*, std::uint32_t);
 		Settings _settings{}, _published{}, _frameSettings{};
 		weather::VariableRegistry<std::remove_cv_t<decltype(exponential_height_fog::kSchema)>> _weather;
-		std::string _previousWeather;
 		exponential_height_fog::VolumetricFog _volume;
 		std::atomic_bool _debugFogFactor{ false };
 		mutable std::mutex _settingsMutex;

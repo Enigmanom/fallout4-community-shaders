@@ -25,6 +25,7 @@ local features = {
     "InverseSquareLighting",
     "ExponentialHeightFog",
     "DynamicCubemaps",
+    "IBL",
     "WaterEffects"
 }
 

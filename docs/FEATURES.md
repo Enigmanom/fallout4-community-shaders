@@ -36,7 +36,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 |---|---|---|---|---|---|---|---|
 | CS Editor | Core | Weather/template/imagespace editor, godray record editor, light editor, shell | N/A: Skyrim VL noise fields | NS | H | L | High |
 | Cloud Shadows | Core | Layer-cube producer, directional receivers, Effect/Water/Particle receivers, EHF attenuation | N/A: legacy VL consumer | NS | H | L | Med |
-| [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, IBL/Skylighting providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
+| [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays | N/A: ENB preset/binary compatibility | NS | H | L | Med |
 | [Exponential Height Fog](deviations/ExponentialHeightFog.md) | Core | Analytic/froxel fog; shadow/environment/weather/secondary consumers; local-light scattering (needs LLF light grid) | N/A: ENB | Pt | H | L | High |
 | Extended Materials | Mixed | Object POM + contact refinement, warping fix, terrain POM/height blend (height from `_s` alpha) | Ext: complex envmask material, parallax soft shadows | NS | H | M | Med |
@@ -47,7 +47,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Hair Specular | Mixed | Color controls, opaque Marschner, depth self-shadow, single tangent shift* | Ext: Kajiya-Kay frame/dual shift, blended hair | NS | H | M | Med |
 | HDR Display | Core | HDR10 output, native tonemap unclamp, UI brightness, SR/FG HDR transport | AutoHDR requires Effects11 | NS | H | L | Med |
 | HorizonFix | N/A | — | Integration with a Skyrim-only companion DLL | — | L | — | High |
-| IBL | Core | Environment SH, sky SH*, occlusion integration, static IBL, fog, grass/tree | — | NS | H | L | Med |
+| [IBL](deviations/IBL.md) | Core | Environment SH, sky SH*, ambient/fog/effect/EHF consumers, occlusion integration, specular IBL | N/A: static IBL, world-map toggle, ENB | Pt | H | L | Med |
 | Interior Sun | Core (provisional) | Native sun gating*, portal culling, double-sided/distance, gameplay sun | N/A: plain interior directional light | NS | H | L | Low |
 | [Inverse Square Lighting](deviations/InverseSquareLighting.md) | Mixed | Attenuation, radius/lifetime, gameplay luminance, TOML authoring (relocated LIGH fields), editor, diagnostics | Ext: derivation of unauthored lights from native falloff | Pt | H | M | High |
 | Light Limit Fix | Mixed | Light-limit visualization, 3D light grid as EHF provider | Ext: capacity/shadow-limit redesign. N/A: surface clustered culling (native tiled), strict lights, contact shadows, particle lights (no FO4 content) | NS | H | M | Med |

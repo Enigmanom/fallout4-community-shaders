@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
 #include <cstddef>
 #include <d3d11shader.h>
 #include <d3dcompiler.h>
@@ -314,6 +315,49 @@ namespace
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
+	std::string VerifyIBLABI(const std::filesystem::path& a_root)
+	{
+		std::string error;
+		const auto reflect = [&](const char* a_path, const std::vector<std::pair<const char*, const char*>>& a_defines) {
+			Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;
+			if (auto blob = cs::util::CompileShaderToBlob((a_root / a_path).c_str(), a_defines, "cs_5_0", "main", &error, a_root);
+				blob && SUCCEEDED(D3DReflect(blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(reflection.GetAddressOf()))))
+				return reflection;
+			if (error.empty())
+				error = "reflection failed";
+			error = std::string(a_path) + ": " + error;
+			return Microsoft::WRL::ComPtr<ID3D11ShaderReflection>{};
+		};
+		// Namespace-scoped resources reflect with their qualified name.
+		const auto bindPoint = [](ID3D11ShaderReflection* a_reflection, std::string_view a_name) {
+			D3D11_SHADER_DESC shader{};
+			a_reflection->GetDesc(&shader);
+			for (UINT i = 0; i < shader.BoundResources; ++i) {
+				D3D11_SHADER_INPUT_BIND_DESC binding{};
+				if (SUCCEEDED(a_reflection->GetResourceBindingDesc(i, &binding)) && std::string_view(binding.Name).ends_with(a_name))
+					return binding.BindPoint;
+			}
+			return UINT_MAX;
+		};
+		// The host binds the cube at t0 and the SH at u0.
+		const auto projection = reflect("IBL/DiffuseIBLCS.hlsl", { { "FO4CS_SUBSTRATE", "1" } });
+		if (!projection)
+			return error;
+		if (bindPoint(projection.Get(), "EnvTexture") != 0 || bindPoint(projection.Get(), "IBLTexture") != 0 || bindPoint(projection.Get(), "LinearSampler") != 0)
+			return "DiffuseIBLCS: ABI slot mismatch";
+		// Fog scattering shares the pixel consumers' t76/t77 SH contract.
+		for (const auto* terrain : { "", "TERRAIN_SHADOWS" }) {
+			std::vector<std::pair<const char*, const char*>> defines{ { "FO4CS_SUBSTRATE", "1" } };
+			if (*terrain)
+				defines.emplace_back(terrain, "1");
+			const auto scattering = reflect("ExponentialHeightFog/VolumetricFogLightScatteringCS.hlsl", defines);
+			if (!scattering)
+				return error;
+			if (bindPoint(scattering.Get(), "EnvIBLTexture") != 76 || bindPoint(scattering.Get(), "SkyIBLTexture") != 77)
+				return "VolumetricFogLightScatteringCS " + std::string(terrain) + ": IBL SH slot mismatch";
+		}
+		return {};
+	}
 #undef ABI
 }
 
@@ -325,5 +369,7 @@ std::string VerifyShaderABI(const std::filesystem::path& a_root)
 		return "SSGI ABI: " + error;
 	if (auto error = VerifySkylightingABI(a_root); !error.empty())
 		return "Skylighting ABI: " + error;
+	if (auto error = VerifyIBLABI(a_root); !error.empty())
+		return "IBL ABI: " + error;
 	return {};
 }

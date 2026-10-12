@@ -89,6 +89,8 @@ namespace cs
 				_settingsSavePending = false;
 		}
 		virtual std::vector<std::string_view> GetRestartSettings() const { return {}; }
+		// True when the feature reads per-weather profiles from its `weather` table.
+		virtual bool HasWeatherProfiles() const { return false; }
 
 		virtual bool ProducesTelemetry() const { return false; }
 		// Telemetry must read only cached or atomic state.

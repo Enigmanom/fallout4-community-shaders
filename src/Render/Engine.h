@@ -268,6 +268,25 @@ namespace cs::engine
 		}
 	}
 
+	// Previs accepts preselected objects on every face; bypass for real culling.
+	class ScopedPreCullBypass
+	{
+	public:
+		ScopedPreCullBypass() noexcept :
+			_wasDisabled(RE::BSPreCulledObjects::QTempDisabled())
+		{
+			RE::BSPreCulledObjects::SetTempDisabled(true, false);
+		}
+
+		~ScopedPreCullBypass() noexcept { RE::BSPreCulledObjects::SetTempDisabled(_wasDisabled, false); }
+
+		ScopedPreCullBypass(const ScopedPreCullBypass&) = delete;
+		ScopedPreCullBypass& operator=(const ScopedPreCullBypass&) = delete;
+
+	private:
+		const bool _wasDisabled;
+	};
+
 	// Full-extent offscreen draws: no render scale, viewport remap or jitter.
 	class UnscaledRenderScope
 	{

@@ -10,7 +10,6 @@ namespace cs::features::exponential_height_fog
 		float startDistance = 0.0f, fogHeight = 0.0f, fogHeightFalloff = 0.2f, fogDensity = 0.005f;
 		float fogHeight2 = 0.0f, fogHeightFalloff2 = 0.2f, fogDensity2 = 0.0f;
 		float directionalInscatteringMultiplier = 1.0f, directionalInscatteringAnisotropy = 0.2f;
-		// FO4: no IBL, so the shader gate is off and there is no schema key.
 		std::uint32_t useSkyIBL = 1;
 		settings::Color4 inscatteringTint{ 1, 1, 1, 1 };
 		float cubemapMipLevel = 8.0f, sunlightAttenuationAmount = 1.0f;
@@ -64,6 +63,7 @@ namespace cs::features::exponential_height_fog
 			settings::Field{ "directionalInscatteringAnisotropy", "Directional Light Inscattering Anisotropy", &Settings::directionalInscatteringAnisotropy, settings::Range{ -0.99f, 0.99f } },
 			settings::Field{ "disableVanillaFog", "Disable Vanilla Fog", &Settings::disableVanillaFog, settings::Range{ 0u, 1u } },
 			settings::Field{ "respectVanillaFogFade", "Apply Vanilla Fade", &Settings::respectVanillaFogFade, settings::Range{ 0u, 1u } },
+			settings::Field{ "useSkyIBL", "Use Sky IBL for Exterior Inscattering", &Settings::useSkyIBL, settings::Range{ 0u, 1u } },
 			settings::Field{ "useDynamicCubemaps", "Use Dynamic Cubemaps for Inscattering", &Settings::useDynamicCubemaps, settings::Range{ 0u, 1u } },
 			settings::ColorField<Settings>{ "inscatteringTint", "Inscattering Cubemap Tint", &Settings::inscatteringTint },
 			settings::Field{ "cubemapMipLevel", "Cubemap Mip Level", &Settings::cubemapMipLevel, settings::Range{ 1.0f, 8.0f } },

@@ -37,6 +37,7 @@ The native entry-point naming boundary is documented under Shader replacement.
 | Fix | `features/Screen-Space Shadows/Shaders/ScreenSpaceShadows/ScreenSpaceShadows.hlsli:7` | `6f81ebc25` | Remove the extra half-pixel offset from pixel-centered SV_POSITION before integer mask lookup | In the shared fork; upstream PR candidate, not filed |
 | Forced | `features/Light Limit Fix/Shaders/LightLimitFix/Attenuation.hlsli`, `LightLimitFix.hlsli` | `b57493893` | Move `GetAttenuation` and its constants into their own include; `LightLimitFix.hlsli` includes it, so upstream callers are unchanged. The rest of `LightLimitFix.hlsli` declares Skyrim's clustered-lighting b3 `StrictLightData` and t35-t37 buffers, which FO4 cannot include | In the shared fork; community-shaders/skyrim-community-shaders#2864 |
 | Fix | `src/Features/ExponentialHeightFog.{h,cpp}`, `features/Exponential Height Fog/Shaders/ExponentialHeightFog/VolumetricFogCSCommon.hlsli` | `9d7087ed9` | Far volume reads its own history weight from `historyParameters.z`; the shared `.x` blended an empty far history at the near weight | In the shared fork; community-shaders/skyrim-community-shaders#2865 |
+| Fix | `features/IBL/Shaders/IBL/IBL.hlsli` | `c766bc3d` | `GetIBLColorOccluded` read the environment SH in every `DALCMode`, though modes 2 and 3 never project it; it now delegates to `GetDiffuseIBLOccluded` with the vanilla DALC at the ray | community-shaders/skyrim-community-shaders#2882 |
 | Forced | `features/Dynamic Cubemaps/Shaders/DynamicCubemaps/CaptureCommon.hlsli` | `83efe1ad9` | Optional prepared position/color/UV inputs, geometry/sky tags and capture origin isolate FO4's +Z, partitioned depth, infinite far plane and diffuse reconstruction; default Skyrim sampling/history are unchanged | In the shared fork; upstream PR candidate, not filed |
 | Forced | `features/Dynamic Cubemaps/Shaders/DynamicCubemaps/DynamicCubemaps.hlsli` | `83efe1ad9` | Optional cube registers/custom-consumer guard and extracted explicit-sampler normalization let native FO4 deferred slots/samplers call shared arithmetic; default Skyrim registers/consumers are unchanged | In the shared fork; upstream PR candidate, not filed |
 
@@ -45,7 +46,7 @@ The native entry-point naming boundary is documented under Shader replacement.
 Shared consumption includes byte-identical SSS shaders, RCAS, shader licenses, default cubemap, the
 entire ScreenSpaceGI shader/noise directory and water caustics assets from the shared pin.
 All seven ExponentialHeightFog shaders and the Color, FastMath, GBuffer, Shading, Random,
-IBL dependencies, ShadowSampling and the Skylighting include and probe-update shader are also staged unchanged.
+ShadowSampling, the IBL include and diffuse projection shader, and the Skylighting include and probe-update shader are also staged unchanged.
 Bend's CPU header is identical modulo comments; its
 existing SSS consumer uses the unchanged shared header. PerformanceOverlay uses shared QPC/FPS
 helpers, the profiler and the A/B aggregator. Skylighting evaluates its occlusion SH basis with the shared `SphericalHarmonics.{h,cpp}`. `src/Shared/PerfUtils.h` supplies Windows declarations
@@ -72,7 +73,7 @@ upstream conversion; renderer-specific reasons remain in the feature tables.
 Upstream: `ShaderCache`, `Hooks`, `State`, `AdvancedSettingsRenderer`.
 Source paths follow the native fxp name; entry point is `main`, profile follows the stage,
 and live type/master switches suppress the entire replacement, including feature contributions.
-Effect and DistantTree remain owned for upstream fog and terrain-shadow consumers; Effect also owns the Skylighting diffuse term.
+Effect and DistantTree remain owned for upstream fog and terrain-shadow consumers; Effect also owns the Skylighting diffuse term, and IBL tints their fog.
 Utility, Sky, Particle, BloodSplatter and Lighting remain stock because no current feature consumes them.
 
 | Kind | Upstream | Fallout 4 translation | Engine evidence / boundary | Code |
@@ -155,7 +156,7 @@ diffuse visibility, as upstream. Effect lighting, ambient and sun are linear (`P
 | Pending | `Permutation::ExtraFlags::InWorld` | No per-draw descriptor carrier exists, so every lit Effect draw counts as in-world; this keeps the shadow and fog FO4 already applied to each. Menu and Interface3D effects are not separated, and upstream's non-world `LinearToSrgb` on output is not ported | Upstream sets it per `Main_RenderWorld` call | `EffectLightingConsumer.hlsli` `Permutation` |
 | Pending | `Permutation::ExtraFlags::SuppressExternalEmittance` | The branch compiles out. `BSShaderProperty::kExternalEmittance` exists (CommonLibF4), but nothing carries it per draw; FO4 interior `DLightColor` is zero on every lit effect (RenderDoc) | `ExternalEmittance::UpdatePermutation` upstream | `EffectLightingConsumer.hlsli` |
 | Pending | `Permutation::EffectRadius` (`worldBound.radius` at `BSEffectShader::SetupGeometry`) | Zero, so `Get3DFilteredShadow` takes one sample at the pixel, the former behavior | No carrier from `BSEffectShader::SetupGeometry` | `EffectLightingConsumer.hlsli` |
-| Pending | `VOLUMETRIC_SHADOWS`, `CLOUD_SHADOWS`, `IBL`, `LIGHT_LIMIT_FIX` (clustered lights, `InWorld` point-light gate), Interior Sun | Features not ported; their blocks compile out as upstream's do without the define. The IBL guard on the Skylighting ambient scale is kept | `FEATURES.md` | `EffectLightingConsumer.hlsli` |
+| Pending | `VOLUMETRIC_SHADOWS`, `CLOUD_SHADOWS`, `LIGHT_LIMIT_FIX` (clustered lights, `InWorld` point-light gate), Interior Sun | Features not ported; their blocks compile out as upstream's do without the define. The IBL guard on the Skylighting ambient scale is kept; the IBL define and bindings are described in [IBL](IBL.md) | `FEATURES.md` | `EffectLightingConsumer.hlsli` |
 | N/A | `EFFECTS11` blocks | No ENB; Effects11 is N/A | `AGENTS.md` | n/a |
 | N/A | `shadowVariance` | Written by both upstream functions and read by neither | Upstream `Effect.hlsl` | n/a |
 
@@ -262,6 +263,7 @@ evidence limits, not relabeled as proven bugs. A suspected upstream typed-depth 
 - [LOD Blending](LODBlending.md)
 - [Terrain Variation](TerrainVariation.md)
 - [Dynamic Cubemaps](DynamicCubemaps.md)
+- [Image Based Lighting](IBL.md)
 - [RenderDoc](RenderDoc.md)
 - [Upscaling](Upscaling.md)
 - [FrameGeneration](FrameGeneration.md)

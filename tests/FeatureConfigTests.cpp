@@ -1,6 +1,7 @@
 #include "DynamicCubemapsSettings.h"
 #include "ExponentialHeightFogSettings.h"
 #include "FrameGenerationSettings.h"
+#include "ImageBasedLightingSettings.h"
 #include "InverseSquareLightingSettings.h"
 #include "LODBlendingSettings.h"
 #include "LightAuthoring.h"
@@ -81,6 +82,7 @@ namespace
 			std::pair{ "InverseSquareLighting", MakeSchemaView(inverse_square_lighting::kSchema) },
 			std::pair{ "ExponentialHeightFog", MakeSchemaView(exponential_height_fog::kSchema) },
 			std::pair{ "DynamicCubemaps", MakeSchemaView(dynamic_cubemaps::kSchema) },
+			std::pair{ "ImageBasedLighting", MakeSchemaView(image_based_lighting::kSchema) },
 			std::pair{ "WaterEffects", MakeSchemaView(water_effects::kSchema) },
 			std::pair{ "ScreenSpaceShadows", MakeSchemaView(sss_settings::kSchema) },
 			std::pair{ "TerrainShadows", MakeSchemaView(terrain_shadows::kSchema) },
@@ -94,7 +96,7 @@ namespace
 		};
 		CHECK(features.size() == kAllFeatureKeys.size());
 		for (const auto& [key, schema] : features)
-			AddFeatureSections(registry, key, schema);
+			AddFeatureSections(registry, key, schema, std::string_view(key) == "ExponentialHeightFog" || std::string_view(key) == "ImageBasedLighting");
 		return registry;
 	}
 

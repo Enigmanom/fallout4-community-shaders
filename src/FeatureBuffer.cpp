@@ -2,6 +2,7 @@
 
 #include "DynamicCubemaps.h"
 #include "ExponentialHeightFog.h"
+#include "ImageBasedLighting.h"
 #include "LODBlending.h"
 #include "ScreenSpaceGI.h"
 #include "Skylighting.h"
@@ -48,7 +49,10 @@ namespace cs
 					features::Skylighting::GetSingleton()),
 			.screenSpaceGISettings =
 				CollectFeatureData<ScreenSpaceGIFeatureData>(
-					features::ScreenSpaceGI::GetSingleton())
+					features::ScreenSpaceGI::GetSingleton()),
+			.iblSettings =
+				CollectFeatureData<render::IBLSettings>(
+					features::ImageBasedLighting::GetSingleton())
 		};
 	}
 }

@@ -16,6 +16,28 @@
 
 namespace Skylighting
 {
+#ifdef IBL
+	// FO4: both scalars of one probe sample at a composite probe site.
+	struct SpecularVisibility
+	{
+		float specular;
+		float visibility;
+	};
+
+	SpecularVisibility Unoccluded()
+	{
+		SpecularVisibility result;
+		result.specular = 1.0;
+		result.visibility = 1.0;
+		return result;
+	}
+#	define FO4_SPECULAR_UNOCCLUDED Skylighting::Unoccluded()
+#else
+	// FO4: only IBL reads the cosine visibility, so other builds keep the scalar.
+	typedef float SpecularVisibility;
+#	define FO4_SPECULAR_UNOCCLUDED 1.0
+#endif
+
 #ifdef SKYLIGHTING
 	Texture2D<float4> AlbedoTexture : register(t51);
 	// FO4: MRT4 alpha stores 1 - vertexAO, upstream's Masks2.x.
@@ -38,6 +60,12 @@ namespace Skylighting
 	{
 		sh2 skylightingSH = SampleProbes(positionMS, normalWS);
 		return GetSkylightingDiffuse(skylightingSH, positionMS, normalWS, vertexAO);
+	}
+
+	// Upstream's composite takes the raw cosine lobe: no fade, no vertex AO.
+	float GetCompositeDiffuse(float3 positionMS, float3 normalWS)
+	{
+		return EvaluateDiffuse(SampleProbes(positionMS, normalWS), normalWS);
 	}
 
 	// FO4: ambient is a linear addend and gamma is the identity, so scale it.
@@ -63,17 +91,24 @@ namespace Skylighting
 	}
 
 	// FO4: composite probe sites share upstream's lobe; positions are view space.
-	float GetSpecularVisibility(float3 viewPosition, float3 normalView, float glossiness)
+	SpecularVisibility GetSpecularVisibility(float3 viewPosition, float3 normalView, float glossiness)
 	{
 		// FO4: the interior branch samples EnvTexture and never reads visibility.
 		if (SharedData::InInterior)
-			return 1.0;
+			return FO4_SPECULAR_UNOCCLUDED;
 		float3 positionMS = FrameBuffer::ViewToWorld(viewPosition);
 		float3 normalWS = normalize(FrameBuffer::ViewToWorld(normalView, false));
 		float3 V = -normalize(positionMS);
 		float3 R = reflect(-V, normalWS);
 		sh2 skylightingSH = SampleProbes(positionMS, R);
+#	ifdef IBL
+		SpecularVisibility result;
+		result.specular = EvaluateSpecular(skylightingSH, SphericalHarmonics::FauxSpecularLobe(normalWS, V, 1.0 - glossiness));
+		result.visibility = EvaluateVisibility(skylightingSH);
+		return result;
+#	else
 		return EvaluateSpecular(skylightingSH, SphericalHarmonics::FauxSpecularLobe(normalWS, V, 1.0 - glossiness));
+#	endif
 	}
 
 	// FO4: lighting evaluates the ambient gradient at several directions per pixel.
@@ -123,7 +158,7 @@ namespace Skylighting
 #else
 #	define FO4_AMBIENT_SKYLIGHTING_SET(pixelPosition, viewPosition, normalView)
 #	define FO4_AMBIENT_SKYLIGHTING(ambient) (ambient)
-#	define FO4_SKYLIGHTING_SPECULAR(viewPosition, normalView, glossiness) 1.0
+#	define FO4_SKYLIGHTING_SPECULAR(viewPosition, normalView, glossiness) FO4_SPECULAR_UNOCCLUDED
 #endif
 
 // Sun lobes use probe visibility where upstream's SHADOW_VIS does.

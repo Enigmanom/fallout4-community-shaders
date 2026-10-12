@@ -18,6 +18,9 @@ load = true
 [features.DynamicCubemaps]
 load = true
 
+[features.ImageBasedLighting]
+load = true
+
 [features.WaterEffects]
 load = true
 

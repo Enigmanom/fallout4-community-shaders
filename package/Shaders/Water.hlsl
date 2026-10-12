@@ -473,7 +473,7 @@ float3 atmosphere(float3 eyeToPosition, out float alpha)
 	float3 fog = lerp(nearColor, farColor, blend);
 	alpha = density * alpha;
 	alpha = alpha * scale;
-	return fog;
+	return FO4_FOG_VANILLA_COLOR(fog);
 }
 
 #	ifdef STENCIL

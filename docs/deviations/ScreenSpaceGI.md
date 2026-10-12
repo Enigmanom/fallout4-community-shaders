@@ -35,5 +35,5 @@ Source/shader validation does not establish runtime parity.
 
 | Kind | Upstream | Notes / where |
 |---|---|---|
-| Pending | IBL/Skylighting ambient branches and remaining specular consumer families | Native cube SH/HQ composition is present; ambient-IBL variants and combined DynamicCubemaps/IBL/Skylighting provider coverage still need adapters and resource-value proof. Missing consumers are not an engine incompatibility |
+| Pending | Skylighting ambient branch and remaining specular consumer families | Native cube SH/HQ composition is present and the recompose carries the [IBL](IBL.md) ambient replacement through `FO4Ambient::DiffuseAlbedo`; the IBL-occluded recompose with the luminance restore is ported (see [IBL](IBL.md)); the Skylighting ambient branch and specular provider coverage still need adapters and resource-value proof. Missing consumers are not an engine incompatibility |
 | Pending | Material/glossiness coverage and batched runtime proof | Validate native hair/eye/material routes, radiance packing, first person, normal basis, vertex AO, SSAO state, full/half/quarter resolution, dynamic-size history, loading reset and saved/live settings through authorized DevBench/RenderDoc |

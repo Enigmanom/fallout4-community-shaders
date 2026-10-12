@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <string_view>
@@ -35,7 +36,43 @@ namespace cs::engine
 		std::uint64_t skippedNoCamera = 0;
 		std::uint64_t skippedNoTargets = 0;
 		std::uint64_t skippedNoWorld = 0;
+		// LOD properties whose flags were cleared around the clicks.
+		std::uint64_t lodFlagsToggledLast = 0;
+		std::uint64_t lodFlagsToggledTotal = 0;
+		std::uint64_t lodFlagsNsLast = 0;
+		std::uint64_t lodFlagsNsTotal = 0;
+		std::uint64_t lodFlagsSkipped = 0;
 	};
 
 	[[nodiscard]] SkyReflectionCubeStatus GetSkyReflectionCubeStatus() noexcept;
+
+	// One terrain LOD scene root as the cube sees it just before the click.
+	struct SkyReflectionCubeLodRoot
+	{
+		bool present = false;
+		bool appCulled = false;
+		std::uint16_t children = 0;
+		std::uint16_t culledChildren = 0;
+		// Per root child node, attach order: attached and app-culled children.
+		std::array<std::uint16_t, 4> levelChildren{};
+		std::array<std::uint16_t, 4> levelCulled{};
+	};
+
+	struct SkyReflectionCubeScene
+	{
+		bool sampled = false;
+		bool preCullEnabled = false;
+		bool preCullTempDisabled = false;
+		bool terrainManager = false;
+		// BGSTerrainManager +0x30 saved and +0x35 active cull bytes as bit masks.
+		std::uint8_t savedCull = 0;
+		std::uint8_t activeCull = 0;
+		bool cullActive = false;
+		SkyReflectionCubeLodRoot land;
+		SkyReflectionCubeLodRoot objects;
+		SkyReflectionCubeLodRoot trees;
+	};
+
+	// Sampled once per full cube cycle; thread safe.
+	[[nodiscard]] SkyReflectionCubeScene GetSkyReflectionCubeScene();
 }

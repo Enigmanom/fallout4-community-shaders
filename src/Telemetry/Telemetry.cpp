@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdio>
 #include <exception>
+#include <format>
 #include <limits>
 #include <sstream>
 #include <system_error>
@@ -445,6 +446,37 @@ namespace cs::telemetry
 						camera->CameraPreviousPosAdjust.z));
 		}
 
+		void CollectLodRoot(Sink& a_sink, std::string_view a_name, const cs::engine::SkyReflectionCubeLodRoot& a_root)
+		{
+			const auto key = [&](std::string_view a_field) { return std::format("{}_{}", a_name, a_field); };
+			a_sink
+				.Field(key("present"), a_root.present)
+				.Field(key("app_culled"), a_root.appCulled)
+				.Field(key("children"), static_cast<std::int64_t>(a_root.children))
+				.Field(key("culled_children"), static_cast<std::int64_t>(a_root.culledChildren));
+			for (std::size_t i = 0; i < a_root.levelChildren.size(); ++i) {
+				a_sink
+					.Field(key(std::format("l{}_children", i)), static_cast<std::int64_t>(a_root.levelChildren[i]))
+					.Field(key(std::format("l{}_culled", i)), static_cast<std::int64_t>(a_root.levelCulled[i]));
+			}
+		}
+
+		void CollectSkyReflectionCubeScene(Sink& a_sink)
+		{
+			const auto scene = cs::engine::GetSkyReflectionCubeScene();
+			a_sink
+				.Field("scene_sampled", scene.sampled)
+				.Field("pre_cull_enabled", scene.preCullEnabled)
+				.Field("pre_cull_temp_disabled", scene.preCullTempDisabled)
+				.Field("terrain_manager", scene.terrainManager)
+				.Field("terrain_cull_saved", static_cast<std::int64_t>(scene.savedCull))
+				.Field("terrain_cull_active", static_cast<std::int64_t>(scene.activeCull))
+				.Field("terrain_cull_override", scene.cullActive);
+			CollectLodRoot(a_sink, "land", scene.land);
+			CollectLodRoot(a_sink, "objects", scene.objects);
+			CollectLodRoot(a_sink, "trees", scene.trees);
+		}
+
 		void CollectSkyReflectionCube(Sink& a_sink)
 		{
 			const auto status = cs::engine::GetSkyReflectionCubeStatus();
@@ -463,7 +495,13 @@ namespace cs::telemetry
 				.Field("skipped_sky_hidden", TomlInteger(status.skippedSkyHidden))
 				.Field("skipped_no_camera", TomlInteger(status.skippedNoCamera))
 				.Field("skipped_no_targets", TomlInteger(status.skippedNoTargets))
-				.Field("skipped_no_world", TomlInteger(status.skippedNoWorld));
+				.Field("skipped_no_world", TomlInteger(status.skippedNoWorld))
+				.Field("lod_flags_toggled_last", TomlInteger(status.lodFlagsToggledLast))
+				.Field("lod_flags_toggled_total", TomlInteger(status.lodFlagsToggledTotal))
+				.Field("lod_flags_us_last", static_cast<double>(status.lodFlagsNsLast) / 1000.0)
+				.Field("lod_flags_us_total", static_cast<double>(status.lodFlagsNsTotal) / 1000.0)
+				.Field("lod_flags_skipped", TomlInteger(status.lodFlagsSkipped));
+			CollectSkyReflectionCubeScene(a_sink);
 		}
 
 		void CollectFrameBufferRegisters(Sink& a_sink)

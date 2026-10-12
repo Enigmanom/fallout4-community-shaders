@@ -94,12 +94,12 @@ namespace cs::settings
 		return registry;
 	}
 
-	inline void AddFeatureSections(Registry& a_registry, std::string_view a_key, SchemaView a_schema)
+	inline void AddFeatureSections(Registry& a_registry, std::string_view a_key, SchemaView a_schema, bool a_weatherProfiles = false)
 	{
 		a_registry.push_back({ { "features", std::string(a_key) }, MakeSchemaView(core::kActivation) });
 		if (!a_schema.empty())
 			a_registry.push_back({ { "features", std::string(a_key), "settings" }, std::move(a_schema) });
-		if (a_key == "ExponentialHeightFog")
+		if (a_weatherProfiles)
 			a_registry.push_back({ { "features", std::string(a_key), "weather" }, {}, true });
 	}
 }

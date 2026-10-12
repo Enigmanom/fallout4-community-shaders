@@ -69,8 +69,9 @@ namespace cs
 		TerrainVariationFeatureData terrainVariationSettings;
 		SkylightingFeatureData skylightingSettings;
 		ScreenSpaceGIFeatureData screenSpaceGISettings;
+		render::IBLSettings iblSettings;
 	};
-	static_assert(sizeof(FeatureDataCB) == 560);
+	static_assert(sizeof(FeatureDataCB) == 608);
 	static_assert(sizeof(FeatureDataCB) % 16 == 0);
 	static_assert(offsetof(FeatureDataCB, terrainShadowsSettings) == 0);
 	static_assert(offsetof(TerrainShadowsFeatureData, EnableTerrainShadow) == 0);
@@ -84,6 +85,7 @@ namespace cs
 	static_assert(offsetof(FeatureDataCB, waterEffectsSettings) == 336);
 	static_assert(offsetof(FeatureDataCB, terrainVariationSettings) == 352);
 	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 384);
+	static_assert(offsetof(FeatureDataCB, iblSettings) == 560);
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 

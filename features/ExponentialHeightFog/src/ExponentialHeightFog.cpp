@@ -17,7 +17,6 @@
 #include "Render/SharedData.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
-#include "World/Weather.h"
 
 namespace cs::features
 {
@@ -212,7 +211,7 @@ namespace cs::features
 		if (!engine::ValidateShaderInjectionRoutes("ExponentialHeightFog", a_error))
 			return false;
 		_operational.store(true, std::memory_order_release);
-		L->warn("Fog directional cascade input is unavailable: world-to-shadow transform/split contract needs RE. IBL, CloudShadows and local-light providers are absent.");
+		L->warn("Fog directional cascade input is unavailable: world-to-shadow transform/split contract needs RE. CloudShadows and local-light providers are absent.");
 		return true;
 	}
 
@@ -228,19 +227,7 @@ namespace cs::features
 			const std::lock_guard lock(_settingsMutex);
 			settings = _published;
 		}
-		const auto weather = engine::SnapshotWeather();
-		const auto key = [](const RE::TESWeather* value) {
-			if (value) {
-				if (auto* file = value->GetFile(0))
-					return decltype(_weather)::Key(value->GetFormID() & (file->IsLight() ? 0xFFFu : 0xFFFFFFu), file->GetFilename());
-			}
-			return std::string{};
-		};
-		const auto current = key(weather.current);
-		if (weather.previous)
-			_previousWeather = key(weather.previous);
-		const auto& previous = _previousWeather;
-		_frameSettings = _weather.Evaluate(ehf::kSchema, settings, previous, current, weather.transitionPct);
+		_frameSettings = _weather.EvaluateCurrentWeather(ehf::kSchema, settings);
 		_enabled.store(_frameSettings.enabled != 0, std::memory_order_relaxed);
 		auto* graphics = engine::GetGraphicsState();
 		auto* manager = engine::GetRenderTargetManager();
@@ -382,7 +369,7 @@ namespace cs::features
 					begin("ehf-inscattering", "Inscattering");
 				else if (field.key == "disableVanillaFog")
 					begin("ehf-vanilla", "Vanilla Fog");
-				else if (field.key == "useDynamicCubemaps")
+				else if (field.key == "useSkyIBL")
 					begin("ehf-cubemaps", "Cubemaps");
 				else if (field.key == "volumetricFogEnabled") {
 					begin("ehf-volumetric", "Volumetric Fog");

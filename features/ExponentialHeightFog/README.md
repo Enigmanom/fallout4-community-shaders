@@ -33,12 +33,12 @@ into an extinction model.
 
 ## Current limits
 
-Directional shadow scattering, analytic cubemap inscattering, IBL, CloudShadows and
+Directional shadow scattering, analytic cubemap inscattering, CloudShadows and
 clustered local-light providers are pending. Terrain shadow scattering uses the existing
 validated heightfield when available, and sky-light scattering uses the Skylighting probe
-array when that feature is healthy. Native fog color is supplied
-by the reconstructed shader equations, but native weather uploader/fade-brightness and
-sky-color mappings are unverified. Map/reflection coverage and native godray coexistence
+array and the Image Based Lighting spherical harmonics when those features are healthy.
+Native fog color is supplied by the reconstructed shader equations, but native weather
+uploader/fade-brightness and sky-color mappings are unverified. Map/reflection coverage and native godray coexistence
 are also pending. See `docs\deviations\ExponentialHeightFog.md`; this is not a full parity claim.
 
 ## Required in-game validation
@@ -55,7 +55,7 @@ After separate deployment/DevBench authorization, capture a build-pinned AE fram
   dynamic-resolution changes; no history or active-region edge artifacts.
 - Weather profile interpolation, missing/disabled profiles, live settings, persistence
   and debug selection; interiors and world/first-person projection boundaries.
-- Unbound shadow/local-light/IBL providers and native godray overlap are reported honestly.
+- Unbound shadow/local-light providers and native godray overlap are reported honestly.
 
 Use the DevBench-owned game and an authorized disposable fixture; protect named saves
 and leave MO2/profile/INI configuration unchanged.

@@ -75,25 +75,6 @@ namespace cs::engine
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// FO4: Umbra skips frustum tests; stock sun cascades bypass it the same way.
-		class ScopedPreCullBypass
-		{
-		public:
-			ScopedPreCullBypass() noexcept :
-				_wasDisabled(RE::BSPreCulledObjects::QTempDisabled())
-			{
-				RE::BSPreCulledObjects::SetTempDisabled(true, false);
-			}
-
-			~ScopedPreCullBypass() noexcept { RE::BSPreCulledObjects::SetTempDisabled(_wasDisabled, false); }
-
-			ScopedPreCullBypass(const ScopedPreCullBypass&) = delete;
-			ScopedPreCullBypass& operator=(const ScopedPreCullBypass&) = delete;
-
-		private:
-			const bool _wasDisabled;
-		};
-
 		template <class Hook>
 		HookInstall InstallCallSiteHook(const CallSiteAnchor& a_anchor)
 		{
