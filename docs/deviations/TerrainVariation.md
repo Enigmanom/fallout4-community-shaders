@@ -38,7 +38,6 @@ Pending rows remain unfinished and do not establish upstream parity.
 | Pending | `StochasticEffectParallax` and `StochasticHeightChannel` consumers (terrain and mesh POM, parallax soft shadows) | They need the Extended Materials marcher, which is not ported. The header functions are staged unchanged | Extended Materials slice |
 | Pending | Stochastic RMAOS for `TRUE_PBR` landscape and meshes | FO4 has no TruePBR consumer yet. The FO4 material map is already sampled with the shared offsets | TruePBR slice |
 | Pending | Residual seams in admitted textures | Mild cases remain in the scan: `rockslab02` 1.05, `driedgrass01`, some mud and silt specs, `dirtclifferoded` 1.21. They are admitted by folder and stay under review | `TerrainVariation.cpp` |
-| Pending | Runtime proof | Verified in game on AE 1.11.240: near terrain, the LOD terrain toggle, mesh variation (road edges no longer darken), live toggles and menu registration; mesh flagging working confirms the `NiTexture::name` form. Remaining: DLSS/FSR on, terrain and regular prepass surfaces match upstream sharpness with a single (not double) bias; BGSM decal-to-property-flag mapping; the 9 `EYE \| COMBINED` variants' constant-table 0x60 register equals the pad register; menus with HDR (the #2717 regression class); OG/NG, verified only from the address databases. `feature=TerrainVariation` telemetry reports classified records, mesh-flagged records, and the lanes baked or unavailable | `package/Shaders/DFPrepass.hlsl`, `ShaderSubclassHooks.cpp` |
 
 ## Upstream bug
 

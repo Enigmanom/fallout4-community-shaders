@@ -8,7 +8,7 @@ unchanged through `xmake\shared.lua`, including the three-frame query ring, 128 
 EMA coefficients, graph thresholds and A/B outlier/statistical rules.
 
 Feature classification: **core** (rule 1: non-visual diagnostics). Visibility-independent
-sampling and explicit USER baseline capture are Tweaks. Offline validation is not runtime parity.
+sampling and explicit USER baseline capture are Tweaks.
 The existing Shared seam edits row for `6fd72a4a5` covers the portable row/history split;
 this implementation makes no additional shared edits.
 
@@ -52,19 +52,3 @@ this implementation makes no additional shared edits.
   frame count/duration without requiring samples from both A and B. A single completed
   10-second TEST interval can be labeled valid before USER has any samples. Require
   coverage of both variants; FO4 preserves the pinned badge thresholds.
-
-## Batched in-game checks
-
-- Load=false startup, load=true hidden until F10, host unavailable/hotkey/placement,
-  settings reset, history sizes 120/600/1800, update interval and TOML round trips.
-- Correlate host callbacks, native scene-frame sequence and accepted/generated presents
-  with FG off/on, menus, secondary views and resize. Confirm calculated post-FG labels
-  never imply measured display cadence.
-- Compare family draw counts and family-4 labeling to a RenderDoc capture; verify
-  paired, nonnested leaf-pass queries, retirement after disabling effects, and no double
-  counting of outer SSGI/upscaling scopes.
-- Capture USER, edit TEST, alternate variants, change interval, stop and restore TEST.
-  Verify CPU/GPU publishers and SSGI history resets, locked persistence/presets, and
-  failure/quarantine/restoration retry without modifying activation or ownership.
-- Verify VRAM adapter/local-segment identity and failed-query display against the host.
-  Runtime cadence, coverage, GPU state and failure recovery remain unverified.

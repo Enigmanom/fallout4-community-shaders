@@ -810,28 +810,6 @@ namespace cs::features
 				dlssCapabilities.maxGeneratedFrames ? dlssCapabilities.maxGeneratedFrames + 1 : 0,
 				dlssCapabilities.dynamicModeSupported ? "yes" : "no",
 				dlssCapabilities.providerStatus);
-			if (fidelityFx.fsr4FrameGeneration.availability !=
-				render::temporal::CapabilityAvailability::kUnknown) {
-				const auto& runtime =
-					fidelityFx.fsr4FrameGeneration;
-				const auto runtimeSource =
-					render::temporal::
-						FidelityFXD3D12RuntimeSourceName(
-							runtime.d3d12RuntimeSource);
-				dmui::ui::TextDisabled(
-					"FSR 4 proof: reason %u | Windows 11 %s | SM %u.%u | D3D12 %.*s %u.%u.%u.%u | SDK %u",
-					runtime.unavailableReason,
-					runtime.windows11OrGreater ? "yes" : "no",
-					runtime.shaderModelMajor,
-					runtime.shaderModelMinor,
-					static_cast<int>(runtimeSource.size()),
-					runtimeSource.data(),
-					runtime.d3d12CoreVersionMajor,
-					runtime.d3d12CoreVersionMinor,
-					runtime.d3d12CoreVersionPatch,
-					runtime.d3d12CoreVersionRevision,
-					runtime.requestedD3D12SDKVersion);
-			}
 			if (currentStatus.pending.required) {
 				dmui::ui::TextDisabled(
 					"Restart required: %s",

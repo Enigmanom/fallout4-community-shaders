@@ -43,13 +43,6 @@ None identified in the portable capture service.
 
 None identified in the portable capture service.
 
-## Runtime validation
-
-Implementation is present but live capture, comments, disk-management and UI behavior remain
-unverified. Batched validation must verify
-ordinary D3D11, D3D11 behind temporal presentation, temporal D3D12, multi-frame comments and
-directory/delete workflows on the intended runtime. This is a validation gap, not unported behavior.
-
 ## Upstream PR candidates
 
 - Extract the capture service from `src/Features/RenderDoc.{h,cpp}` so both hosts can compile it

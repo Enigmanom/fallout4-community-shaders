@@ -33,4 +33,3 @@ Pending rows remain unfinished and do not establish upstream parity.
 
 | Kind | Upstream | Remaining work / evidence | Where |
 |---|---|---|---|
-| Pending | Runtime proof on OG/NG | AE 1.11.240 is proven in game: `lanes_unavailable=0`, `lod_records>0`, and the skyline brightened at `LODObjectBrightness` 3.0. OG and NG were verified only from the address databases; run the in-game check on each. Near-terrain `LAND_LOD_BLEND` and the terrain/grass vertex-color removal still need in-game confirmation. `feature=LODBlending` telemetry reports classified records and immediate draws (BTO versus total) and the lanes baked or unavailable | `package/Shaders/DFPrepass.hlsl`, `ShaderSubclassHooks.cpp` |

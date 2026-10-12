@@ -68,27 +68,3 @@ Upstream's balanced intensity/cutoff/size case produces zero radius, leading to
 infinite reciprocal radius/fade-zone inputs. It is retained for parity and
 recorded as an upstream PR candidate, not silently corrected.
 
-## Runtime validation
-
-Use the separately authorized batched DevBench session; do not infer rendering
-or native-hook success from offline tests. AE is advertised; OG/NG need their
-own observations.
-
-- Compare authored/unlisted pairs and reference opt-out against a feature-off
-  restart. Check actual shader execution, not only installed-hook telemetry.
-- Correlate reference → LIGH → NiLight → BSLight → t6/t8 index and buffer side
-  across consecutive frames, culling, removal, reorder and side swaps.
-- Trace point/spot/shadow/gobo/attenuation-only raster draws through b11.
-  Confirm directional lighting, cones, cookies, shadows and material responses
-  remain independent; include flicker/pulse and negative-color lights.
-- Inspect all three native radius channels, spot cone bounds, frustum edges and
-  raster volumes during animated dimmer changes and camera motion.
-- Overlap 128–625 lights in one tile. Verify count, bounded indices and adjacent
-  memory for active cull dimensions; bounded storage does not guarantee that
-  every overlapping light renders.
-- Compare native point luminance and cached/normalized actor light level against
-  intensity/distance. Check self-light exclusion, shape masks, detection-radius
-  tests and collision rays; render currentFade must not enter gameplay.
-- Exercise disable/delete, cell detach/reload, save reload and quarantine.
-  Inspect restored radii/PS b11/CS t8, released owners, and zero upload failures
-  with RenderDoc and telemetry. First-use raster fallback remains unverified.

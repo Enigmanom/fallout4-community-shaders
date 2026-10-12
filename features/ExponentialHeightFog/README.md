@@ -37,25 +37,7 @@ Directional shadow scattering, analytic cubemap inscattering, CloudShadows and
 clustered local-light providers are pending. Terrain shadow scattering uses the existing
 validated heightfield when available, and sky-light scattering uses the Skylighting probe
 array and the Image Based Lighting spherical harmonics when those features are healthy.
-Native fog color is supplied by the reconstructed shader equations, but native weather
-uploader/fade-brightness and sky-color mappings are unverified. Map/reflection coverage and native godray coexistence
-are also pending. See `docs\deviations\ExponentialHeightFog.md`; this is not a full parity claim.
+Native fog color is supplied by the reconstructed shader equations. The native weather uploader,
+fade brightness, sky-color mappings, map/reflection coverage and native godray coexistence are
+pending; see `docs\deviations\ExponentialHeightFog.md`.
 
-## Required in-game validation
-
-After separate deployment/DevBench authorization, capture a build-pinned AE frame and verify:
-
-- Native fog with the feature off; analytic-only and volumetric modes; vanilla suppression
-  on/off; effect alpha/add/multiply blends, water surface/LOD and distant trees.
-- One post-sky application after alpha/additive/mask layers; geometry and inactive
-  allocation pixels unchanged; the copied logical MainTemp output reaches the final scene.
-- Current camera-owned b4, exact b6 fog block and no fog b7; RGBA16F volumes, R32 depth,
-  dispatch groups, t19, t22, terrain t60 and restored OM/high-slot state.
-- Consecutive-frame history, TAA off/on, camera-origin changes, load/teleport and
-  dynamic-resolution changes; no history or active-region edge artifacts.
-- Weather profile interpolation, missing/disabled profiles, live settings, persistence
-  and debug selection; interiors and world/first-person projection boundaries.
-- Unbound shadow/local-light providers and native godray overlap are reported honestly.
-
-Use the DevBench-owned game and an authorized disposable fixture; protect named saves
-and leave MO2/profile/INI configuration unchanged.

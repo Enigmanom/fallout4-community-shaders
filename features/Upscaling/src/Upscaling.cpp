@@ -390,27 +390,6 @@ namespace cs::features
 				MethodName(settings.upscaleMethod).data(),
 				static_cast<int>(effectiveName.size()),
 				effectiveName.data());
-			if (fidelityFx.fsr4SuperResolution.availability !=
-				render::temporal::CapabilityAvailability::kUnknown) {
-				const auto& runtime = fidelityFx.fsr4SuperResolution;
-				const auto runtimeSource =
-					render::temporal::
-						FidelityFXD3D12RuntimeSourceName(
-							runtime.d3d12RuntimeSource);
-				dmui::ui::TextDisabled(
-					"Runtime proof: Windows 11 %s | SM %u.%u | D3D12 %.*s "
-					"%u.%u.%u.%u | EXE SDK request %u",
-					runtime.windows11OrGreater ? "yes" : "no",
-					runtime.shaderModelMajor,
-					runtime.shaderModelMinor,
-					static_cast<int>(runtimeSource.size()),
-					runtimeSource.data(),
-					runtime.d3d12CoreVersionMajor,
-					runtime.d3d12CoreVersionMinor,
-					runtime.d3d12CoreVersionPatch,
-					runtime.d3d12CoreVersionRevision,
-					runtime.requestedD3D12SDKVersion);
-			}
 			if (currentStatus.pending.required)
 				dmui::ui::TextDisabled(
 					"Restart required: %s",

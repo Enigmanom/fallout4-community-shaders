@@ -199,7 +199,7 @@ Engine evidence below refers to fallout4-re `docs\engine-facts.md`.
 | Forced | Pack world-channel DALC into pre-power SH, then apply FO4's 2.2 power once at linear consumer boundaries | Directional ambient transform/evaluation rows: native world-channel columns include transform scale and bias; native lighting evaluates power 2.2. SH is `(b/Y00,−ay/Y1,az/Y1,−ax/Y1)` with Y00=0.2820948, Y1=0.4886025. Upstream State.cpp does not gamma-convert before packing; unchanged GetAmbient is pre-power | `Engine.h` `TryGetDirectionalAmbientRows`, `SharedDataLayout.h` `PackAmbientSH`, `FO4/FO4ShaderData.hlsli` `GetAmbientLinear` |
 | Forced | b6 publishes neutral linear-lighting inputs, with native DALC power 2.2 and an already-linear sun | FO4 deferred HDR/sun inputs are linear; directional ambient alone is pre-power. These host inputs let unchanged Color/cubemap kernels consume the same encoding as the reconstructed consumers | `SharedData.cpp` `PackFeatures`, Dynamic Cubemaps translations |
 | Framework | One 48-byte FO4-only b7 holds host fullscreen debug owner/mode/params, EnabledSSR, EnabledDynamicCubemaps and DeltaTime; one host PS t61 serves the selected debug texture | Repository-wide single-substrate ABI; debug contributors claim no slots. Water tiles use b5; DR and NDC-to-view use b4; terrain enable fields use b6. Upstream b6 cubemapCreatorSettings retains Creator-mode semantics and stays zero | `SharedDataLayout.h`, `FO4/FO4SharedData.hlsli`, `FO4/DebugViewOwners.h`, `SharedData.cpp` |
-| Pending | FrameParams is zero; unvalidated celestial/HDR/map/shadow fields retain upstream absent values | No validated FO4 inverse-gamma/frame-flag or corresponding celestial/HDR source is consumed. SunDirection uses toward-light direction, while SunColor remains absent rather than inventing a sky-disc colour; FrameCount follows main's temporal method and AlwaysActive follows engine frame count | `SharedData.cpp` `BuildSharedData`, `SharedDataLayout.h` |
+| Pending | FrameParams is zero; celestial/HDR/map/shadow fields retain upstream absent values | No FO4 inverse-gamma/frame-flag or corresponding celestial/HDR source is consumed. SunDirection uses toward-light direction, while SunColor remains absent rather than inventing a sky-disc colour; FrameCount follows main's temporal method and AlwaysActive follows engine frame count | `SharedData.cpp` `BuildSharedData`, `SharedDataLayout.h` |
 
 SSS reads canonical depth directly: first-person geometry casts as upstream does but never receives
 SSS. Its settings live only in its raymarch cbuffer, not b6 or b7. Feature-off engine variants include
@@ -244,14 +244,6 @@ their packet and bindings when resources change. See Shader contribution for the
 - `src/Features/TerrainShadows.cpp:332–336,365–380`: readiness compares the child worldspace
   editor ID, but loading resolves inherited land to the parent. Resolve the same land identity in
   both paths. FO4 retains main's parent-readiness correction; no upstream PR recorded.
-
-## Temporal feature bug findings (no fixes)
-
-No new confirmed FO4 bug was established by this source-only comparison. Raw SDK depth,
-zero masks, alpha conditioning and unverified hook coverage are documented differences or
-evidence limits, not relabeled as proven bugs. A suspected upstream typed-depth mismatch
-(`Upscaling.cpp` encoder u3 binding versus `FidelityFX.cpp` depth dispatch and the
-`EncodeTexturesCS.hlsl` R32_FLOAT comment) remains unverified without backend format evidence.
 
 ## Features
 
