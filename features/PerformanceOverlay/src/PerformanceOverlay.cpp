@@ -556,7 +556,12 @@ namespace cs::features
 
 	void PerformanceOverlay::DrawPasses()
 	{
-		const auto& results = render::profiling::GetProfiler().GetResults();
+		const auto now = Util::GetNowSecs();
+		if (_statistics.empty() || now - _statisticsTime >= Settings::kStatisticsRefreshSeconds) {
+			_statistics = render::profiling::GetProfiler().GetStatistics();
+			_statisticsTime = now;
+		}
+		const auto& results = _statistics;
 		(void)dmui::ui::Checkbox("CPU timings", &_cpuTimings);
 		if (results.empty()) {
 			dmui::ui::TextDisabled("No timing data available (enter game world)");

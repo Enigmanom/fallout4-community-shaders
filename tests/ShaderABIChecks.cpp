@@ -94,7 +94,9 @@ namespace
 			F(CloudsColorFilter), F(CloudsIntensity), F(CloudsVertexAlphaBoost), F(CloudsEdgeClamp), F(CloudsEdgeFadePower), F(SunBillboardTan),
 			F(MasserBillboardTan), F(SecundaBillboardTan), F(SkyScatteringPad0), F(EnableWater), F(WaterWavesAmplitude), F(WaterMuddiness),
 			F(WaterSunLightingMultiplier), F(WaterSunSpecularMultiplier), F(WaterFresnelMin), F(WaterFresnelMax), F(WaterFresnelMultiplier),
-			F(WaterReflectionAmount), F(WaterPad0), F(WaterPad1), F(WaterPad2));
+			F(WaterReflectionAmount), F(WaterPad0), F(WaterPad1), F(WaterPad2), F(StarsCurve), F(StarsIntensity), F(MoonCurve),
+			F(EnableAnimatedStars), F(StarsAnimationTime), F(StarsAnimationDensity), F(StarsAnimationIntensity), F(AuroraIntensity),
+			F(AuroraCurve), F(FixBlackCrush), F(NightSkyPad0));
 		const auto blending = FIELDS(TerrainBlendingSettings, F(Enabled), F(_padding));
 		const auto fog = FIELDS(ExponentialHeightFogSettings, F(enabled), F(useDynamicCubemaps), F(startDistance), F(fogHeight), F(fogHeightFalloff),
 			F(fogDensity), F(fogHeight2), F(fogHeightFalloff2), F(fogDensity2), F(directionalInscatteringMultiplier), F(directionalInscatteringAnisotropy),

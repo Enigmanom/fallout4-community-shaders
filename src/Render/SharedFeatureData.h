@@ -122,7 +122,7 @@ namespace cs::render
 		std::uint32_t EnableVolumetricRays;
 		float VolumetricRaysIntensity, VolumetricRaysExtinction, VolumetricRaysSkyColorAmount;
 		float VolumetricRaysDesaturation, VolumetricRaysColorFilter[3];
-		// Effects11 sky/cloud/water blocks; FO4 has no Effects11, so they stay zero.
+		// Effects11 blocks; FO4 has no Effects11, so they stay zero.
 		std::uint32_t EnableCloudsScattering;
 		float SkyScatteringIntensity, SkyScatteringShadowAmount, SkyScatteringAmount;
 		float SkyScatteringColor[3], SkyScatteringDustDarkening;
@@ -140,6 +140,12 @@ namespace cs::render
 		float WaterWavesAmplitude, WaterMuddiness, WaterSunLightingMultiplier;
 		float WaterSunSpecularMultiplier, WaterFresnelMin, WaterFresnelMax, WaterFresnelMultiplier;
 		float WaterReflectionAmount, WaterPad0, WaterPad1, WaterPad2;
+		float StarsCurve, StarsIntensity, MoonCurve;
+		std::uint32_t EnableAnimatedStars;
+		float StarsAnimationTime, StarsAnimationDensity, StarsAnimationIntensity, AuroraIntensity;
+		float AuroraCurve;
+		std::uint32_t FixBlackCrush;
+		float NightSkyPad0[2];
 	};
 	struct TerrainBlendingSettings
 	{
@@ -225,12 +231,12 @@ namespace cs::render
 	CS_FEATURE_LAYOUT(iblSettings, 656, 48);
 	CS_FEATURE_LAYOUT(extendedTranslucencySettings, 704, 16);
 	CS_FEATURE_LAYOUT(linearLightingSettings, 720, 112);
-	CS_FEATURE_LAYOUT(enbSettings, 832, 368);
-	CS_FEATURE_LAYOUT(terrainBlendingSettings, 1200, 16);
-	CS_FEATURE_LAYOUT(exponentialHeightFogSettings, 1216, 240);
-	CS_FEATURE_LAYOUT(truePBRSettings, 1456, 16);
-	CS_FEATURE_LAYOUT(skinData, 1472, 112);
-	CS_FEATURE_LAYOUT(horizonFixSettings, 1584, 16);
+	CS_FEATURE_LAYOUT(enbSettings, 832, 416);
+	CS_FEATURE_LAYOUT(terrainBlendingSettings, 1248, 16);
+	CS_FEATURE_LAYOUT(exponentialHeightFogSettings, 1264, 240);
+	CS_FEATURE_LAYOUT(truePBRSettings, 1504, 16);
+	CS_FEATURE_LAYOUT(skinData, 1520, 112);
+	CS_FEATURE_LAYOUT(horizonFixSettings, 1632, 16);
 #undef CS_FEATURE_LAYOUT
-	static_assert(sizeof(SharedFeatureDataCB) == 1600);
+	static_assert(sizeof(SharedFeatureDataCB) == 1648);
 }

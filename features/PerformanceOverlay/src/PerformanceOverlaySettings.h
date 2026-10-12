@@ -16,6 +16,7 @@ namespace cs::features::performance_overlay
 		static constexpr float kGraphSpreadMultiplier = 2.0f;
 		static constexpr float kGraphMinSpread = 2.0f;
 		static constexpr float kGraphMaxSpread = 20.0f;
+		static constexpr double kStatisticsRefreshSeconds = 1.0;
 		static constexpr float kFrameGenerationMultiplier = 2.0f;
 
 		bool ShowInOverlay = true;

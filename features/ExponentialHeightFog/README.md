@@ -1,7 +1,7 @@
 # Exponential Height Fog
 
 Uses the unchanged analytic and four-pass volumetric shaders from the shared pin (upstream
-`488e408a9`), including the second fog layer, volumetric noise and the near/far volume split.
+`dc75702c7`), including the second fog layer, volumetric noise and the near/far volume split.
 This replaces the native-ramp extinction approximation.
 
 Set `load = true`, configure the relevant native shader ownership and restart.

@@ -26,7 +26,7 @@ Core classification is not a claim of complete parity; Pending work remains unfi
 
 ## Shared seam edits
 
-Shared pin: the `extern\community-shaders-shared` submodule commit; upstream base `488e408a9`.
+Shared pin: the `extern\community-shaders-shared` submodule commit; upstream base `dc75702c7`.
 FO4 consumes unchanged files through `xmake\shared.lua`; shared include paths cannot be replaced.
 The native entry-point naming boundary is documented under Shader replacement.
 
@@ -34,9 +34,6 @@ The native entry-point naming boundary is documented under Shader replacement.
 |---|---|---|---|---|
 | Framework | `src/Features/PerformanceOverlay.h`, `src/Features/PerformanceOverlay/{CircularBuffer,DrawCallRow}.h`, `src/Features/PerformanceOverlay/ABTesting/ABTestAggregator.{h,cpp}` | `6fd72a4a5` | Split portable history/timing rows from the Skyrim feature header so hosts can consume them without its engine dependencies | In the shared fork; upstream PR candidate, not filed |
 | Forced | `package/Shaders/Common/FrameBuffer.hlsli` | `e305ed0a4` | `FRAMEBUFFER_REGISTER` defaults to b12 and permits host binding at b4; FO4 engine shaders already bind the native per-frame buffer at b12 (`package/Shaders/Water.hlsl:3`, `cbuffer PerFrame : register(b12)`) | In the shared fork; no upstream PR recorded |
-| Fix | `features/Screen-Space Shadows/Shaders/ScreenSpaceShadows/ScreenSpaceShadows.hlsli:7` | `6f81ebc25` | Remove the extra half-pixel offset from pixel-centered SV_POSITION before integer mask lookup | In the shared fork; upstream PR candidate, not filed |
-| Forced | `features/Light Limit Fix/Shaders/LightLimitFix/Attenuation.hlsli`, `LightLimitFix.hlsli` | `b57493893` | Move `GetAttenuation` and its constants into their own include; `LightLimitFix.hlsli` includes it, so upstream callers are unchanged. The rest of `LightLimitFix.hlsli` declares Skyrim's clustered-lighting b3 `StrictLightData` and t35-t37 buffers, which FO4 cannot include | In the shared fork; community-shaders/skyrim-community-shaders#2864 |
-| Fix | `src/Features/ExponentialHeightFog.{h,cpp}`, `features/Exponential Height Fog/Shaders/ExponentialHeightFog/VolumetricFogCSCommon.hlsli` | `9d7087ed9` | Far volume reads its own history weight from `historyParameters.z`; the shared `.x` blended an empty far history at the near weight | In the shared fork; community-shaders/skyrim-community-shaders#2865 |
 | Fix | `features/IBL/Shaders/IBL/IBL.hlsli` | `c766bc3d` | `GetIBLColorOccluded` read the environment SH in every `DALCMode`, though modes 2 and 3 never project it; it now delegates to `GetDiffuseIBLOccluded` with the vanilla DALC at the ray | community-shaders/skyrim-community-shaders#2882 |
 | Forced | `features/Dynamic Cubemaps/Shaders/DynamicCubemaps/CaptureCommon.hlsli` | `83efe1ad9` | Optional prepared position/color/UV inputs, geometry/sky tags and capture origin isolate FO4's +Z, partitioned depth, infinite far plane and diffuse reconstruction; default Skyrim sampling/history are unchanged | In the shared fork; upstream PR candidate, not filed |
 | Forced | `features/Dynamic Cubemaps/Shaders/DynamicCubemaps/DynamicCubemaps.hlsli` | `83efe1ad9` | Optional cube registers/custom-consumer guard and extracted explicit-sampler normalization let native FO4 deferred slots/samplers call shared arithmetic; default Skyrim registers/consumers are unchanged | In the shared fork; upstream PR candidate, not filed |
@@ -217,12 +214,6 @@ their packet and bindings when resources change. See Shader contribution for the
   documented positive minimum upstream. FO4 retains the pinned zero-radius
   behavior; no upstream PR or local correction is recorded.
 
-- `features/Screen-Space Shadows/Shaders/ScreenSpaceShadows/ScreenSpaceShadows.hlsli:7`:
-  shared-fork fix `6f81ebc25` removes the extra 0.5 before truncating pixel-centered `SV_POSITION`.
-  Upstream Lighting, DistantTree and all three RunGrass callers pass SV_POSITION unchanged;
-  Bend writes `floor(pixel_xy)`. The offset reads the next mask texel in both axes in Skyrim
-  and FO4. FO4 uses the corrected shared sampler without a counter-offset.
-  Upstream PR candidate, not filed.
 - `src/Utils/PerfUtils.h:41`: `Mean` implicitly converts `size_t` to float, raising C4267
   under FO4's `/W4 /WX`; an explicit float conversion preserves its current arithmetic.
   FO4 scopes the warning in `src/Shared/PerfUtils.h`, without changing shared behavior.

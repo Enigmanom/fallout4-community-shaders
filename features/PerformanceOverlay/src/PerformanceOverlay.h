@@ -6,6 +6,7 @@
 #include <DearModdingUI/UI.h>
 #include <Features/PerformanceOverlay/ABTesting/ABTestAggregator.h>
 #include <Features/PerformanceOverlay/CircularBuffer.h>
+#include <Profiler.h>
 #include <map>
 
 namespace cs::features
@@ -67,6 +68,8 @@ namespace cs::features
 		int _testInterval{}, _passSort = 1, _drawSort = 2, _groupSort = 1, _testSort = 3;
 		bool _passDescending = true, _drawDescending = true, _groupDescending = true, _testDescending = true;
 		bool _cpuTimings{};
+		double _statisticsTime{};
+		std::vector<Profiler::TimerResult> _statistics;
 		std::string _testError;
 	};
 }
