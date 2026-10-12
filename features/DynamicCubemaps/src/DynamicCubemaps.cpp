@@ -529,7 +529,7 @@ namespace cs::features
 		D3D11_TEXTURE2D_DESC scratchDesc{};
 		scratchDesc.Width = kCubemapSize / 4;
 		scratchDesc.Height = kCubemapSize / 4;
-		scratchDesc.MipLevels = kBc6hMipLevels;
+		scratchDesc.MipLevels = kBc6hScratchMipLevels;
 		scratchDesc.ArraySize = 6;
 		scratchDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
 		scratchDesc.SampleDesc.Count = 1;
@@ -546,7 +546,7 @@ namespace cs::features
 			D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
 		scratchUavDesc.Texture2DArray.FirstArraySlice = 0;
 		scratchUavDesc.Texture2DArray.ArraySize = 6;
-		for (std::uint32_t mip = 0; mip < kBc6hMipLevels; ++mip) {
+		for (std::uint32_t mip = 0; mip < kBc6hScratchMipLevels; ++mip) {
 			scratchUavDesc.Texture2DArray.MipSlice = mip;
 			DX::ThrowIfFailed(a_device->CreateUnorderedAccessView(
 				_bc6hScratchTexture.get(),
@@ -555,6 +555,30 @@ namespace cs::features
 			cs::render::annotation::SetName(
 				_bc6hScratchUAVs[mip].get(),
 				std::format("DynamicCubemaps/BC6H.Scratch.Mip{}.UAV", mip));
+		}
+
+		// Sub-4x4 mips still take one block each, so they encode into a 1x1 tail.
+		D3D11_TEXTURE2D_DESC tailDesc = scratchDesc;
+		tailDesc.Width = 1;
+		tailDesc.Height = 1;
+		tailDesc.MipLevels = 1;
+		tailDesc.ArraySize = 6 * (kBc6hMipLevels - kBc6hScratchMipLevels);
+		DX::ThrowIfFailed(a_device->CreateTexture2D(
+			&tailDesc, nullptr, _bc6hTailScratchTexture.put()));
+		cs::render::annotation::SetName(
+			_bc6hTailScratchTexture.get(),
+			"DynamicCubemaps/BC6H.TailScratch.Texture");
+		scratchUavDesc.Texture2DArray.MipSlice = 0;
+		for (std::uint32_t mip = kBc6hScratchMipLevels; mip < kBc6hMipLevels; ++mip) {
+			scratchUavDesc.Texture2DArray.FirstArraySlice =
+				6 * (mip - kBc6hScratchMipLevels);
+			DX::ThrowIfFailed(a_device->CreateUnorderedAccessView(
+				_bc6hTailScratchTexture.get(),
+				&scratchUavDesc,
+				_bc6hScratchUAVs[mip].put()));
+			cs::render::annotation::SetName(
+				_bc6hScratchUAVs[mip].get(),
+				std::format("DynamicCubemaps/BC6H.TailScratch.Mip{}.UAV", mip));
 		}
 
 		const auto createCompressedCube = [a_device](
@@ -1146,9 +1170,19 @@ namespace cs::features
 			a_reflections ? _reflectionsBC6H : _environmentBC6H;
 		auto& published = a_reflections ? _reflections : _environment;
 		cs::render::annotation::ScopedEvent timing("DynamicCubemaps::Publish");
-		context->CopyResource(
-			compressed.texture.get(),
-			_bc6hScratchTexture.get());
+		for (std::uint32_t level = 0; level < kBc6hMipLevels; ++level) {
+			for (std::uint32_t face = 0; face < 6; ++face) {
+				const bool tail = level >= kBc6hScratchMipLevels;
+				context->CopySubresourceRegion(
+					compressed.texture.get(),
+					D3D11CalcSubresource(level, face, kBc6hMipLevels),
+					0, 0, 0,
+					tail ? _bc6hTailScratchTexture.get() : _bc6hScratchTexture.get(),
+					tail ? D3D11CalcSubresource(0, (level - kBc6hScratchMipLevels) * 6 + face, 1) :
+						   D3D11CalcSubresource(level, face, kBc6hScratchMipLevels),
+					nullptr);
+			}
+		}
 		context->CopyResource(
 			published.texture.get(),
 			_filtered.texture.get());

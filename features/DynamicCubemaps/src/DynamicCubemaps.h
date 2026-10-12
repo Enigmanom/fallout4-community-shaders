@@ -82,7 +82,9 @@ namespace cs::features
 	private:
 		static constexpr std::uint32_t kCubemapSize = 256;
 		static constexpr std::uint32_t kMipLevels = 9;
-		static constexpr std::uint32_t kBc6hMipLevels = 7;
+		static constexpr std::uint32_t kBc6hMipLevels = kMipLevels;
+		// Mips down to one block (4x4 texels) encode into the quarter-size scratch.
+		static constexpr std::uint32_t kBc6hScratchMipLevels = 7;
 		static constexpr std::uint32_t kPreviewWidth = 512;
 		static constexpr std::uint32_t kPreviewHeight = 256;
 		static constexpr std::uint32_t kDynamicCubemapPSSlot = 30;
@@ -227,6 +229,7 @@ namespace cs::features
 		CompressedCube _reflectionsBC6H;
 		winrt::com_ptr<ID3D11ShaderResourceView> _filteredArraySRV;
 		winrt::com_ptr<ID3D11Texture2D> _bc6hScratchTexture;
+		winrt::com_ptr<ID3D11Texture2D> _bc6hTailScratchTexture;
 		std::array<
 			winrt::com_ptr<ID3D11UnorderedAccessView>,
 			kBc6hMipLevels>

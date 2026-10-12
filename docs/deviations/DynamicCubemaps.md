@@ -16,8 +16,7 @@ from the shared fork. Only `CaptureCommon.hlsli` and `DynamicCubemaps.hlsli` hav
 listed in [shared seam edits](README.md#shared-seam-edits); accumulation, lighting-change detection, inference, 16-sample GGX and BC6H remain
 shared. Prepared samples explicitly distinguish geometry/sky, so the default lighting detector
 still excludes sky while reflection accumulation includes it. FO4 has no local kernel copies.
-Inference/filter texel addressing, roughness × 8 on
-seven-mip BC6H textures, and bilinear capture depth retain the pinned behavior; no new Fix is applied.
+Inference/filter texel addressing and bilinear capture depth retain the pinned behavior; no new Fix is applied.
 
 ## Translations
 
@@ -75,7 +74,5 @@ seven-mip BC6H textures, and bilinear capture depth retain the pinned behavior; 
   irradiance preserve existing arithmetic while supporting native deferred consumers. No PR filed.
 - `InferCubemapCS.hlsl:22`, `SpecularIrradianceCS.hlsl` `GetSamplingVector`: integer texel/extent
   addresses cube edges rather than centers. Retained exactly; candidate fix is adding 0.5.
-- `DynamicCubemaps.hlsli` roughness × 8: compressed publication has seven mips, so high roughness
-  clamps before the intended nine-mip filter chain. Retained; align BC6H publication and consumer LOD.
 - `CaptureCommon.hlsli` `SampleCapture`: bilinear depth can blend foreground/sky or projection
   partitions into a nonexistent surface. Retained; evaluate point depth or geometry-aware sampling.
