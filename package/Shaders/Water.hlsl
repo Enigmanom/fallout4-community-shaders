@@ -316,6 +316,16 @@ float3 unpackNormal(float2 texel)
 	return float3(tangent, sqrt(1.0 - min(dot(tangent, tangent), 1.0)));
 }
 
+// FO4: share the upstream distance blend across surface, underwater, specular and SSLR normals.
+float WaterDistanceBlendFactor(float distanceFactor)
+{
+	float distanceBlendFactor = distanceFactor;
+#	if defined(UNIFIED_WATER)
+	distanceBlendFactor = 1.0f;
+#	endif
+	return distanceBlendFactor;
+}
+
 float3 blendedNormal(float2 uv0, float2 uv1, float2 uv2, float fade)
 {
 	float3 detail0 = unpackNormal(texture4.Sample(sampler4, uv0).xy);
@@ -333,6 +343,7 @@ float3 blendedNormal(float2 uv0, float2 uv1, float2 uv2, float fade)
 // FO4: SSLR ray passes rebuild the normal and need the same offset.
 float3 surfaceNormal(PS_INPUT input, float fade)
 {
+	fade = WaterDistanceBlendFactor(fade);
 	float2 uv0 = input.normalUv01.xy;
 	float2 uv1 = input.normalUv01.zw;
 	float2 uv2 = input.normalUv2.xy;
@@ -883,7 +894,7 @@ float4 main(PS_INPUT input) : SV_Target0
 #		endif
 
 	float3 color = lerp(refraction, water, fresnel * perMaterial[8].y);
-	color = lerp(tinted, color, fade);
+	color = lerp(tinted, color, WaterDistanceBlendFactor(fade));
 #		ifndef INTERIOR
 	color = color + lighting;
 #		endif

@@ -1,0 +1,337 @@
+#include "UnifiedWater.h"
+
+#include "Log.h"
+#include "RE/B/BSModelDB.h"
+#include "RE/N/NiCloningProcess.h"
+#include "RE/N/NiUpdateData.h"
+#include "RE/P/PlayerCharacter.h"
+#include "RE/T/TES.h"
+#include "RE/U/UI.h"
+#include "Render/FeatureShaderBindings.h"
+#include "Telemetry/Telemetry.h"
+
+#include <DearModdingUI/Client.h>
+#include <DearModdingUI/UI.h>
+
+namespace cs::features
+{
+	namespace
+	{
+		auto* L = cs::log::Get("cs.feature.unifiedwater");
+
+		std::vector<RE::NiPointer<RE::NiAVObject>> DetachChildren(RE::NiNode* a_parent)
+		{
+			// FO4: NiTArray size is the active count, not the last occupied slot.
+			std::vector<RE::NiPointer<RE::NiAVObject>> children;
+			for (const auto& child : a_parent->children)
+				if (child)
+					children.push_back(child);
+			for (const auto& child : children)
+				a_parent->DetachChild(child.get());
+			return children;
+		}
+	}
+
+	UnifiedWater* UnifiedWater::GetSingleton()
+	{
+		static UnifiedWater instance;
+		return &instance;
+	}
+
+	void UnifiedWater::Load()
+	{
+		if (!engine::RegisterFeatureShaderBindings("UnifiedWater", *this)) {
+			FailLoad("Unified Water shader contribution registration failed.");
+			return;
+		}
+		_registrations.store(true, std::memory_order_release);
+	}
+
+	void UnifiedWater::OnPostPostLoad()
+	{
+		// FO4: native terrain chunks and worldspace cleanup have distinct types and signatures.
+		stl::detour_thunk<Attach>(engine::water::id::Attach);
+		stl::detour_thunk<Detach>(engine::water::id::Detach);
+		stl::detour_thunk<Visibility>(engine::water::id::Visibility);
+		stl::detour_thunk<SetWorldSpace>(engine::water::id::SetWorldSpace);
+		stl::detour_thunk<ReleaseWorld>(engine::water::id::ReleaseWorld);
+		stl::detour_thunk<UpdateDisplacement>(engine::water::id::UpdateDisplacement);
+		if (!Attach::func.address() || !Detach::func.address() || !Visibility::func.address() ||
+			!SetWorldSpace::func.address() || !ReleaseWorld::func.address() || !UpdateDisplacement::func.address()) {
+			throw std::runtime_error("Unified Water native hook installation failed.");
+		}
+		_hooks.store(true, std::memory_order_release);
+	}
+
+	bool UnifiedWater::ValidateShaderInjections(std::string& a_error)
+	{
+		if (!_registrations.load(std::memory_order_acquire)) {
+			a_error = "shader contribution did not register";
+			return false;
+		}
+		if (!engine::ValidateShaderInjectionRoutes("UnifiedWater", a_error))
+			return false;
+		_injections.store(true, std::memory_order_release);
+		return true;
+	}
+
+	void UnifiedWater::OnDataLoaded()
+	{
+		if (!_hooks.load(std::memory_order_acquire))
+			return;
+		RE::BSModelDB::DBTraits::ArgsType args{};
+		args.loadTextures = true;
+		RE::NiPointer<RE::NiNode> nif;
+		const auto error = RE::BSModelDB::Demand("meshes\\water\\FO4UnifiedWater.nif", &nif, args);
+		if (error != RE::BSResource::ErrorCode::kNone || !nif || nif->children.empty() || !nif->children[0] ||
+			!nif->children[0]->IsNode() || nif->children[0]->IsNode()->children.empty()) {
+			throw std::runtime_error("Failed to load Unified Water mesh; terrain gates remain vanilla.");
+		}
+		const auto shape = nif->children[0]->IsNode()->children[0]->IsTriShape();
+		if (!shape || !shape->properties[1]) {
+			throw std::runtime_error("Unified Water mesh has no valid water shape/property; terrain gates remain vanilla.");
+		}
+		_mesh = shape;
+		_cache.LoadOrGenerateCaches(unified_water::WaterCache::LoadOrderChanged());
+		if (!_cache.IsReady() || !engine::water::DisableVanillaWaterLOD()) {
+			throw std::runtime_error("Unified Water cache or native branch validation failed; terrain gates remain vanilla.");
+		}
+		_ready.store(true, std::memory_order_release);
+		L->info("Unified Water ready: terrain-only registration gates patched; placed reference water unchanged");
+	}
+
+	void UnifiedWater::RestoreOriginal(RE::BSMultiBoundNode* a_parent, ManagedWater& a_water)
+	{
+		DetachChildren(a_parent);
+		for (const auto& child : a_water.original)
+			if (child)
+				a_parent->AttachChild(child.get(), true);
+	}
+
+	void UnifiedWater::AttachVanilla(Chunk* a_chunk, bool a_alreadyAttached)
+	{
+		if (!a_alreadyAttached)
+			Attach::func(a_chunk);
+		engine::water::RegisterVanillaWater(a_chunk);
+		_vanillaFallbacks.fetch_add(1);
+		UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::Attach::thunk(Chunk* a_chunk)
+	{
+		auto& self = *GetSingleton();
+		if (!self._ready.load(std::memory_order_acquire) || !a_chunk || !a_chunk->loaded || a_chunk->attached ||
+			!a_chunk->chunk || !a_chunk->water || !a_chunk->node || !a_chunk->node->manager) {
+			func(a_chunk);
+			return;
+		}
+		// FO4: Prepare must finish before replacement; native Attach otherwise overwrites tile properties.
+		engine::water::Prepare(a_chunk);
+		const auto node = a_chunk->node;
+		const auto result = self._cache.GetInstructions(node->manager->world, node->GetLODLevel(), node->baseCellX, node->baseCellY);
+		const auto parent = a_chunk->water.get();
+		if (!result.instructions || result.instructions->empty()) {
+			self.AttachVanilla(a_chunk);
+			return;
+		}
+		ManagedWater managed;
+		managed.original = DetachChildren(parent);
+		std::vector<std::pair<RE::BSTriShape*, const unified_water::Instruction*>> built;
+		for (const auto& instruction : *result.instructions) {
+			if (!instruction.form.ptr)
+				continue;
+			RE::NiCloningProcess clone{};
+			clone.copyType = RE::NiCloningProcess::CopyType::kCopyExact;
+			clone.scale = { 1.0f, 1.0f, 1.0f };
+			const auto object = self._mesh->CreateClone(clone);
+			const auto shape = object ? object->IsTriShape() : nullptr;
+			if (!shape)
+				break;
+			const auto posX = (instruction.x - node->baseCellX) * 4096.0f + instruction.size * 2048.0f;
+			const auto posY = (instruction.y - node->baseCellY) * 4096.0f + instruction.size * 2048.0f;
+			shape->local.scale = static_cast<float>(instruction.size);
+			shape->local.translate = { posX, posY, instruction.waterHeight };
+			parent->AttachChild(shape, true);
+			managed.tiles.push_back({ shape, instruction.x, instruction.y });
+			built.emplace_back(shape, &instruction);
+		}
+		if (built.size() != result.instructions->size()) {
+			self.RestoreOriginal(parent, managed);
+			self.AttachVanilla(a_chunk);
+			return;
+		}
+		// FO4: the validated attach gate also skips unchecked segment getters on ordinary tiles.
+		func(a_chunk);
+		engine::water::ReserveWaterObjects(static_cast<std::uint32_t>(built.size()));
+		bool initialized = true;
+		for (const auto& [shape, instruction] : built) {
+			if (!engine::water::InitializeTile(shape, static_cast<RE::TESWaterForm*>(instruction->form.ptr), instruction->waterHeight)) {
+				initialized = false;
+				break;
+			}
+			engine::water::ConfigureTileProperty(shape);
+		}
+		if (!initialized) {
+			self.RestoreOriginal(parent, managed);
+			self.AttachVanilla(a_chunk, true);
+			return;
+		}
+		if (const auto root = engine::water::GetWaterLOD())
+			root->AttachChild(parent, true);
+		else {
+			self.RestoreOriginal(parent, managed);
+			a_chunk->chunk->AttachChild(parent, true);
+			a_chunk->waterAttached = false;
+			self._vanillaFallbacks.fetch_add(1);
+			return;
+		}
+		{
+			const std::scoped_lock lock(self._mutex);
+			self._managed.insert_or_assign(parent, std::move(managed));
+		}
+		RE::NiUpdateData update{};
+		parent->Update(update);
+		engine::water::EnableWaterSystem();
+		self._tilesBuilt.fetch_add(built.size());
+		self._chunksAttached.fetch_add(1);
+		self.UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::Detach::thunk(Chunk* a_chunk)
+	{
+		if (!a_chunk) {
+			return;
+		}
+		auto& self = *GetSingleton();
+		RE::NiPointer<RE::BSMultiBoundNode> water = a_chunk->water;
+		ManagedWater managed;
+		bool owned = false;
+		{
+			const std::scoped_lock lock(self._mutex);
+			const auto it = self._managed.find(water.get());
+			if (it != self._managed.end()) {
+				managed = std::move(it->second);
+				self._managed.erase(it);
+				owned = true;
+			}
+		}
+		if (!owned) {
+			func(a_chunk);
+			return;
+		}
+		// Hide UW-managed water from vanilla detach so it does not delete it
+		a_chunk->water = nullptr;
+		func(a_chunk);
+		self.RestoreOriginal(water.get(), managed);
+		if (const auto root = engine::water::GetWaterLOD())
+			root->DetachChild(water.get());
+		// Park water under the detached chunk so block->water stays valid
+		if (a_chunk->chunk) {
+			a_chunk->chunk->AttachChild(water.get(), true);
+			a_chunk->water = water;
+		}
+		a_chunk->waterAttached = false;
+		self._chunksDetached.fetch_add(1);
+		self.UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::Visibility::thunk(Node* a_node, RE::NiNode* a_parent)
+	{
+		auto& self = *GetSingleton();
+		if (!self._ready.load(std::memory_order_acquire)) {
+			func(a_node, a_parent);
+			return;
+		}
+		const std::scoped_lock lock(self._mutex);
+		const auto it = self._managed.find(a_parent);
+		// FO4: never forward a mixed parent to native's unchecked segment-data traversal.
+		engine::water::UpdateVisibility(a_node, a_parent, it != self._managed.end() ? std::span<const engine::water::TileCell>{ it->second.tiles } : std::span<const engine::water::TileCell>{});
+		self._visibilityUpdates.fetch_add(1);
+	}
+
+	void UnifiedWater::SetWorldSpace::thunk(RE::TES* a_tes, RE::TESWorldSpace* a_world, bool a_exterior)
+	{
+		func(a_tes, a_world, a_exterior);
+		auto& self = *GetSingleton();
+		self._exterior.store(a_world && a_exterior, std::memory_order_release);
+		self.UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::ReleaseWorld::thunk(RE::TESWorldSpace* a_world)
+	{
+		func(a_world);
+		auto& self = *GetSingleton();
+		self._exterior.store(false, std::memory_order_release);
+		self.UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::UpdateDisplacement::thunk(engine::water::WaterSystem* a_system)
+	{
+		func(a_system);
+		GetSingleton()->UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::UpdateWaterLODCull() const
+	{
+		if (!_ready.load(std::memory_order_acquire))
+			return;
+		const auto tes = RE::TES::GetSingleton();
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		const auto cell = player ? player->GetParentCell() : nullptr;
+		const bool interior = (tes && tes->interiorCell) || (cell && cell->IsInterior());
+		// FO4: the Pip-Boy map has no Skyrim exterior-LOD MapMenu rendering path.
+		if (const auto root = engine::water::GetWaterLOD())
+			root->SetAppCulled(!_exterior.load(std::memory_order_acquire) || interior);
+	}
+
+	void UnifiedWater::DrawSettings()
+	{
+		if (dmui::ui::Button("Regenerate Caches"))
+			_cache.RegenerateCaches();
+		dmui::ui::Text("%s", "Activation and shader ownership changes require a restart.");
+	}
+
+	bool UnifiedWater::IsOverlayActive() const
+	{
+		const auto progress = _cache.GetProgress();
+		return progress.active || progress.failed != 0;
+	}
+
+	void UnifiedWater::DrawOverlay()
+	{
+		const auto progress = _cache.GetProgress();
+		if (progress.active) {
+			dmui::ui::Text("%s", "Generating Water Cache:");
+			const auto text = std::format("{}/{} ({:.1f}%)", progress.completed, progress.total,
+				progress.total ? 100.0f * progress.completed / progress.total : 0.0f);
+			dmui::ui::ProgressBar(progress.total ? static_cast<float>(progress.completed) / progress.total : 0.0f, {}, text.c_str());
+		} else if (progress.failed) {
+			dmui::ui::Text("ERROR: Water cache generation failed for %u WorldSpaces. Check FO4CommunityShaders.log", progress.failed);
+		}
+	}
+
+	void UnifiedWater::CollectTelemetry(telemetry::Sink& a_sink) const
+	{
+		const auto progress = _cache.GetProgress();
+		a_sink.Field("operational", _ready.load() && _injections.load())
+			.Field("hooks_ready", _hooks.load())
+			.Field("cache_ready", _cache.IsReady())
+			.Field("cache_total", progress.total)
+			.Field("cache_completed", progress.completed)
+			.Field("cache_failed", progress.failed)
+			.Field("tiles_built", _tilesBuilt.load())
+			.Field("chunks_attached", _chunksAttached.load())
+			.Field("chunks_detached", _chunksDetached.load())
+			.Field("vanilla_fallbacks", _vanillaFallbacks.load())
+			.Field("visibility_updates", _visibilityUpdates.load());
+	}
+
+	namespace
+	{
+		struct AutoRegister
+		{
+			AutoRegister() { FeatureManager::Get().Register(UnifiedWater::GetSingleton()); }
+		};
+		static AutoRegister _autoRegister;
+	}
+}

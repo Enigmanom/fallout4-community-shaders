@@ -27,7 +27,8 @@ local features = {
     "DynamicCubemaps",
     "IBL",
     "WaterEffects",
-    "RemoteControl"
+    "RemoteControl",
+    "UnifiedWater"
 }
 
 set_project(plugin_name)
@@ -313,6 +314,14 @@ target("FeatureConfigTests", function()
     add_packages("vcpkg::tomlplusplus")
 end)
 
+target("UnifiedWaterTests", function()
+    set_kind("binary")
+    set_default(false)
+    add_files("tests/UnifiedWaterTests.cpp")
+    add_includedirs("features/UnifiedWater/src")
+    add_tests("UnifiedWater")
+end)
+
 target("RenderDocCaptureServiceTests", function()
     set_kind("binary")
     set_default(false)
@@ -505,4 +514,3 @@ end)
 target("ShaderCacheTests", function()
     add_tests("ShaderCache")
 end)
-

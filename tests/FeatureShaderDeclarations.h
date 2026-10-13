@@ -10,6 +10,7 @@
 #include "../features/Skylighting/src/ShaderDefines.h"
 #include "../features/TerrainShadows/src/ShaderDefines.h"
 #include "../features/TerrainVariation/src/ShaderDefines.h"
+#include "../features/UnifiedWater/src/ShaderDefines.h"
 #include "../features/Upscaling/src/ShaderDefines.h"
 #include "../features/WaterEffects/src/ShaderDefines.h"
 #include "Render/FeatureShaderBindings.h"
@@ -33,6 +34,7 @@ namespace cs::engine
 				{ "LODBlending", &lod_blending_shader::kShaderDefines },
 				{ "TerrainVariation", &terrain_variation_shader::kShaderDefines },
 				{ "WaterEffects", &water_effects::kShaderDefines },
+				{ "UnifiedWater", &unified_water::kShaderDefines },
 				{ "UpscalingSamplerBias", &upscaling::kSamplerBiasShaderDefines }
 			};
 			for (const auto& [name, feature] : features) {

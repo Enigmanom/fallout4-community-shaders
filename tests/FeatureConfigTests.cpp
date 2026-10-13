@@ -82,6 +82,7 @@ namespace
 			std::pair{ "DynamicCubemaps", MakeSchemaView(dynamic_cubemaps::kSchema) },
 			std::pair{ "ImageBasedLighting", MakeSchemaView(image_based_lighting::kSchema) },
 			std::pair{ "WaterEffects", SchemaView{} },
+			std::pair{ "UnifiedWater", SchemaView{} },
 			std::pair{ "ScreenSpaceShadows", MakeSchemaView(sss_settings::kSchema) },
 			std::pair{ "TerrainShadows", SchemaView{} },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
