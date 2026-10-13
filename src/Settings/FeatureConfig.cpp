@@ -324,22 +324,32 @@ namespace cs::feature_config
 		return InitializeAt(kConfigPath, std::move(a_registry));
 	}
 
+	namespace
+	{
+		// A reload keeps the stored settings when the read fails.
+		RefreshResult Install(const std::filesystem::path& a_path, settings::Registry a_registry, const FileLoadResult& loaded, bool a_keepOnFailure)
+		{
+			auto& store = Config();
+			std::scoped_lock lock(store.mutex);
+			if (a_keepOnFailure && (loaded.status == FileLoadStatus::kParseError || loaded.status == FileLoadStatus::kIoError))
+				return { store.root, loaded.status, loaded.error };
+			store.registry = std::move(a_registry);
+			store.path = a_path;
+			store.readError = loaded.error;
+			const auto document = RenderDocument(store.registry, loaded.table);
+			store.root = toml::parse(document);
+			std::string error = loaded.error;
+			if (loaded.status == FileLoadStatus::kMissing || loaded.status == FileLoadStatus::kParsed) {
+				const auto written = WriteIfChanged(a_path, document);
+				error = written.error;
+			}
+			return { store.root, loaded.status, std::move(error) };
+		}
+	}
+
 	RefreshResult InitializeAt(const std::filesystem::path& a_path, settings::Registry a_registry)
 	{
-		auto& store = Config();
-		std::scoped_lock lock(store.mutex);
-		store.registry = std::move(a_registry);
-		store.path = a_path;
-		const auto loaded = LoadFile(a_path);
-		store.readError = loaded.error;
-		const auto document = RenderDocument(store.registry, loaded.table);
-		store.root = toml::parse(document);
-		std::string error = loaded.error;
-		if (loaded.status == FileLoadStatus::kMissing || loaded.status == FileLoadStatus::kParsed) {
-			const auto written = WriteIfChanged(a_path, document);
-			error = written.error;
-		}
-		return { store.root, loaded.status, std::move(error) };
+		return Install(a_path, std::move(a_registry), LoadFile(a_path), false);
 	}
 
 	RefreshResult Reload()
@@ -352,10 +362,9 @@ namespace cs::feature_config
 			path = store.path;
 			registry = store.registry;
 		}
-		const auto loaded = LoadFile(path);
-		if (path.empty() || loaded.status == FileLoadStatus::kParseError || loaded.status == FileLoadStatus::kIoError)
-			return { GetRoot(), loaded.status, path.empty() ? "settings store has not been initialized" : loaded.error };
-		return InitializeAt(path, std::move(registry));
+		if (path.empty())
+			return { GetRoot(), FileLoadStatus::kMissing, "settings store has not been initialized" };
+		return Install(path, std::move(registry), LoadFile(path), true);
 	}
 
 	toml::table GetRoot()

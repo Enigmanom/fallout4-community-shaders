@@ -45,7 +45,7 @@ namespace cs::feature_config
 	std::string RenderDocument(const settings::Registry& a_registry, const toml::table& a_root);
 	RefreshResult Initialize(settings::Registry a_registry);
 	RefreshResult InitializeAt(const std::filesystem::path& a_path, settings::Registry a_registry);
-	// Rereads the initialized file; a parse or I/O failure leaves the stored settings untouched.
+	// A parse or I/O failure leaves the stored settings untouched.
 	RefreshResult Reload();
 	toml::table GetRoot();
 	std::optional<toml::table> GetFeature(std::string_view a_key);
