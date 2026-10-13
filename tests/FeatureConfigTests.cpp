@@ -256,6 +256,13 @@ namespace
 		CHECK(!activation["features"]["ScreenSpaceShadows"].as_table()->contains("enabled"));
 		CHECK(!activation["features"]["Upscaling"].as_table()->contains("enabled"));
 
+		// Open-map weather tables are the one unowned section that must survive.
+		WriteFile(a_path, "[features.ExponentialHeightFog.weather]\nClear = { density = 2.0 }\nFoggy = { density = 5.0 }\n");
+		CHECK(InitializeAt(a_path, a_registry).error.empty());
+		const auto rewritten = LoadFile(a_path).table;
+		const auto weather = rewritten["features"]["ExponentialHeightFog"]["weather"];
+		CHECK(weather["Clear"]["density"].value<double>() == 2.0 && weather["Foggy"]["density"].value<double>() == 5.0);
+
 		// A value where an owned table belongs must still render a parseable document.
 		const auto blocked = RenderDocument(a_registry, toml::parse("[features.ScreenSpaceShadows]\nsettings = false\n"));
 		CHECK(RenderDocument(a_registry, toml::parse(blocked)) == blocked);
