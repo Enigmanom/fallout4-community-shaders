@@ -7,6 +7,7 @@
 #include "Settings/LiveSettings.h"
 #include "Settings/SettingsMetadata.h"
 
+#include <atomic>
 #include <optional>
 #include <span>
 #include <string>
@@ -48,6 +49,17 @@ namespace cs
 		bool IsHealthy() const noexcept { return _state.IsHealthy(); }
 		bool IsLoaded() const noexcept override { return _loaded; }
 
+		// Framework-owned live switch, persisted as `enabled` beside `load`.
+		// Features that cannot tear down live opt out and always report enabled.
+		virtual bool SupportsEnableToggle() const { return true; }
+		virtual bool DefaultEnabled() const { return true; }
+		bool IsEnabled() const noexcept
+		{
+			return !SupportsEnableToggle() || _enabled.load(std::memory_order_acquire);
+		}
+		// Host-frame thread; readers are on the render path.
+		void SetEnabled(bool a_enabled) noexcept;
+
 		// Configure must remain side-effect-free.
 		virtual bool Configure(const toml::table&, std::string&) { return true; }
 		virtual void Load() {}
@@ -57,6 +69,8 @@ namespace cs
 		virtual void OnLoadingMenuClosed() {}
 		virtual void Prepass() {}
 		virtual void OnRuntimeQuarantined() noexcept {}
+		// Fires after IsEnabled() flips; resources stay alive while disabled.
+		virtual void OnEnabledChanged(bool) noexcept {}
 
 		// Defer wrappers until every feature loads.
 		virtual void OnPostPostLoad() {}
@@ -80,14 +94,7 @@ namespace cs
 		const settings::LiveSettingsAccess& GetLiveSettingsAccess() const noexcept { return _liveSettings; }
 
 		// Persists edits recorded by settings::SettingsEdit, optionally only once an edit completes.
-		void FlushSettings(bool a_completedOnly = false)
-		{
-			if (!_settingsSavePending || (a_completedOnly && !_settingsEditCompleted))
-				return;
-			_settingsEditCompleted = false;
-			if (SaveSettings())
-				_settingsSavePending = false;
-		}
+		void FlushSettings(bool a_completedOnly = false);
 		virtual std::vector<std::string_view> GetRestartSettings() const { return {}; }
 		// True when the feature reads per-weather profiles from its `weather` table.
 		virtual bool HasWeatherProfiles() const { return false; }
@@ -102,12 +109,15 @@ namespace cs
 		virtual FullscreenDebugData GetFullscreenDebugData() const noexcept { return {}; }
 
 		virtual void RestoreDefaultSettings() {}
+		// Feature defaults plus the framework-owned enabled state.
+		void RestoreDefaults();
 
-		bool HasResettableSettings() const { return static_cast<bool>(GetSettingsBinding()); }
+		bool HasResettableSettings() const { return SupportsEnableToggle() || static_cast<bool>(GetSettingsBinding()); }
 		bool HasModifiedSettings() const
 		{
 			const auto binding = GetSettingsBinding();
-			return binding && binding.modified();
+			return (binding && binding.modified()) ||
+			       (SupportsEnableToggle() && IsEnabled() != DefaultEnabled());
 		}
 
 		// Overlays render even while settings are closed.
@@ -171,6 +181,9 @@ namespace cs
 		}
 		void ApplyActivationResult(const ActivationResult& a_result) { _state.ApplyActivationResult(a_result); }
 		void SetRuntimeStateOnly(FeatureRuntimeState a_state) noexcept { _state.runtimeState = a_state; }
+		// Wraps the feature's live access so snapshot/prepare/swap carry `enabled`.
+		void ComposeEnabledLiveSettings();
+		bool SaveEnabled();
 		void ResetLoadFailure() noexcept
 		{
 			_loadFailed = false;
@@ -183,6 +196,7 @@ namespace cs
 		mutable spdlog::logger* _log = nullptr;
 		bool _loadFailed = false;
 		bool _loaded = false;
+		std::atomic_bool _enabled{ true };
 		bool _settingsSavePending = false;
 		bool _settingsEditCompleted = false;
 		std::string _loadFailureReason;
@@ -228,6 +242,7 @@ namespace cs
 		void OnPostPostLoadAll();
 		void PrepassAll();
 
+		// Health gate only: lifecycle, binding and menu work runs while a feature is disabled.
 		// Callback failures quarantine features without unloading them.
 		bool PrepareRuntimeCallback(Feature& a_feature, std::string_view a_phase) noexcept;
 		bool PrepareMenuCallback(Feature& a_feature, std::string_view a_phase) noexcept;

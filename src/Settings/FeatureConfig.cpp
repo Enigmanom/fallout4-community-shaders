@@ -409,10 +409,30 @@ namespace cs::feature_config
 		return UpdateOwnedSettingsAt(kConfigPath, path, a_delta);
 	}
 
+	// Activation fields share one section, and a section write replaces all of them.
+	WriteResult UpdateFeatureActivationAt(
+		const std::filesystem::path& a_filePath, std::string_view a_featureKey, std::string_view a_field, bool a_value)
+	{
+		toml::table delta;
+		if (const auto current = GetFeature(a_featureKey)) {
+			for (const auto field : { std::string_view("load"), std::string_view("enabled") }) {
+				if (const auto* node = current->get(field))
+					delta.insert(field, *node);
+			}
+		}
+		delta.insert_or_assign(a_field, a_value);
+		const std::array path{ std::string_view("features"), a_featureKey };
+		return UpdateOwnedSettingsAt(a_filePath, path, delta);
+	}
+
 	WriteResult UpdateFeatureLoad(std::string_view a_featureKey, bool a_load)
 	{
-		const std::array path{ std::string_view("features"), a_featureKey };
-		return UpdateOwnedSettingsAt(kConfigPath, path, toml::table{ { "load", a_load } });
+		return UpdateFeatureActivationAt(kConfigPath, a_featureKey, "load", a_load);
+	}
+
+	WriteResult UpdateFeatureEnabled(std::string_view a_featureKey, bool a_enabled)
+	{
+		return UpdateFeatureActivationAt(kConfigPath, a_featureKey, "enabled", a_enabled);
 	}
 
 	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value)

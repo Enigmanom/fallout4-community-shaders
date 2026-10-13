@@ -17,7 +17,7 @@ namespace cs
 		template <class Data, class Feature>
 		Data CollectFeatureData(Feature* a_feature)
 		{
-			if (!a_feature || !a_feature->IsHealthy())
+			if (!a_feature || !a_feature->IsHealthy() || !a_feature->IsEnabled())
 				return {};
 			return a_feature->GetCommonBufferData();
 		}

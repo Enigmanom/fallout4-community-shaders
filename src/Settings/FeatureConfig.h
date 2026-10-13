@@ -95,7 +95,13 @@ namespace cs::feature_config
 	WriteResult UpdateFeatureOwnedSettings(
 		std::string_view a_featureKey,
 		const toml::table& a_delta);
+	WriteResult UpdateFeatureActivationAt(
+		const std::filesystem::path& a_filePath,
+		std::string_view a_featureKey,
+		std::string_view a_field,
+		bool a_value);
 	WriteResult UpdateFeatureLoad(std::string_view a_featureKey, bool a_load);
+	WriteResult UpdateFeatureEnabled(std::string_view a_featureKey, bool a_enabled);
 	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value);
 
 	enum class ScalarReadStatus

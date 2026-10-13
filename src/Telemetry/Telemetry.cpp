@@ -701,6 +701,7 @@ namespace cs::telemetry
 						const auto& state = feature->GetState();
 						featureTable.insert_or_assign("loaded", feature->IsLoaded());
 						featureTable.insert_or_assign("active", feature->IsActive());
+						featureTable.insert_or_assign("enabled", feature->IsEnabled());
 						featureTable.insert_or_assign("installed", state.installed);
 						featureTable.insert_or_assign("desired_active", state.desiredActive);
 						featureTable.insert_or_assign(

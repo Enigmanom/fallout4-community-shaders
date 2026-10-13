@@ -4,6 +4,7 @@
 #include "Host/HostClientOptions.h"
 #include "Log.h"
 #include "Menu/Menu.h"
+#include "Menu/SettingsEdit.h"
 #include "Plugin.h"
 #include "Settings/FeatureConfig.h"
 #include "Telemetry/Telemetry.h"
@@ -48,6 +49,16 @@ namespace cs::host
 			       feature->get("load")->value_or(false);
 		}
 
+		// The framework-owned switch; edits persist through the standard flush.
+		void DrawEnabledToggle(Feature& a_feature)
+		{
+			if (!a_feature.SupportsEnableToggle())
+				return;
+			settings::SettingsEdit edit{ a_feature };
+			bool enabled = a_feature.IsEnabled();
+			if (edit.Discrete(dmui::ui::Checkbox("Enabled", &enabled)))
+				a_feature.SetEnabled(enabled);
+		}
 	}
 
 	HostClient::HostClient() :
@@ -580,6 +591,7 @@ namespace cs::host
 				try {
 					{
 						const dmui::DisabledScope disabled{ comparing };
+						DrawEnabledToggle(a_feature);
 						a_feature.DrawSettings();
 					}
 					a_feature.FlushSettings(true);
@@ -639,7 +651,7 @@ namespace cs::host
 
 		if (restoreDefaults) {
 			try {
-				a_feature.RestoreDefaultSettings();
+				a_feature.RestoreDefaults();
 			} catch (const std::exception& error) {
 				reportCallbackFailure(
 					"DearModdingUI::RestoreDefaultSettings",

@@ -7,6 +7,7 @@
 #include "Settings/FeatureConfig.h"
 #include "Settings/FeatureKeys.h"
 #include "Settings/PresetManager.h"
+#include "Settings/SettingsPersistence.h"
 
 #include <toml++/toml.hpp>
 
@@ -73,6 +74,69 @@ namespace cs
 			return ActivationResult::Failed(LoadFailureReason());
 		}
 		return ActivationResult::Active();
+	}
+
+	void Feature::SetEnabled(bool a_enabled) noexcept
+	{
+		if (_enabled.exchange(a_enabled, std::memory_order_acq_rel) != a_enabled && SupportsEnableToggle())
+			OnEnabledChanged(a_enabled);
+	}
+
+	bool Feature::SaveEnabled()
+	{
+		return !SupportsEnableToggle() || settings::SaveEnabled(GetConfigKey(), IsEnabled(), *Log());
+	}
+
+	void Feature::FlushSettings(bool a_completedOnly)
+	{
+		if (!_settingsSavePending || (a_completedOnly && !_settingsEditCompleted))
+			return;
+		_settingsEditCompleted = false;
+		if (SaveSettings() && SaveEnabled())
+			_settingsSavePending = false;
+	}
+
+	void Feature::RestoreDefaults()
+	{
+		RestoreDefaultSettings();
+		if (SupportsEnableToggle()) {
+			SetEnabled(DefaultEnabled());
+			SaveEnabled();
+		}
+	}
+
+	void Feature::ComposeEnabledLiveSettings()
+	{
+		if (!SupportsEnableToggle())
+			return;
+		_liveSettings = {
+			[this, inner = std::move(_liveSettings.snapshot)] {
+				auto snapshot = inner ? inner() : toml::table{};
+				snapshot.insert_or_assign("enabled", _enabled.load(std::memory_order_acquire));
+				return snapshot;
+			},
+			[this, inner = std::move(_liveSettings.prepare)](
+				const toml::table& a_snapshot, std::string& a_error) -> std::optional<settings::PreparedLiveSettings> {
+				bool enabled = _enabled.load(std::memory_order_acquire);
+				if (!settings::AcceptSetting(feature_config::ReadBool(a_snapshot, "enabled", enabled), "enabled", "boolean", a_error))
+					return std::nullopt;
+				settings::PreparedLiveSettings prepared;
+				if (inner) {
+					auto value = inner(a_snapshot, a_error);
+					if (!value)
+						return std::nullopt;
+					prepared = std::move(*value);
+				}
+				prepared.swap = [this, enabled, featureSwap = std::move(prepared.swap)]() mutable {
+					if (featureSwap)
+						featureSwap();
+					const bool previous = _enabled.load(std::memory_order_acquire);
+					SetEnabled(enabled);
+					enabled = previous;
+				};
+				return prepared;
+			}
+		};
 	}
 
 	spdlog::logger* Feature::Log() const
@@ -255,6 +319,7 @@ namespace cs
 		_loadedFeatures.clear();
 		for (auto* feature : _registeredFeatures) {
 			feature->SetState({});
+			feature->_enabled.store(feature->DefaultEnabled(), std::memory_order_release);
 		}
 
 		const auto configRoot = feature_config::GetRoot();
@@ -322,6 +387,13 @@ namespace cs
 					failConfiguration(feature, std::move(error));
 					continue;
 				}
+
+				bool enabled = feature->DefaultEnabled();
+				if (feature_config::ReadBool(*featureTable, "enabled", enabled) == feature_config::ScalarReadStatus::kWrongType) {
+					L->warn("Feature {} configuration enabled key must be a boolean; using the default", key);
+				}
+				feature->_enabled.store(enabled, std::memory_order_release);
+				feature->ComposeEnabledLiveSettings();
 
 				const bool deactivatedForEnb = cs::env::IsENBLoaded();
 				const bool desiredActive = activation.valid && activation.load && !deactivatedForEnb;

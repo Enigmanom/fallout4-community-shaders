@@ -95,8 +95,20 @@ namespace
 			std::pair{ "RenderDoc", MakeSchemaView(renderdoc_settings::kSchema) }
 		};
 		CHECK(features.size() == kAllFeatureKeys.size());
-		for (const auto& [key, schema] : features)
-			AddFeatureSections(registry, key, schema, std::string_view(key) == "ExponentialHeightFog" || std::string_view(key) == "ImageBasedLighting");
+		// Mirrors Feature::SupportsEnableToggle and DefaultEnabled.
+		const auto enabledDefault = [](std::string_view a_key) -> std::optional<bool> {
+			for (const auto optOut : { "InverseSquareLighting", "Upscaling", "FrameGeneration", "PerformanceOverlay", "RenderDoc" }) {
+				if (a_key == optOut)
+					return std::nullopt;
+			}
+			return a_key != "ExponentialHeightFog" && a_key != "ImageBasedLighting";
+		};
+		for (const auto& [key, schema] : features) {
+			AddFeatureSections(
+				registry, key, schema,
+				std::string_view(key) == "ExponentialHeightFog" || std::string_view(key) == "ImageBasedLighting",
+				enabledDefault(key));
+		}
 		return registry;
 	}
 
@@ -226,6 +238,22 @@ namespace
 		const auto reset = ReadFile(a_path);
 		CHECK(reset.find("# SurfaceThickness = 0.02\n") != std::string::npos);
 		CHECK(reset.find("# ShadowContrast = 1.0\n") != std::string::npos);
+		// The activation fields share a section; writing one must not drop the other.
+		CHECK(reset.find("# enabled = true\n") != std::string::npos);
+		CHECK(UpdateFeatureActivationAt(a_path, "ScreenSpaceShadows", "enabled", false));
+		CHECK(UpdateFeatureActivationAt(a_path, "ImageBasedLighting", "enabled", true));
+		auto activation = LoadFile(a_path).table;
+		CHECK(activation["features"]["ScreenSpaceShadows"]["load"].value<bool>() == true);
+		CHECK(activation["features"]["ScreenSpaceShadows"]["enabled"].value<bool>() == false);
+		CHECK(activation["features"]["ImageBasedLighting"]["enabled"].value<bool>() == true);
+		CHECK(UpdateFeatureActivationAt(a_path, "ScreenSpaceShadows", "load", false));
+		activation = LoadFile(a_path).table;
+		CHECK(!activation["features"]["ScreenSpaceShadows"].as_table()->contains("load"));
+		CHECK(activation["features"]["ScreenSpaceShadows"]["enabled"].value<bool>() == false);
+		CHECK(UpdateFeatureActivationAt(a_path, "ScreenSpaceShadows", "enabled", true));
+		activation = LoadFile(a_path).table;
+		CHECK(!activation["features"]["ScreenSpaceShadows"].as_table()->contains("enabled"));
+		CHECK(!activation["features"]["Upscaling"].as_table()->contains("enabled"));
 
 		// A value where an owned table belongs must still render a parseable document.
 		const auto blocked = RenderDocument(a_registry, toml::parse("[features.ScreenSpaceShadows]\nsettings = false\n"));

@@ -73,6 +73,15 @@ namespace cs::settings
 		inline constexpr Schema kActivation{
 			std::tuple{ Field{ "load", "Load this feature on game startup.", &Activation::load, {}, ApplyTiming::kNextLaunch } }
 		};
+
+		struct Enabled
+		{
+			bool enabled = true;
+		};
+
+		inline constexpr Schema kEnabled{
+			std::tuple{ Field{ "enabled", "Apply this feature's effect; takes effect live.", &Enabled::enabled } }
+		};
 	}
 
 	inline Registry BuildCoreRegistry()
@@ -94,9 +103,21 @@ namespace cs::settings
 		return registry;
 	}
 
-	inline void AddFeatureSections(Registry& a_registry, std::string_view a_key, SchemaView a_schema, bool a_weatherProfiles = false)
+	// An enabled default adds the framework-owned live switch beside `load`.
+	inline void AddFeatureSections(
+		Registry& a_registry,
+		std::string_view a_key,
+		SchemaView a_schema,
+		bool a_weatherProfiles = false,
+		std::optional<bool> a_enabledDefault = std::nullopt)
 	{
-		a_registry.push_back({ { "features", std::string(a_key) }, MakeSchemaView(core::kActivation) });
+		auto activation = MakeSchemaView(core::kActivation);
+		if (a_enabledDefault) {
+			auto enabled = MakeSchemaView(core::kEnabled);
+			enabled.front().defaultValue = *a_enabledDefault;
+			activation.push_back(std::move(enabled.front()));
+		}
+		a_registry.push_back({ { "features", std::string(a_key) }, std::move(activation) });
 		if (!a_schema.empty())
 			a_registry.push_back({ { "features", std::string(a_key), "settings" }, std::move(a_schema) });
 		if (a_weatherProfiles)

@@ -69,6 +69,9 @@ successful clicks open the default browser. Host dispatch or launch failures fol
 link-row failure logging path; there is no shell or clipboard fallback. Disabled placeholders remain
 non-actionable.
 
+Every feature page opens with the framework `Enabled` checkbox (`Feature::SetEnabled`, saved as `enabled`
+beside `load`) unless the feature opts out through `SupportsEnableToggle()`.
+
 Feature pages group controls with `cs::ui::Section` (`Menu\Section.h`): a host panel titled by the
 native section header. `ui::Collapsible` swaps in the host's collapsing header; the host keeps no
 expanded state, so the section remembers it per session and the host shows the item count. The
