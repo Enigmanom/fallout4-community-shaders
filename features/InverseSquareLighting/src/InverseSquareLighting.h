@@ -12,6 +12,7 @@ namespace cs::features
 		static InverseSquareLighting* GetSingleton();
 		std::string_view GetName() const override { return "InverseSquareLighting"; }
 		std::string_view GetDisplayName() const override { return "Inverse Square Lighting"; }
+		bool SupportsEnableToggle() const override { return false; }
 		std::string GetCategory() const override { return FeatureCategories::kLighting; }
 		std::string GetFeatureSummary() const override
 		{
