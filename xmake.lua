@@ -325,6 +325,16 @@ target("RenderDocCaptureServiceTests", function()
     })
 end)
 
+target("FrameDispatcherTests", function()
+    set_kind("binary")
+    set_default(false)
+    add_files(
+        "tests/FrameDispatcherTests.cpp",
+        "src/Render/FrameDispatcher.cpp"
+    )
+    add_tests("FrameDispatcher")
+end)
+
 target("FrameGenerationRetirementGpuTests", function()
     set_kind("binary")
     set_default(false)

@@ -84,7 +84,8 @@ Performance Overlay offset and size are author defaults. DearModdingUI persists 
 arrangement in its `imgui.ini`; Reset Layout discards it and reapplies the defaults.
 The host applies content scaling exactly once.
 Overlay sampling and RenderDoc maintenance run from the frame observer rather than depending on a
-visible settings page.
+visible settings page. The observer also drains `render::FrameDispatcher` before the dialog poll, so work
+posted from other threads runs on the thread that edits feature settings.
 
 `dmui::DialogSession` owns confirmation and text-entry dialogs and polls from the render-thread
 frame observer. Preset identity, name, path, and capture directory are captured when opening
