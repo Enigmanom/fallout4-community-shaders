@@ -165,15 +165,15 @@ Upstream: `Feature.cpp` `Load`, `State.cpp` `Load`/`Setup`,
 | Kind | Upstream | Fallout 4 | Boundary / code |
 |---|---|---|---|
 | Framework | Installed/version-compatible features load unless “Disable at Boot” applies; changes take effect after restart | TOML `load` selects activation at startup; shipped defaults remain false and edits require restart | `FeatureManager::PrepareAll`/`ActivateAll`, `FeatureConfig.cpp`; no live load/unload operation is added |
-| Framework | Loaded features use live settings for effect enable/disable, not compile-time readiness predicates | Live settings update shader/producer inputs without removing feature defines or resources; runtime health/quarantine remains separate from successful startup loading | `Feature.h`, `FeatureBuffer.cpp`, per-feature settings |
+| Framework | Each feature names its own live switch (`Enabled`, `Enable`, `EnableIBL`, `EnableTerrainShadow`, `enabled` or none), and the diagnostic RemoteControl bridge flips `Feature::loaded`, which stops CPU work while compiled shaders keep reading stale data. Upstream PR candidate | One framework-owned `Feature::IsEnabled()`, persisted as `enabled` beside `load`, edited by the standard host checkbox, and carried by live-settings snapshots, A/B comparison and Restore defaults. A disabled feature's b6/b7 block is zeroed so shaders take the vanilla path and its effect work stops; lifecycle, binding and menu callbacks keep running. Upscaling, FrameGeneration, RenderDoc, PerformanceOverlay and InverseSquareLighting opt out through `SupportsEnableToggle()`. Runtime health/quarantine stays separate from startup loading | `Feature.h`, `Feature.cpp`, `FeatureBuffer.cpp`, `SettingsRegistry.h`, `HostClient.cpp` |
 | Tweak | Plugin/feature validation in `ShaderCache/Info.ini` invalidates the entire disk cache | Recipe keys include effective defines and source dependencies; a different loaded set gets different keys without wiping unrelated entries | `ShaderVariantRecipe.cpp`, `Utils/ShaderCache/ShaderRecipe.cpp`; equivalent shader identity, different cache organization |
 | Framework | Loaded features run `SetupResources` after renderer initialization; feature resources persist and are recreated as needed, not unloaded by live off | `OnD3D11ReadyAll` initializes GPU resources; feature-owned RAII resources handle replacement; live off does not uninstall hooks or unload features | `Feature.cpp`, `D3D11Bootstrap.cpp`; callback failures quarantine rather than tearing down partial hooks |
 | Framework | Features register their own `MenuOpenCloseEvent` handlers for the loading screen | One `FeatureManager` sink dispatches `Feature::OnLoadingMenuClosed` on the UI thread; features queue render-thread work. | `Feature.h`, `Feature.cpp` |
 | Framework | JSON layering: Default → User → Overrides → User Overrides; settings are saved separately from feature installation | Canonical TOML deep-merges the sibling User TOML; live edits save deltas and preserve startup-only fields | `FeatureConfig.cpp`, `SettingsPersistence.h`, `LiveSettings.h` |
 | Framework | Restart-field introspection and “available after restart” UI | `GetRestartSettings`, pending load markers and forwarding-only DearModdingUI rows expose the same restart boundary | `Feature.h`, `HostClient.cpp` |
 
-The normal upstream settings workflow does not live-load features. Its diagnostic RemoteControl
-bridge can flip `Feature::loaded`; that is not resource setup/teardown and is not a loading API to port.
+The normal upstream settings workflow does not live-load features. The framework `enabled` state
+replaces the RemoteControl `loaded` flip; it is not resource setup/teardown and not a loading API.
 
 ## Substrate
 
