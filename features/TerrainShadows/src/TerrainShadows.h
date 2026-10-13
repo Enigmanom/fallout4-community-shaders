@@ -5,7 +5,6 @@
 #include "FeatureCategories.h"
 #include "ShaderDefines.h"
 #include "TerrainShadowsMath.h"
-#include "TerrainShadowsSettings.h"
 #include "Utils/CSBuffer.h"
 
 #include <array>
@@ -47,14 +46,13 @@ namespace cs::features
 			return "Terrain shadows from heightmap data.";
 		}
 
-		bool Configure(const toml::table& a_config, std::string& a_error) override;
 		void Load() override;
 		void Prepass() override;
 		void OnDataLoaded() override;
 		void OnD3D11Ready(IDXGIAdapter* a_adapter, ID3D11Device* a_device) override;
 		bool ValidateShaderInjections(std::string& a_error) override;
 		void DrawSettings() override;
-		void RestoreDefaultSettings() override;
+		void OnEnabledChanged(bool a_enabled) noexcept override;
 
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
@@ -64,8 +62,6 @@ namespace cs::features
 
 		cs::TerrainShadowsFeatureData GetCommonBufferData() const;
 		ID3D11ShaderResourceView* GetShadowHeightSRV() const;
-
-		using Settings = terrain_shadows::Settings;
 
 	private:
 		struct alignas(16) ShadowUpdateCB
@@ -103,10 +99,6 @@ namespace cs::features
 
 		TerrainShadows() = default;
 
-		bool SaveSettings() override;
-		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(terrain_shadows::kSchema, _settings); }
-		void PublishSettings();
-
 		void DiscoverHeightMaps();
 		void ScanHeightMapDirectory(
 			const std::filesystem::path& a_directory,
@@ -141,8 +133,6 @@ namespace cs::features
 
 		static std::string ResolveWorldspaceEditorId();
 
-		Settings _settings;
-		std::atomic_bool _enabled{ true };
 		std::atomic<DebugVisualization> _debugVisualization{
 			DebugVisualization::kOff
 		};

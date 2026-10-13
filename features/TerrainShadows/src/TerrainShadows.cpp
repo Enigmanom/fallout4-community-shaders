@@ -24,7 +24,6 @@
 #include "LogThrottle.h"
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
-#include "Menu/SettingsEdit.h"
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
@@ -33,7 +32,6 @@
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
 #include "Render/SharedFeatureData.h"
-#include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/CSUtil.h"
 #include "World/Sky.h"
@@ -265,20 +263,11 @@ namespace cs::features
 		_debugVisualization.store(visualization, std::memory_order_release);
 	}
 
-	bool TerrainShadows::Configure(const toml::table& a_config, std::string& a_error)
+	void TerrainShadows::OnEnabledChanged(bool a_enabled) noexcept
 	{
-		auto candidate = _settings;
-		if (!settings::Parse(ts::kSchema, a_config, candidate, a_error))
-			return false;
-		_settings = candidate;
-		_liveSettings = settings::BindLiveSettings(ts::kSchema, _settings, [this] { PublishSettings(); });
-		PublishSettings();
-		return true;
-	}
-
-	void TerrainShadows::PublishSettings()
-	{
-		_enabled.store(_settings.EnableTerrainShadow, std::memory_order_release);
+		// The shadow field is stale after a disabled gap.
+		if (a_enabled)
+			refreshGeneration.fetch_add(1, std::memory_order_release);
 	}
 
 	void TerrainShadows::OnDataLoaded()
@@ -289,11 +278,6 @@ namespace cs::features
 		RegisterRefreshEvent(RE::TESLoadGameEvent::GetEventSource());
 		RegisterRefreshEvent(static_cast<RE::BSTEventSource<RE::BGSActorCellEvent>*>(
 			RE::PlayerCharacter::GetSingleton()));
-	}
-
-	bool TerrainShadows::SaveSettings()
-	{
-		return settings::SaveDelta(ts::kSchema, GetConfigKey(), _settings, *L);
 	}
 
 	void TerrainShadows::Load()
@@ -329,7 +313,7 @@ namespace cs::features
 			"enabled={}, debug_views=shadow_term+heightmap.",
 			kShadowHeightPSSlot,
 			kShadowHeightSamplerPSSlot,
-			_settings.EnableTerrainShadow);
+			IsEnabled());
 	}
 
 	terrain_shadows::BootstrapReadiness
@@ -1029,7 +1013,7 @@ namespace cs::features
 			return;
 		}
 
-		if (!cs::telemetry::pump::Enabled() || !_enabled.load(std::memory_order_acquire) || !_injectionsOperational.load(std::memory_order_acquire) || !_mapLoaded.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_heightTexture || !_heightTexture->srv || !_shadowTexture || !_shadowTexture->srv) {
+		if (!cs::telemetry::pump::Enabled() || !IsEnabled() || !_injectionsOperational.load(std::memory_order_acquire) || !_mapLoaded.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_heightTexture || !_heightTexture->srv || !_shadowTexture || !_shadowTexture->srv) {
 			return;
 		}
 		const auto interval = std::chrono::seconds(
@@ -1121,7 +1105,7 @@ namespace cs::features
 			const bool celestialReady = !timeJump || (sky && std::abs(sky->currentGameHour - _lastGameHour) < 1e-4f);
 			EnsureLiveResources(context);
 
-			const bool enabled = _enabled.load(std::memory_order_acquire) && _injectionsOperational.load(std::memory_order_acquire);
+			const bool enabled = IsEnabled() && _injectionsOperational.load(std::memory_order_acquire);
 			if (enabled && celestialReady && _mapLoaded.load(std::memory_order_acquire) && _shadowResourcesReady.load(std::memory_order_acquire)) {
 				const bool refresh = _pendingFullRefresh || timeJump;
 				if (UpdateShadow(context, refresh)) {
@@ -1160,7 +1144,7 @@ namespace cs::features
 
 	void TerrainShadows::BindShadowHeights(ID3D11DeviceContext* a_context)
 	{
-		if (!a_context || !_injectionsOperational.load(std::memory_order_acquire) || !_enabled.load(std::memory_order_acquire) || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_shadowTexture || !_shadowTexture->srv || !_linearClampSampler) {
+		if (!a_context || !_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_shadowTexture || !_shadowTexture->srv || !_linearClampSampler) {
 			return;
 		}
 		ID3D11SamplerState* sampler = _linearClampSampler.get();
@@ -1186,7 +1170,7 @@ namespace cs::features
 			_debugVisualization.load(std::memory_order_acquire);
 		const bool heightmap =
 			visualization == DebugVisualization::kHeightmap;
-		if (!_injectionsOperational.load(std::memory_order_acquire) || !_enabled.load(std::memory_order_acquire) || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || (!heightmap && !_shadowPopulated.load(std::memory_order_acquire)) || (heightmap ? (!_heightTexture || !_heightTexture->srv) : (!_shadowTexture || !_shadowTexture->srv)) || !_linearClampSampler) {
+		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || (!heightmap && !_shadowPopulated.load(std::memory_order_acquire)) || (heightmap ? (!_heightTexture || !_heightTexture->srv) : (!_shadowTexture || !_shadowTexture->srv)) || !_linearClampSampler) {
 			return {};
 		}
 		return { .owner = FullscreenDebugOwner::TerrainShadows,
@@ -1217,7 +1201,7 @@ namespace cs::features
 
 	cs::TerrainShadowsFeatureData TerrainShadows::GetCommonBufferData() const
 	{
-		if (!_injectionsOperational.load(std::memory_order_acquire) || !_enabled.load(std::memory_order_acquire) || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire)) {
+		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire)) {
 			return {};
 		}
 
@@ -1268,7 +1252,7 @@ namespace cs::features
 			failed = _statusFailed;
 		}
 		a_sink
-			.Field("enabled", _enabled.load(std::memory_order_relaxed))
+			.Field("enabled", IsEnabled())
 			.Field("operational", _injectionsOperational.load(std::memory_order_relaxed))
 			.Field("worldspace", worldspace.empty() ? "none" : worldspace)
 			.Field("status", detail.empty() ? "unknown" : detail)
@@ -1381,11 +1365,7 @@ namespace cs::features
 
 	void TerrainShadows::DrawSettings()
 	{
-		settings::SettingsEdit edit{ *this };
 		if (const ui::Section section{ "terrain-shadows-general", "General" }; section) {
-			if (edit.Discrete(dmui::ui::Checkbox("Enable Terrain Shadow", &_settings.EnableTerrainShadow)))
-				PublishSettings();
-
 			std::string worldspace;
 			std::string detail;
 			bool failed = false;
@@ -1417,13 +1397,6 @@ namespace cs::features
 			}
 		}
 		Menu::Get().DrawDebugViewSelector(*this);
-	}
-
-	void TerrainShadows::RestoreDefaultSettings()
-	{
-		_settings = Settings{};
-		PublishSettings();
-		SaveSettings();
 	}
 
 	namespace

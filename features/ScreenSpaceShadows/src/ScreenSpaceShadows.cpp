@@ -156,7 +156,7 @@ namespace cs::features
 		_started.store(true, std::memory_order_release);
 		L->info(
 			"Registered deferred-lights callbacks (enabled={}).",
-			_settings.Enable != 0);
+			IsEnabled());
 	}
 
 	void ScreenSpaceShadows::CreateMaskTexture(std::uint32_t a_width, std::uint32_t a_height)
@@ -577,7 +577,7 @@ namespace cs::features
 			return;
 
 		try {
-			auto* shader = (_settings.Enable && cs::engine::IsFullSky()) ?
+			auto* shader = (IsEnabled() && cs::engine::IsFullSky()) ?
 			                   GetComputeRaymarch() :
 			                   nullptr;
 
@@ -711,7 +711,7 @@ namespace cs::features
 	void ScreenSpaceShadows::CollectTelemetry(cs::telemetry::Sink& a_sink) const
 	{
 		a_sink
-			.Field("enabled", _settings.Enable != 0)
+			.Field("enabled", IsEnabled())
 			.Field("resources_ready", _resourcesReady.load(std::memory_order_acquire))
 			.Field("white_fallback_ready", _whiteFallbackReady.load(std::memory_order_acquire))
 			.Field(
@@ -757,9 +757,6 @@ namespace cs::features
 	{
 		settings::SettingsEdit edit{ *this };
 		if (const ui::Section section{ "sss-general", "General" }; section) {
-			auto enabled = _settings.Enable != 0;
-			if (edit.Discrete(dmui::ui::Checkbox("Enable", &enabled)))
-				_settings.Enable = enabled ? 1u : 0u;
 			constexpr auto surfaceThickness = sss_settings::kSchema.EditRange(&Settings::SurfaceThickness);
 			edit.Continuous(dmui::ui::SliderScalar(
 				"Surface thickness",

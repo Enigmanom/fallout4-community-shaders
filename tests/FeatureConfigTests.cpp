@@ -15,7 +15,6 @@
 #include "Settings/LiveSettings.h"
 #include "Settings/SettingsRegistry.h"
 #include "SkylightingSettings.h"
-#include "TerrainShadowsSettings.h"
 #include "TerrainVariationSettings.h"
 #include "WaterEffectsSettings.h"
 
@@ -85,7 +84,7 @@ namespace
 			std::pair{ "ImageBasedLighting", MakeSchemaView(image_based_lighting::kSchema) },
 			std::pair{ "WaterEffects", MakeSchemaView(water_effects::kSchema) },
 			std::pair{ "ScreenSpaceShadows", MakeSchemaView(sss_settings::kSchema) },
-			std::pair{ "TerrainShadows", MakeSchemaView(terrain_shadows::kSchema) },
+			std::pair{ "TerrainShadows", SchemaView{} },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
 			std::pair{ "TerrainVariation", MakeSchemaView(terrain_variation::kSchema) },
 			std::pair{ "MotionVectorFixes", SchemaView{} },

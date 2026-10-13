@@ -6,7 +6,7 @@ Both `TerrainShadows/ShadowUpdate.cs.hlsl`
 and `TerrainShadows/TerrainShadows.hlsli` are staged unchanged. Native DDS dimensions, R16G16_UNORM
 shadow heights, 128-thread scans, componentwise penumbra maxima, one-degree softening, half-texel
 offsets, bounded UV, ZBlur, weight-1 full sweeps and weight-0.5 ordinary slices match the pin.
-Settings use `EnableTerrainShadow`; no downsampling setting or resize pass remains.
+There are no feature settings: the framework `enabled` replaces `EnableTerrainShadow` and b6 mirrors it; no downsampling setting or resize pass remains.
 The old v0.2.1 default downsample factor of four was a quality divergence: upstream allocates
 and scans the original heightmap dimensions. That additional work is an accepted parity cost.
 
