@@ -702,9 +702,6 @@ namespace cs
 
 		if (autoLoadOnBoot && !activeIdentity.empty()) {
 			const PresetMeta* meta = FindByIdentity(activeIdentity);
-			if (!meta && !activeName.empty()) {
-				meta = FindByName(activeName, true);
-			}
 			if (meta) {
 				std::string err;
 				if (!Apply(*meta, err)) {
