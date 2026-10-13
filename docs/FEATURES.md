@@ -66,7 +66,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | [Terrain Shadows](deviations/TerrainShadows.md) | Core | Height-field producer, world receivers, time/transition events, secondary/remaining receivers, diagnostics | — | Pt | H | L | High |
 | [Terrain Variation](deviations/TerrainVariation.md) | Core | Landscape stochastic sampling, LOD anti-tiling, landscape-textured meshes, height/PBR coherence (needs Extended Materials/TruePBR consumers) | — | Pt | H | M | High |
 | TruePBR | Mixed | Surface POM (EM marcher under `TRUE_PBR`+`HasDisplacement`; same slice as Extended Materials POM) | Ext: PBR material loader + RMAOS lighting, coat/fuzz/SSS/hair, landscape/grass PBR, glints | NS | H | M | Med |
-| Unified Water | Mixed | Optical distance blend, material identity fix*, cache UI | Ext: distant tile generation/lifetime, world flowmap | NS | M | S/M | Med |
+| Unified Water | Mixed | Optical distance blend, material identity fix*, cache UI | Ext: distant tile generation/lifetime (planned), world flowmap | NS | H | S/M | Med |
 | [Upscaling](deviations/Upscaling.md) | Core | SR/native AA, DR/RCAS/reflection/depth consumers, canonical SDK depth, masks, underwater chain, FG/UI/Reflex | — | Pt | H | L | High |
 | Volumetric Lighting | Mixed | Native GFSDK enable/quality controls | Ext: full raymarched renderer. N/A: Skyrim dispatch optimization | NS | L | S | Med |
 | Volumetric Shadows | Core | VSM producer, DFLight soft sun, Effect/Water short rays, Particle receiver | — | NS | H | L | Med |
@@ -109,20 +109,21 @@ Ordered by user value over effort, respecting dependencies.
 
 1. **Effects11** (L): highest user value; FO4 users rely on ENB's enbeffect. Starts with tonemap-attachment RE.
 2. **Finish ported features:** DC provider adapters (S/M); Water Effects caustics proof (S).
-3. **Cheap new features:** LOD Blending (S); Terrain Variation (M); Remote Control (M; DevBench automation).
+3. **Cheap new features:** LOD Blending (S); Unified Water optical distance blend (S/M); Terrain Variation (M);
+   Remote Control (M; DevBench automation).
 4. **Parallax:** Extended Materials object/terrain POM + TruePBR surface POM, reading `_s` alpha (M).
 5. **Mid-size, few dependencies:** Cloud Shadows (L; feeds EHF); Subsurface Scattering (M); Volumetric
    Shadows producer + DFLight (M); Hair Specular opaque slices (M); Grass Collision (M, actor-bounds RE).
 6. **RE-gated:** Interior Sun; Extended Translucency alpha models.
 7. **Providers:** LLF 3D light grid + light-limit visualization before EHF local-light scattering;
    then provider adapters in DC/SSGI/EHF.
-8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; Unified Water optical;
-   VL controls; CS Editor; Screenshot; HDR Display (L).
+8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; VL controls; CS Editor; Screenshot; HDR Display (L).
 
 ## Extension slices
 
-Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
+Planned: Unified Water distant tile generation (L; FO4 LOD water seam is visibly poor), after the optical
+blend. Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
 full materials; Extended Materials complex materials and parallax shadows; Grass Optimizations renderer;
-Unified Water tiles and flowmaps; Terrain Blending lit transition; Terrain
+Unified Water flowmaps; Terrain Blending lit transition; Terrain
 Helper ESP; Skin RFAOS; SSS profiles; Hair Kajiya-Kay and blended hair; LLF capacity/shadow
 redesign; full Volumetric Lighting renderer; Extended Translucency world coverage.
