@@ -55,10 +55,10 @@ namespace cs::features
 		remote_control::SubscribeCaptureEvents();
 	}
 
-	void RemoteControl::EmitEvent(const char* a_topic, const nlohmann::json& a_payload) const
+	void RemoteControl::EmitEvent(const char* a_topic, const nlohmann::json& a_payload, bool a_bypassMute) const
 	{
 		auto* host = _host.load(std::memory_order_acquire);
-		if (!host || !IsEnabled())
+		if (!host || (!a_bypassMute && !IsEnabled()))
 			return;
 		const auto text = a_payload.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace);
 		host->EmitEvent(a_topic, text.c_str());

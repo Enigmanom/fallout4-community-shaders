@@ -37,7 +37,8 @@ namespace cs::features
 
 		// Any thread. Silent until DevBench is connected and while the feature is disabled; tools
 		// cannot be unregistered, so a disabled feature answers them with an error instead.
-		void EmitEvent(const char* a_topic, const nlohmann::json& a_payload) const;
+		// a_bypassMute announces Remote Control's own disable, which happens after the mute begins.
+		void EmitEvent(const char* a_topic, const nlohmann::json& a_payload, bool a_bypassMute = false) const;
 
 	private:
 		RemoteControl() = default;

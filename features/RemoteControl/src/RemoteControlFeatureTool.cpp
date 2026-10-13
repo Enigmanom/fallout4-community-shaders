@@ -139,13 +139,12 @@ namespace cs::features::remote_control
 				return Error("an A/B comparison is active", { { "hint", "stop it in the Performance Overlay first" } });
 
 			const bool enabled = a_enabled.is_boolean() ? a_enabled.get<bool>() : !feature->IsEnabled();
-			const Json changed{ { "shortName", a_shortName }, { "enabled", enabled } };
-			// Remote Control mutes its own events once disabled, so announce that transition first.
-			if (!enabled)
-				RemoteControl::GetSingleton()->EmitEvent("communityshaders.feature.changed", changed);
 			feature->SetEnabled(enabled);
-			if (enabled)
-				RemoteControl::GetSingleton()->EmitEvent("communityshaders.feature.changed", changed);
+			auto* self = RemoteControl::GetSingleton();
+			// Its own disable is the one change the mute would otherwise swallow.
+			self->EmitEvent("communityshaders.feature.changed",
+				{ { "shortName", a_shortName }, { "enabled", enabled } },
+				feature == self);
 			return { { "action", "toggle" }, { "shortName", a_shortName }, { "enabled", enabled } };
 		}
 
