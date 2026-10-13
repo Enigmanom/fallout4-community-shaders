@@ -71,6 +71,7 @@ Report problems through [Issues](https://github.com/northaxosky/fallout4-communi
 | **Frame Generation** | FSR 3/4, DLSS, and supported Multi Frame Generation modes. |
 | **Performance Overlay** | FPS, frame-time, and latency graphs. |
 | **RenderDoc** | In-game frame capture for debugging. |
+| **Remote Control** | Drives Community Shaders from AI assistants and scripts through the [DevBench](https://github.com/northaxosky/bethesda-devbench) plugin. |
 
 ---
 
@@ -112,6 +113,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, building, testing, and deploym
 - Supported upscaling and frame-generation methods can change while playing; switching may briefly pause rendering.
 - Terrain Shadows ships heightmaps for the base-game and DLC worldspaces; other worldspaces need an xLODGen height map export.
 - RenderDoc capture requires an installed RenderDoc, found automatically; `dll_path` overrides it.
+- Remote Control registers its tools only when the DevBench plugin is installed; it runs no server of its own.
 
 ---
 

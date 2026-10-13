@@ -127,6 +127,13 @@ the host's neutral linear-color policy in the LinearLighting block.
 - `Lighting.hlsl` declares `sharedOffset` only under `EMAT`, so `LANDSCAPE` with `TERRAIN_VARIATION` and
   without `EMAT` does not compile. FO4 consumers declare their own offsets; not patched locally, the fork
   PR is tracked separately.
+- `src/Features/RemoteControl/DevBenchBridge.cpp`, `capture` (`renderdoc`): add a `device` option and
+  bracket the capture with `StartFrameCapture`/`EndFrameCapture` on that device. A global trigger misses
+  frames presented through another API ([Remote Control](RemoteControl.md)).
+- Same tool: return a `requestId` and emit `communityshaders.capture.completed` with the file `path` and
+  `bytes` once RenderDoc has written it.
+- Same file, `feature toggle`: flip a per-feature enable switch instead of `Feature::loaded`
+  ([Feature enable switch](#feature-enable-switch)).
 
 ## Features
 
@@ -140,6 +147,7 @@ the host's neutral linear-color policy in the LinearLighting block.
 - [Dynamic Cubemaps](DynamicCubemaps.md)
 - [Image Based Lighting](IBL.md)
 - [RenderDoc](RenderDoc.md)
+- [Remote Control](RemoteControl.md)
 - [Upscaling](Upscaling.md)
 - [FrameGeneration](FrameGeneration.md)
 - [MotionVectorFixes](MotionVectorFixes.md)

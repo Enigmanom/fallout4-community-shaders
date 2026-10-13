@@ -54,7 +54,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Linear Lighting | N/A | Shared-color compatibility (done), optional calibration controls | N/A: linearization (FO4 is linear), ENB | Substrate | L | S | High |
 | [LOD Blending](deviations/LODBlending.md) | Core | Terrain/object LOD brightness-gamma, terrain/grass vertex-color removal | N/A: snow-LOD | Pt | H | S | High |
 | [Performance Overlay](deviations/PerformanceOverlay.md) | Core | FPS/VRAM/frame/draw diagnostics, A/B comparison, family/total toggles, history plots, FG timing labels | — | Pt | H | M | High |
-| Remote Control | Core | DevBench C-ABI bridge, settings, inspection/cache, capture commands | — | NS | H | M | High |
+| [Remote Control](deviations/RemoteControl.md) | Core | DevBench C-ABI bridge; feature, settings, inspection, shader-cache and RenderDoc capture tools and events; NvPerf tool and screenshot capture pending | — | Pt | H | M | High |
 | [Screen Space GI](deviations/ScreenSpaceGI.md) | Core | AO, GI, temporal, specular GI, vertex AO (relocated), provider wiring | — | Pt | H | M | High |
 | [Screen-Space Shadows](deviations/ScreenSpaceShadows.md) | Core | Bend raymarch, direct/back visibility, tree/alpha/secondary receivers, preview/telemetry | — | Pt | H | M | High |
 | Screenshot | Core | SDR/crop/async/clipboard, temporal source, HDR PNG (needs HDR Display) | — | NS | M | M | High |
@@ -106,15 +106,14 @@ Ordered by user value over effort, respecting dependencies.
 
 1. **Effects11** (L): highest user value; FO4 users rely on ENB's enbeffect. Starts with tonemap-attachment RE.
 2. **Finish ported features:** DC provider adapters (S/M); Water Effects caustics proof (S).
-3. **Cheap new features:** LOD Blending (S); Unified Water optical distance blend (S/M); Terrain Variation (M);
-   Remote Control (M; DevBench automation).
+3. **Cheap new features:** LOD Blending (S); Unified Water optical distance blend (S/M); Terrain Variation (M).
 4. **Parallax:** Extended Materials object/terrain POM + TruePBR surface POM, reading `_s` alpha (M).
 5. **Mid-size, few dependencies:** Cloud Shadows (L; feeds EHF); Subsurface Scattering (M); Volumetric
    Shadows producer + DFLight (M); Hair Specular opaque slices (M); Grass Collision (M, actor-bounds RE).
 6. **RE-gated:** Interior Sun; Extended Translucency alpha models.
 7. **Providers:** LLF 3D light grid + light-limit visualization before EHF local-light scattering;
    then provider adapters in DC/SSGI/EHF.
-8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; VL controls; CS Editor; Screenshot; HDR Display (L).
+8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; VL controls; CS Editor; Screenshot (then Remote Control screenshot capture); Remote Control NvPerf; HDR Display (L).
 
 ## Extension slices
 
