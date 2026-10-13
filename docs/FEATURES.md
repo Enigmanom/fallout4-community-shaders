@@ -37,7 +37,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | CS Editor | Core | Weather/template/imagespace editor, godray record editor, light editor, shell | N/A: Skyrim VL noise fields | NS | H | L | High |
 | Cloud Shadows | Core | Layer-cube producer, directional receivers, Effect/Water/Particle receivers, EHF attenuation | N/A: legacy VL consumer | NS | H | L | Med |
 | [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
-| Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays | N/A: ENB preset/binary compatibility | NS | H | L | Med |
+| Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |
 | [Exponential Height Fog](deviations/ExponentialHeightFog.md) | Core | Analytic/froxel fog; shadow/environment/weather/secondary consumers; local-light scattering (needs LLF light grid) | N/A: ENB | Pt | H | L | High |
 | Extended Materials | Mixed | Object POM + contact refinement, warping fix, terrain POM/height blend (height from `_s` alpha) | Ext: complex envmask material, parallax soft shadows | NS | H | M | Med |
 | Extended Translucency | Mixed | Alpha models on an existing alpha route* | Ext: per-mesh NIF metadata, world translucent coverage | NS | M | S | Low |
