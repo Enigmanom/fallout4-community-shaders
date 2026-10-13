@@ -225,10 +225,9 @@ namespace
 		auto root = LoadFile(a_path).table;
 		CHECK(root["features"]["ScreenSpaceShadows"]["load"].value<bool>() == true);
 		CHECK(root["features"]["ScreenSpaceShadows"]["settings"]["ShadowContrast"].value<double>() == 2.0);
-		CHECK(root["features"]["ScreenSpaceShadows"]["settings"]["custom"].value<std::int64_t>() == 1);
-		CHECK(root["unknown"]["value"].value<std::string>() == "kept");
-		CHECK(root["features"]["RetiredFeature"]["load"].value<bool>() == true);
-		CHECK(root["features"]["RetiredFeature"]["settings"]["custom"].value<std::string>() == "preserved");
+		CHECK(!root["features"]["ScreenSpaceShadows"]["settings"]["custom"]);
+		CHECK(!root["unknown"]);
+		CHECK(!root["features"]["RetiredFeature"]);
 		const auto activeFeature = GetFeature("ScreenSpaceShadows");
 		CHECK(activeFeature && ParseActivation(*activeFeature).load);
 

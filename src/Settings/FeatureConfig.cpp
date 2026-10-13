@@ -110,18 +110,14 @@ namespace cs::feature_config
 		}
 
 		template <class String>
-		const toml::table* FindTable(const toml::table& a_root, std::span<const String> a_path, bool& a_blocked)
+		const toml::table* FindTable(const toml::table& a_root, std::span<const String> a_path)
 		{
 			const auto* table = &a_root;
 			for (const auto& key : a_path) {
 				const auto* node = table->get(key);
-				if (!node)
+				table = node ? node->as_table() : nullptr;
+				if (!table)
 					return nullptr;
-				table = node->as_table();
-				if (!table) {
-					a_blocked = true;
-					return nullptr;
-				}
 			}
 			return table;
 		}
@@ -151,31 +147,6 @@ namespace cs::feature_config
 				return std::ranges::equal(section.path, a_path);
 			});
 			return found == a_registry.end() ? nullptr : &*found;
-		}
-
-		void RenderUnknownTables(
-			std::string& a_output, const toml::table& a_table,
-			std::vector<std::string>& a_path, const settings::Registry& a_registry)
-		{
-			if (!a_path.empty()) {
-				const bool hasValues = std::ranges::any_of(a_table, [](const auto& entry) {
-					return !entry.second.is_table();
-				});
-				if (hasValues || (a_table.empty() && !FindSection(a_registry, a_path))) {
-					a_output += "\n[" + FormatPath(a_path) + "]\n";
-					for (const auto& [key, value] : a_table) {
-						if (!value.is_table())
-							a_output += FormatKey(key.str()) + " = " + FormatNode(value) + "\n";
-					}
-				}
-			}
-			for (const auto& [key, value] : a_table) {
-				if (const auto* child = value.as_table()) {
-					a_path.emplace_back(key.str());
-					RenderUnknownTables(a_output, *child, a_path, a_registry);
-					a_path.pop_back();
-				}
-			}
 		}
 
 		WriteResult WriteError(const std::filesystem::path& a_path, std::string_view a_detail)
@@ -257,31 +228,15 @@ namespace cs::feature_config
 	std::string RenderDocument(const settings::Registry& a_registry, const toml::table& a_root)
 	{
 		std::string output = "# FO4 Community Shaders settings. Uncomment a line to change it; the in-game menu writes this file.\n";
-		auto remaining = a_root;
-		for (const auto& [key, value] : a_root) {
-			if (!value.is_table()) {
-				output += FormatKey(key.str()) + " = " + FormatNode(value) + "\n";
-				remaining.erase(key);
-			}
-		}
 		for (const auto& section : a_registry) {
-			bool blocked = false;
-			const auto* table = FindTable(a_root, std::span{ section.path }, blocked);
-			if (blocked)
-				continue;
+			const auto* table = FindTable(a_root, std::span{ section.path });
 			output += "\n[" + FormatPath(section.path) + "]\n";
 			if (!section.description.empty())
 				output += "# " + section.description + "\n";
-			std::string error;
-			auto* rest = EnsureTablePath(remaining, std::span{ section.path }, error);
-			if (table) {
+			if (table && section.openMap) {
 				for (const auto& [key, value] : *table) {
-					if (std::ranges::find(section.fields, key.str(), &settings::FieldView::key) != section.fields.end())
-						continue;
-					if (!value.is_table() || section.openMap) {
+					if (std::ranges::find(section.fields, key.str(), &settings::FieldView::key) == section.fields.end())
 						output += FormatKey(key.str()) + " = " + FormatNode(value) + "\n";
-						rest->erase(key);
-					}
 				}
 			}
 			for (const auto& field : section.fields) {
@@ -299,11 +254,8 @@ namespace cs::feature_config
 				} else {
 					output += "# " + FormatKey(field.key) + " = " + settings::FormatValue(field.defaultValue) + "\n";
 				}
-				rest->erase(field.key);
 			}
 		}
-		std::vector<std::string> path;
-		RenderUnknownTables(output, remaining, path, a_registry);
 		return output;
 	}
 
