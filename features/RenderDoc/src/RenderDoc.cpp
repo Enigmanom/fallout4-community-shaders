@@ -504,6 +504,10 @@ namespace cs::features
 				capture.countBefore = _captures.Count();
 				capture.remaining = capture.request.frames;
 				capture.started = true;
+				// Behind the proxy the game window's swap chain belongs to the D3D12 device, so a window
+				// pairing never matches the D3D11 device; Start and End must share the wildcard (17bd6de7).
+				if (capture.request.target == CaptureTarget::kEngineD3D11 && _d3d12TargetAvailable.load(std::memory_order_acquire))
+					capture.binding.window = nullptr;
 				_api->StartFrameCapture(capture.binding.device.get(), capture.binding.window);
 				return;
 			}
