@@ -43,14 +43,12 @@ namespace cs::features
 			std::string hint;
 		};
 
-		// path and bytes describe the finished .rdc; error is set instead when the capture failed.
 		struct CaptureCompletion
 		{
 			RequestId id{};
 			CaptureTarget target = CaptureTarget::kEngineD3D11;
 			std::uint32_t frames{};
-			std::filesystem::path path;
-			std::uint64_t bytes{};
+			std::vector<renderdoc::CaptureFile> captures;
 			std::string error;
 		};
 
@@ -77,7 +75,6 @@ namespace cs::features
 		void BindD3D11CaptureTarget(ID3D11Device* a_device, HWND a_window);
 		void BindD3D12CaptureTarget(ID3D12Device* a_device, HWND a_window);
 		void UnbindD3D12CaptureTarget(ID3D12Device* a_device);
-		// Called once per game frame by the active presentation path; counts the in-flight capture.
 		void OnGameFramePresented();
 		[[nodiscard]] bool CaptureHotkeysEnabled() const noexcept
 		{
@@ -92,8 +89,6 @@ namespace cs::features
 			return _settings.multiCaptureHotkey;
 		}
 
-		// Brackets the next `frames` game frames on the target device's own boundary. The capture
-		// starts and ends asynchronously; observers hear about the finished file.
 		[[nodiscard]] std::expected<RequestId, CaptureRefusal> RequestCapture(const CaptureRequest& a_request);
 		// Runs on the thread that sees the .rdc stop growing or the capture fail.
 		void AddCaptureObserver(CaptureObserver a_observer);
@@ -127,7 +122,6 @@ namespace cs::features
 
 		[[nodiscard]] CaptureBinding GetCaptureBinding(CaptureTarget a_target) const;
 
-		// One capture is in flight at a time: bracketing frames, then waiting for the file.
 		struct ActiveCapture
 		{
 			RequestId id{};
@@ -138,18 +132,17 @@ namespace cs::features
 			bool started = false;
 		};
 
+		// Inactivity window: a file still growing keeps the wait alive.
 		static constexpr std::chrono::seconds kCaptureFileTimeout{ 60 };
 		static constexpr std::chrono::milliseconds kCaptureFileStableFor{ 500 };
 
-		struct AwaitedFile
+		struct AwaitedFiles
 		{
 			RequestId id{};
 			CaptureRequest request;
 			std::uint32_t countBefore{};
-			std::filesystem::path path;
-			std::uint64_t bytes{};
-			std::chrono::steady_clock::time_point stableSince;
-			std::chrono::steady_clock::time_point deadline;
+			std::vector<renderdoc::CaptureFile> files;
+			std::chrono::steady_clock::time_point lastChange;
 		};
 
 		void Complete(CaptureCompletion a_completion);
@@ -174,7 +167,7 @@ namespace cs::features
 
 		mutable std::mutex _captureMutex;
 		std::optional<ActiveCapture> _active;
-		std::optional<AwaitedFile> _awaited;
+		std::optional<AwaitedFiles> _awaited;
 		std::vector<CaptureObserver> _observers;
 		RequestId _lastRequestId{};
 

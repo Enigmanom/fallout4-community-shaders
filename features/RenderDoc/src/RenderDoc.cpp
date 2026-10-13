@@ -476,7 +476,7 @@ namespace cs::features
 			observers = _observers;
 		}
 		if (a_completion.error.empty())
-			L->info("Capture {} finished: {} ({} bytes)", a_completion.id, PathToUtf8(a_completion.path), a_completion.bytes);
+			L->info("Capture {} finished: {} files", a_completion.id, a_completion.captures.size());
 		else
 			L->warn("Capture {} failed: {}", a_completion.id, a_completion.error);
 		for (const auto& observer : observers) {
@@ -500,32 +500,33 @@ namespace cs::features
 			if (!_active)
 				return;
 			auto& capture = *_active;
+			auto* device = capture.binding.device.get();
 			if (!capture.started) {
 				capture.countBefore = _captures.Count();
 				capture.remaining = capture.request.frames;
 				capture.started = true;
-				// Behind the proxy the game window's swap chain belongs to the D3D12 device, so a window
-				// pairing never matches the D3D11 device; Start and End must share the wildcard (17bd6de7).
+				// Behind the proxy the window's swap chain belongs to D3D12 (17bd6de7).
 				if (capture.request.target == CaptureTarget::kEngineD3D11 && _d3d12TargetAvailable.load(std::memory_order_acquire))
 					capture.binding.window = nullptr;
-				_api->StartFrameCapture(capture.binding.device.get(), capture.binding.window);
+				_api->StartFrameCapture(device, capture.binding.window);
 				return;
 			}
-			if (--capture.remaining)
-				return;
-			if (_api->EndFrameCapture(capture.binding.device.get(), capture.binding.window)) {
-				const auto now = std::chrono::steady_clock::now();
-				_awaited = AwaitedFile{
+			// One file per frame, as the multi-frame hotkey has always produced.
+			if (!_api->EndFrameCapture(device, capture.binding.window)) {
+				failure = CaptureCompletion{ capture.id, capture.request.target, capture.request.frames, {}, "RenderDoc could not end the capture" };
+				_active.reset();
+			} else if (--capture.remaining) {
+				_api->StartFrameCapture(device, capture.binding.window);
+			} else {
+				_awaited = AwaitedFiles{
 					.id = capture.id,
 					.request = capture.request,
 					.countBefore = capture.countBefore,
-					.stableSince = now,
-					.deadline = now + kCaptureFileTimeout
+					.files = std::vector<renderdoc::CaptureFile>(capture.request.frames),
+					.lastChange = std::chrono::steady_clock::now()
 				};
-			} else {
-				failure = CaptureCompletion{ capture.id, capture.request.target, capture.request.frames, {}, 0, "RenderDoc could not end the capture" };
+				_active.reset();
 			}
-			_active.reset();
 		}
 		if (failure)
 			Complete(std::move(*failure));
@@ -540,27 +541,29 @@ namespace cs::features
 				return;
 			auto& awaited = *_awaited;
 			const auto now = std::chrono::steady_clock::now();
-			CaptureCompletion completion{ awaited.id, awaited.request.target, awaited.request.frames, {}, 0, {} };
-			if (awaited.path.empty() && _captures.Count() > awaited.countBefore) {
-				const auto utf8 = _captures.PathUtf8(awaited.countBefore);
-				awaited.path = std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
-			}
-			std::error_code error;
-			const auto bytes = awaited.path.empty() ? std::uintmax_t{} : std::filesystem::file_size(awaited.path, error);
-			if (!awaited.path.empty() && !error && bytes > 0) {
-				if (bytes != awaited.bytes) {
-					awaited.bytes = bytes;
-					awaited.stableSince = now;
-				} else if (now - awaited.stableSince >= kCaptureFileStableFor) {
-					completion.path = awaited.path;
-					completion.bytes = bytes;
-					done = std::move(completion);
+			const auto listed = _captures.Count();
+			bool complete = true;
+			for (std::size_t i = 0; i < awaited.files.size(); ++i) {
+				auto& file = awaited.files[i];
+				if (file.path.empty() && listed > awaited.countBefore + i) {
+					const auto utf8 = _captures.PathUtf8(awaited.countBefore + static_cast<std::uint32_t>(i));
+					file.path = std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
+					awaited.lastChange = now;
 				}
+				std::error_code error;
+				const auto bytes = file.path.empty() ? std::uintmax_t{} : std::filesystem::file_size(file.path, error);
+				if (!error && bytes != file.bytes) {
+					file.bytes = bytes;
+					awaited.lastChange = now;
+				}
+				complete = complete && !file.path.empty() && file.bytes > 0;
 			}
-			if (!done && now >= awaited.deadline) {
-				completion.error = awaited.path.empty() ?
-				                       "RenderDoc did not report a new capture file" :
-				                       "capture file did not finish writing";
+			CaptureCompletion completion{ awaited.id, awaited.request.target, awaited.request.frames, {}, {} };
+			if (complete && now - awaited.lastChange >= kCaptureFileStableFor) {
+				completion.captures = awaited.files;
+				done = std::move(completion);
+			} else if (now - awaited.lastChange >= kCaptureFileTimeout) {
+				completion.error = complete ? "capture files did not finish writing" : "RenderDoc did not report every capture file";
 				done = std::move(completion);
 			}
 			if (done)
@@ -669,7 +672,7 @@ namespace cs::features
 		{
 			std::scoped_lock lock(_captureMutex);
 			if (_active && _active->request.target == CaptureTarget::kTemporalD3D12) {
-				lost = CaptureCompletion{ _active->id, _active->request.target, _active->request.frames, {}, 0, "the temporal D3D12 target went away" };
+				lost = CaptureCompletion{ _active->id, _active->request.target, _active->request.frames, {}, "the temporal D3D12 target went away" };
 				_active.reset();
 			}
 		}

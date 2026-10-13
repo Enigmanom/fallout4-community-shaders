@@ -76,10 +76,13 @@ namespace cs::features::remote_control
 		RenderDoc::GetSingleton()->AddCaptureObserver([](const RenderDoc::CaptureCompletion& a_done) {
 			Json payload{ { "requestId", a_done.id }, { "device", DeviceName(a_done.target) } };
 			if (a_done.error.empty()) {
-				const auto path = a_done.path.u8string();
+				auto captures = Json::array();
+				for (const auto& file : a_done.captures) {
+					const auto path = file.path.u8string();
+					captures.push_back({ { "path", std::string(path.begin(), path.end()) }, { "bytes", file.bytes } });
+				}
 				payload["frames"] = a_done.frames;
-				payload["path"] = std::string(path.begin(), path.end());
-				payload["bytes"] = a_done.bytes;
+				payload["captures"] = std::move(captures);
 			} else {
 				payload["error"] = a_done.error;
 			}
@@ -89,7 +92,7 @@ namespace cs::features::remote_control
 
 	const Tool kCaptureTool{
 		"communityshaders.capture",
-		R"({"description":"Trigger a frame capture. Kind-dispatched. kind=renderdoc: a RenderDoc capture of 'frames' frames (1-120, default 1) bracketed on the chosen 'device' (d3d11 default: the engine device; d3d12: the temporal pipeline device, available only while the D3D12 proxy is active, i.e. with Upscaling or Frame Generation outside exclusive fullscreen). Returns immediately with {queued,requestId,kind,device,frames,enqueued_at_frame}; when RenderDoc has finished the file the event communityshaders.capture.completed carries {requestId,device,frames,path,bytes}, or {requestId,device,error} on failure. One capture runs at a time. kind=screenshot is not available in Fallout 4; use the devbench capture tool.","inputSchema":{"type":"object","properties":{"kind":{"type":"string","enum":["renderdoc","screenshot"]},"frames":{"type":"number"},"device":{"type":"string","enum":["d3d11","d3d12"]}},"required":["kind"]}})",
+		R"({"description":"Trigger a frame capture. Kind-dispatched. kind=renderdoc: a RenderDoc capture of 'frames' frames (1-120, default 1), one .rdc per frame, bracketed on the chosen 'device' (d3d11 default: the engine device; d3d12: the temporal pipeline device, available only while the D3D12 proxy is active, i.e. with Upscaling or Frame Generation outside exclusive fullscreen). Returns immediately with {queued,requestId,kind,device,frames,enqueued_at_frame}; when RenderDoc has finished the file the event communityshaders.capture.completed carries {requestId,device,frames,captures:[{path,bytes}]} with one entry per frame, or {requestId,device,error} on failure. One capture runs at a time. kind=screenshot is not available in Fallout 4; use the devbench capture tool.","inputSchema":{"type":"object","properties":{"kind":{"type":"string","enum":["renderdoc","screenshot"]},"frames":{"type":"number"},"device":{"type":"string","enum":["d3d11","d3d12"]}},"required":["kind"]}})",
 		&Handle
 	};
 }
