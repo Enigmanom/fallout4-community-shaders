@@ -40,8 +40,6 @@ namespace cs::features::remote_control
 			return entry;
 		}
 
-		// Everything below runs on the frame thread, where the host UI edits the same settings.
-
 		Json List()
 		{
 			auto features = Json::array();
@@ -61,7 +59,6 @@ namespace cs::features::remote_control
 			return settings::TomlToJson(access.snapshot());
 		}
 
-		// Set and reset change live state, so they share the same preconditions.
 		Json EditableFeature(const std::string& a_shortName, Feature*& a_feature)
 		{
 			a_feature = FindFeature(a_shortName, true);
@@ -118,7 +115,7 @@ namespace cs::features::remote_control
 			} catch (const std::exception& failure) {
 				return Error("reset failed", { { "shortName", a_shortName }, { "detail", failure.what() } });
 			}
-			// The framework reset saves as part of restoring; there is no live-only variant.
+			// Restoring saves; there is no live-only reset.
 			return { { "action", "reset" }, { "shortName", a_shortName }, { "applied", true }, { "persisted", true } };
 		}
 
@@ -141,7 +138,7 @@ namespace cs::features::remote_control
 			const bool enabled = a_enabled.is_boolean() ? a_enabled.get<bool>() : !feature->IsEnabled();
 			feature->SetEnabled(enabled);
 			auto* self = RemoteControl::GetSingleton();
-			// Its own disable is the one change the mute would otherwise swallow.
+			// Its own disable would otherwise be muted.
 			self->EmitEvent("communityshaders.feature.changed",
 				{ { "shortName", a_shortName }, { "enabled", enabled } },
 				feature == self);

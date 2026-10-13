@@ -18,7 +18,6 @@ namespace cs::features
 	{
 		auto* L = cs::log::Get("cs.feature.remotecontrol");
 
-		// DevBench publishes the port it bound here; the tools themselves use the in-process API.
 		std::filesystem::path RuntimeJsonPath()
 		{
 			wchar_t base[MAX_PATH];
@@ -67,7 +66,7 @@ namespace cs::features
 	int RemoteControl::ReadHostPort()
 	{
 		const auto now = std::chrono::steady_clock::now();
-		// DevBench may bind after this page first opens, so re-read now and then.
+		// DevBench may bind after the page first opens.
 		if (_cachedPort >= 0 && now - _portReadAt < std::chrono::seconds(2))
 			return _cachedPort;
 		_portReadAt = now;

@@ -20,6 +20,6 @@ namespace cs::engine
 		std::string error;
 	};
 
-	// Frame thread. Disk records go first, so a failure keeps the compiled variants.
+	// Disk goes first so a failure keeps the compiled variants.
 	ShaderCacheClearResult ClearShaderCache(ShaderCacheScope a_scope);
 }

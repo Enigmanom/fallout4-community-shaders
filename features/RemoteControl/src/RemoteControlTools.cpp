@@ -26,8 +26,7 @@ namespace cs::features::remote_control
 			&kCaptureTool
 		};
 
-		// The one C-ABI entry point: parse, guard, run, and write the result exactly once, with
-		// no exception crossing the DLL boundary.
+		// No exception may cross the DLL boundary; write the result once.
 		void Dispatch(void* a_context, const char* a_argsJson, void* a_sink, DevBenchAPI::WriteFn a_write)
 		{
 			const auto& tool = *static_cast<const Tool*>(a_context);

@@ -10,7 +10,6 @@
 #include <nlohmann/json.hpp>
 #include <toml++/toml.hpp>
 
-// The wire format of remote settings; the TOML snapshot stays the only settings representation.
 namespace cs::settings
 {
 	[[nodiscard]] std::expected<toml::table, std::string> JsonToToml(const nlohmann::json& a_object);

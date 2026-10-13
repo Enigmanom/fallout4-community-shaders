@@ -18,7 +18,6 @@ namespace DevBenchAPI
 
 namespace cs::features
 {
-	// Thin client of the external DevBench host: it registers tools there and runs no server.
 	class RemoteControl : public Feature
 	{
 	public:
@@ -35,9 +34,7 @@ namespace cs::features
 		void OnPostPostLoad() override;
 		void DrawSettings() override;
 
-		// Any thread. Silent until DevBench is connected and while the feature is disabled; tools
-		// cannot be unregistered, so a disabled feature answers them with an error instead.
-		// a_bypassMute announces Remote Control's own disable, which happens after the mute begins.
+		// Muted while disabled, except the bypass that announces the disable itself.
 		void EmitEvent(const char* a_topic, const nlohmann::json& a_payload, bool a_bypassMute = false) const;
 
 	private:

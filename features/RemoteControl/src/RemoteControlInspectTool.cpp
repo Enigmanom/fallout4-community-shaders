@@ -20,7 +20,7 @@ namespace cs::features::remote_control
 			};
 		}
 
-		// The profiler is written by the render thread, so it is read at the frame boundary.
+		// The render thread writes the profiler; read it at the frame boundary.
 		Json Timings(const std::string& a_filter)
 		{
 			auto& profiler = render::profiling::GetProfiler();
