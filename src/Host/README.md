@@ -82,7 +82,7 @@ in theme colors.
 
 Performance Overlay offset and size are author defaults. DearModdingUI persists the user's
 arrangement in its `imgui.ini`; Reset Layout discards it and reapplies the defaults.
-Legacy TOML `Position` and `PositionSet` keys are ignored. The host applies content scaling exactly once.
+The host applies content scaling exactly once.
 Overlay sampling and RenderDoc maintenance run from the frame observer rather than depending on a
 visible settings page.
 

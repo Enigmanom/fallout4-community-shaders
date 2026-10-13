@@ -8,8 +8,6 @@ Set `load = true`, configure the relevant native shader ownership and restart.
 The framework `enabled` key beside `load` (default `false`) toggles the effect live; `volumetricFogEnabled` selects the volume pipeline.
 Generated defaults contain the upstream settings and ranges. RGBA colors use four-element
 TOML arrays. The Fog Factor debug view and telemetry remain available.
-Remove legacy `density_multiplier` and `height_falloff_multiplier` overrides; they have
-no equivalent in the upstream model.
 
 ## Weather profiles
 
