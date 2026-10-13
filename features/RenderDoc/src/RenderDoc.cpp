@@ -32,7 +32,6 @@ namespace cs::features
 		auto* L = cs::log::Get("cs.feature.renderdoc");
 	}
 
-	constexpr std::string_view kLegacyCaptureFolder = "Data\\F4SE\\Plugins\\RenderDoc\\captures";
 	using renderdoc_settings::kEngineD3D11Target;
 	using renderdoc_settings::kTemporalD3D12Target;
 
