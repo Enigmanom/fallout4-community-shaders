@@ -25,19 +25,6 @@ namespace cs::renderdoc
 		return std::filesystem::space(_directory).available >= RequiredSpaceBytes(a_frames);
 	}
 
-	void CaptureService::Trigger(int a_frames)
-	{
-		if (!_api)
-			throw std::runtime_error("RenderDoc capture API is unavailable");
-		const auto frames = static_cast<std::uint32_t>(
-			std::clamp(a_frames, kMinCaptureFrameCount, kMaxCaptureFrameCount));
-		if (frames == 1)
-			_api->TriggerCapture();
-		else
-			_api->TriggerMultiFrameCapture(frames);
-		_cacheValid = false;
-	}
-
 	void CaptureService::QueueComments(std::string a_comments)
 	{
 		_pendingComments = std::move(a_comments);
@@ -53,16 +40,13 @@ namespace cs::renderdoc
 		auto pending = std::move(_pendingComments);
 		_pendingComments.clear();
 		for (auto index = _lastCaptureCount; index < count; ++index) {
-			std::uint32_t length{};
-			if (!_api->GetCapture(index, nullptr, &length, nullptr) || !length)
-				continue;
-			std::vector<char> path(static_cast<std::size_t>(length) + 1, '\0');
-			if (!_api->GetCapture(index, path.data(), &length, nullptr))
+			const auto path = PathUtf8(index);
+			if (path.empty())
 				continue;
 			const auto& comments = index == _lastCaptureCount && !pending.empty() ?
 			                           pending :
 			                           a_automaticComments;
-			_api->SetCaptureFileComments(path.data(), comments.c_str());
+			_api->SetCaptureFileComments(path.c_str(), comments.c_str());
 		}
 		_lastCaptureCount = count;
 		_cacheValid = false;
@@ -122,5 +106,17 @@ namespace cs::renderdoc
 	std::uint32_t CaptureService::Count() const
 	{
 		return _api ? _api->GetNumCaptures() : 0;
+	}
+
+	std::string CaptureService::PathUtf8(std::uint32_t a_index) const
+	{
+		std::uint32_t length{};
+		if (!_api || !_api->GetCapture(a_index, nullptr, &length, nullptr) || !length)
+			return {};
+		std::string path(static_cast<std::size_t>(length), '\0');
+		if (!_api->GetCapture(a_index, path.data(), &length, nullptr))
+			return {};
+		path.resize(std::char_traits<char>::length(path.c_str()));
+		return path;
 	}
 }

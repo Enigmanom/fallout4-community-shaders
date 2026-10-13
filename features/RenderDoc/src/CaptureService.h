@@ -36,13 +36,14 @@ namespace cs::renderdoc
 		void Attach(RENDERDOC_API_1_7_0* a_api);
 		void SetDirectory(std::filesystem::path a_directory);
 		[[nodiscard]] bool HasSufficientDiskSpace(int a_frames) const;
-		void Trigger(int a_frames);
 		void QueueComments(std::string a_comments);
 		void Poll(const std::string& a_automaticComments);
 		const std::vector<CaptureFile>& Inventory(bool a_forceRefresh = false);
 		std::uint64_t DiskUsageBytes() const;
 		void ClearCaptures();
 		[[nodiscard]] std::uint32_t Count() const;
+		// RenderDoc's UTF-8 path for capture a_index; empty until it is listed.
+		[[nodiscard]] std::string PathUtf8(std::uint32_t a_index) const;
 
 	private:
 		RENDERDOC_API_1_7_0* _api{};

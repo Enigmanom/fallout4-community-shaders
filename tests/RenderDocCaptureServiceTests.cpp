@@ -14,7 +14,6 @@
 namespace
 {
 	int failures{};
-	std::uint32_t capturedFrames{};
 	std::uint32_t completedCaptures{};
 	std::vector<std::pair<std::string, std::string>> comments;
 
@@ -28,8 +27,6 @@ namespace
 
 #define CHECK(a_expression) Check(static_cast<bool>(a_expression), #a_expression, __LINE__)
 
-	void RENDERDOC_CC TriggerCapture() { capturedFrames = 1; }
-	void RENDERDOC_CC TriggerMultiFrameCapture(std::uint32_t a_frames) { capturedFrames = a_frames; }
 	std::uint32_t RENDERDOC_CC GetNumCaptures() { return completedCaptures; }
 	std::uint32_t RENDERDOC_CC GetCapture(std::uint32_t a_index, char* a_filename,
 		std::uint32_t* a_length, std::uint64_t*)
@@ -50,8 +47,6 @@ namespace
 	void TestCaptureCompletion()
 	{
 		RENDERDOC_API_1_7_0 api{};
-		api.TriggerCapture = TriggerCapture;
-		api.TriggerMultiFrameCapture = TriggerMultiFrameCapture;
 		api.GetNumCaptures = GetNumCaptures;
 		api.GetCapture = GetCapture;
 		api.SetCaptureFileComments = SetComments;
@@ -62,12 +57,8 @@ namespace
 		service.Poll("metadata");
 		CHECK(comments.empty());
 
-		service.Trigger(0);
-		CHECK(capturedFrames == 1);
-		service.Trigger(121);
-		CHECK(capturedFrames == 120);
-		service.Trigger(3);
-		CHECK(capturedFrames == 3);
+		CHECK(service.PathUtf8(0) == "0.rdc");
+		CHECK(service.PathUtf8(1).empty());
 		service.QueueComments("metadata\nUser Comments:\ninspect shadows");
 		service.Poll("metadata");
 		CHECK(comments.empty());

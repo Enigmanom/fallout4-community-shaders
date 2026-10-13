@@ -323,39 +323,30 @@ namespace cs::features
 		_api->SetCaptureFilePathTemplate(pathTemplate.c_str());
 	}
 
-	bool RenderDoc::CheckCaptureDiskSpace(int a_frames) const
+	std::optional<RenderDoc::CaptureRefusal> RenderDoc::CheckCaptureDiskSpace(int a_frames) const
 	{
 		try {
 			if (!_captures.HasSufficientDiskSpace(a_frames)) {
 				const auto requiredMiB = renderdoc::RequiredSpaceBytes(a_frames) / (1024 * 1024);
-				L->warn("RenderDoc capture aborted: at least {} MiB free required in {}",
-					requiredMiB, _resolvedCaptureFolderUtf8);
-				cs::Menu::ShowToast(
-					std::format("RenderDoc capture aborted: at least {} MiB free required.", requiredMiB),
-					4.0,
-					DMUI_STATUS_SEVERITY_WARNING,
-					"RenderDoc");
-				return false;
+				return CaptureRefusal{
+					std::format("at least {} MiB free required in {}", requiredMiB, _resolvedCaptureFolderUtf8),
+					"free disk space or change the capture folder"
+				};
 			}
 		} catch (const std::filesystem::filesystem_error& e) {
-			L->warn("RenderDoc capture aborted: failed to query free disk space for {}: {}",
-				_resolvedCaptureFolderUtf8, e.what());
-			cs::Menu::ShowToast(
-				"RenderDoc capture aborted: disk check failed",
-				4.0,
-				DMUI_STATUS_SEVERITY_ERROR,
-				"RenderDoc");
-			return false;
+			return CaptureRefusal{
+				std::format("disk check failed for {}: {}", _resolvedCaptureFolderUtf8, e.what()),
+				"check that the capture folder exists and is writable"
+			};
 		}
-
-		return true;
+		return std::nullopt;
 	}
 
-	RenderDoc::CaptureBinding RenderDoc::GetCaptureBinding() const
+	RenderDoc::CaptureBinding RenderDoc::GetCaptureBinding(CaptureTarget a_target) const
 	{
 		std::scoped_lock lock(_captureTargetMutex);
 		CaptureBinding binding;
-		switch (_settings.captureTarget) {
+		switch (a_target) {
 		case CaptureTarget::kTemporalD3D12:
 			binding.device.copy_from(_device12.get());
 			binding.window = _window12;
@@ -378,46 +369,6 @@ namespace cs::features
 		default:
 			return _d3d11TargetAvailable.load(std::memory_order_acquire);
 		}
-	}
-
-	bool RenderDoc::BindCaptureTarget(bool a_reportUnavailable)
-	{
-		if (!_api || !_api->SetActiveWindow) {
-			if (a_reportUnavailable) {
-				L->warn(
-					"RenderDoc capture aborted: the runtime does not expose "
-					"SetActiveWindow");
-				cs::Menu::ShowToast(
-					"RenderDoc capture target binding is unavailable",
-					4.0,
-					DMUI_STATUS_SEVERITY_ERROR,
-					"RenderDoc");
-			}
-			return false;
-		}
-
-		const auto binding = GetCaptureBinding();
-		if (!binding.device || !binding.window) {
-			if (a_reportUnavailable) {
-				const auto* name =
-					CaptureTargetDisplayName(_settings.captureTarget);
-				L->warn(
-					"RenderDoc capture aborted: selected target {} is unavailable",
-					name);
-				cs::Menu::ShowToast(
-					std::format(
-						"RenderDoc capture target unavailable: {}",
-						name),
-					4.0,
-					DMUI_STATUS_SEVERITY_ERROR,
-					"RenderDoc");
-			}
-			return false;
-		}
-
-		if (!FramesEngineCaptureManually())
-			_api->SetActiveWindow(binding.device.get(), binding.window);
-		return true;
 	}
 
 	void RenderDoc::ApplyPendingComments()
@@ -472,49 +423,147 @@ namespace cs::features
 			.Field("folder", _resolvedCaptureFolderUtf8);
 	}
 
-	bool RenderDoc::FramesEngineCaptureManually() const noexcept
+	std::expected<RenderDoc::RequestId, RenderDoc::CaptureRefusal> RenderDoc::RequestCapture(const CaptureRequest& a_request)
 	{
-		// FO4: the temporal proxy presents through D3D12, so game-device captures need explicit frame boundaries.
-		return _settings.captureTarget == CaptureTarget::kEngineD3D11 &&
-		       _d3d12TargetAvailable.load(std::memory_order_acquire);
-	}
+		if (!_api) {
+			return std::unexpected(CaptureRefusal{
+				"RenderDoc runtime is not loaded",
+				"install RenderDoc or fix dll_path, then restart with the feature loaded" });
+		}
+		if (a_request.frames < static_cast<std::uint32_t>(renderdoc::kMinCaptureFrameCount) ||
+			a_request.frames > static_cast<std::uint32_t>(renderdoc::kMaxCaptureFrameCount)) {
+			return std::unexpected(CaptureRefusal{
+				std::format("frames must be {}-{}", renderdoc::kMinCaptureFrameCount, renderdoc::kMaxCaptureFrameCount),
+				{} });
+		}
+		auto binding = GetCaptureBinding(a_request.target);
+		if (!binding.device || !binding.window) {
+			return std::unexpected(CaptureRefusal{
+				std::format("capture target unavailable: {}", CaptureTargetDisplayName(a_request.target)),
+				a_request.target == CaptureTarget::kTemporalD3D12 ?
+					"the temporal D3D12 proxy is active only with Upscaling or Frame Generation outside exclusive fullscreen" :
+					"the engine D3D11 device binds at startup; retry once the game has finished loading" });
+		}
+		if (auto refusal = CheckCaptureDiskSpace(static_cast<int>(a_request.frames)))
+			return std::unexpected(std::move(*refusal));
 
-	bool RenderDoc::RequestFrames(std::uint32_t a_frames)
-	{
-		if (!BindCaptureTarget(true) || !CheckCaptureDiskSpace(static_cast<int>(a_frames)))
-			return false;
+		std::scoped_lock lock(_captureMutex);
+		if (_active || _awaited) {
+			return std::unexpected(CaptureRefusal{
+				"another capture is still in flight",
+				"wait for its completion event before requesting the next" });
+		}
 		if (_commentsBuf[0]) {
 			_captures.QueueComments(BuildAutomaticCaptureComments(_commentsBuf.data()));
 			_commentsBuf[0] = 0;
 		}
-		if (FramesEngineCaptureManually()) {
-			_manualFramesPending.store(a_frames, std::memory_order_release);
-		} else {
-			_captures.Trigger(static_cast<int>(a_frames));
+		const auto id = ++_lastRequestId;
+		_active = ActiveCapture{ .id = id, .request = a_request, .binding = std::move(binding) };
+		return id;
+	}
+
+	void RenderDoc::AddCaptureObserver(CaptureObserver a_observer)
+	{
+		std::scoped_lock lock(_captureMutex);
+		_observers.push_back(std::move(a_observer));
+	}
+
+	void RenderDoc::Complete(CaptureCompletion a_completion)
+	{
+		std::vector<CaptureObserver> observers;
+		{
+			std::scoped_lock lock(_captureMutex);
+			observers = _observers;
 		}
-		return true;
+		if (a_completion.error.empty())
+			L->info("Capture {} finished: {} ({} bytes)", a_completion.id, PathToUtf8(a_completion.path), a_completion.bytes);
+		else
+			L->warn("Capture {} failed: {}", a_completion.id, a_completion.error);
+		for (const auto& observer : observers) {
+			try {
+				observer(a_completion);
+			} catch (const std::exception& error) {
+				L->error("Capture observer threw: {}", error.what());
+			} catch (...) {
+				L->error("Capture observer threw");
+			}
+		}
 	}
 
 	void RenderDoc::OnGameFramePresented()
 	{
 		if (!_api)
 			return;
-		if (_manualFrameDevice) {
-			_api->EndFrameCapture(_manualFrameDevice.get(), nullptr);
-			_manualFrameDevice = nullptr;
-		}
-		auto pending = _manualFramesPending.load(std::memory_order_acquire);
-		while (pending && !_manualFramesPending.compare_exchange_weak(
-							  pending, pending - 1, std::memory_order_acq_rel)) {
-		}
-		if (!pending)
-			return;
+		std::optional<CaptureCompletion> failure;
 		{
-			std::scoped_lock lock(_captureTargetMutex);
-			_manualFrameDevice.copy_from(_device11.get());
+			std::scoped_lock lock(_captureMutex);
+			if (!_active)
+				return;
+			auto& capture = *_active;
+			if (!capture.started) {
+				capture.countBefore = _captures.Count();
+				capture.remaining = capture.request.frames;
+				capture.started = true;
+				_api->StartFrameCapture(capture.binding.device.get(), capture.binding.window);
+				return;
+			}
+			if (--capture.remaining)
+				return;
+			if (_api->EndFrameCapture(capture.binding.device.get(), capture.binding.window)) {
+				const auto now = std::chrono::steady_clock::now();
+				_awaited = AwaitedFile{
+					.id = capture.id,
+					.request = capture.request,
+					.countBefore = capture.countBefore,
+					.stableSince = now,
+					.deadline = now + kCaptureFileTimeout
+				};
+			} else {
+				failure = CaptureCompletion{ capture.id, capture.request.target, capture.request.frames, {}, 0, "RenderDoc could not end the capture" };
+			}
+			_active.reset();
 		}
-		if (_manualFrameDevice)
-			_api->StartFrameCapture(_manualFrameDevice.get(), nullptr);
+		if (failure)
+			Complete(std::move(*failure));
+	}
+
+	void RenderDoc::PollCaptureCompletion()
+	{
+		std::optional<CaptureCompletion> done;
+		{
+			std::scoped_lock lock(_captureMutex);
+			if (!_awaited)
+				return;
+			auto& awaited = *_awaited;
+			const auto now = std::chrono::steady_clock::now();
+			CaptureCompletion completion{ awaited.id, awaited.request.target, awaited.request.frames, {}, 0, {} };
+			if (awaited.path.empty() && _captures.Count() > awaited.countBefore) {
+				const auto utf8 = _captures.PathUtf8(awaited.countBefore);
+				awaited.path = std::filesystem::path(std::u8string(utf8.begin(), utf8.end()));
+			}
+			std::error_code error;
+			const auto bytes = awaited.path.empty() ? std::uintmax_t{} : std::filesystem::file_size(awaited.path, error);
+			if (!awaited.path.empty() && !error && bytes > 0) {
+				if (bytes != awaited.bytes) {
+					awaited.bytes = bytes;
+					awaited.stableSince = now;
+				} else if (now - awaited.stableSince >= kCaptureFileStableFor) {
+					completion.path = awaited.path;
+					completion.bytes = bytes;
+					done = std::move(completion);
+				}
+			}
+			if (!done && now >= awaited.deadline) {
+				completion.error = awaited.path.empty() ?
+				                       "RenderDoc did not report a new capture file" :
+				                       "capture file did not finish writing";
+				done = std::move(completion);
+			}
+			if (done)
+				_awaited.reset();
+		}
+		if (done)
+			Complete(std::move(*done));
 	}
 
 	void RenderDoc::TriggerCapture()
@@ -525,10 +574,18 @@ namespace cs::features
 			return;
 		}
 		const auto frameCount = ClampCaptureFrameCount(_settings.captureFrameCount);
-		if (!RequestFrames(static_cast<std::uint32_t>(frameCount)))
+		const auto request = RequestCapture({ _settings.captureTarget, static_cast<std::uint32_t>(frameCount) });
+		if (!request) {
+			L->warn("RenderDoc capture aborted: {}", request.error().message);
+			cs::Menu::ShowToast(
+				std::format("RenderDoc capture aborted: {}", request.error().message),
+				4.0,
+				DMUI_STATUS_SEVERITY_WARNING,
+				"RenderDoc");
 			return;
+		}
 
-		L->info("Capture triggered for {}: {} frames", CaptureTargetDisplayName(_settings.captureTarget), frameCount);
+		L->info("Capture {} requested for {}: {} frames", *request, CaptureTargetDisplayName(_settings.captureTarget), frameCount);
 	}
 
 	void RenderDoc::TriggerMultiFrameCapture()
@@ -560,6 +617,10 @@ namespace cs::features
 	void RenderDoc::TickHostFrame()
 	{
 		ApplyPendingComments();
+		// Without the temporal proxy, the host frame is the only game-frame boundary.
+		if (!_d3d12TargetAvailable.load(std::memory_order_acquire))
+			OnGameFramePresented();
+		PollCaptureCompletion();
 	}
 
 	void RenderDoc::BindD3D11CaptureTarget(
@@ -592,12 +653,24 @@ namespace cs::features
 
 	void RenderDoc::UnbindD3D12CaptureTarget(ID3D12Device* a_device)
 	{
-		std::scoped_lock lock(_captureTargetMutex);
-		if (a_device && _device12.get() != a_device)
-			return;
-		_d3d12TargetAvailable.store(false, std::memory_order_release);
-		_window12 = nullptr;
-		_device12 = nullptr;
+		{
+			std::scoped_lock lock(_captureTargetMutex);
+			if (a_device && _device12.get() != a_device)
+				return;
+			_d3d12TargetAvailable.store(false, std::memory_order_release);
+			_window12 = nullptr;
+			_device12 = nullptr;
+		}
+		std::optional<CaptureCompletion> lost;
+		{
+			std::scoped_lock lock(_captureMutex);
+			if (_active && _active->request.target == CaptureTarget::kTemporalD3D12) {
+				lost = CaptureCompletion{ _active->id, _active->request.target, _active->request.frames, {}, 0, "the temporal D3D12 target went away" };
+				_active.reset();
+			}
+		}
+		if (lost)
+			Complete(std::move(*lost));
 	}
 
 	void RenderDoc::DrawSettings()
