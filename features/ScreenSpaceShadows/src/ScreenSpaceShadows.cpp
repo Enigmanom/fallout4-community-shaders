@@ -711,7 +711,6 @@ namespace cs::features
 	void ScreenSpaceShadows::CollectTelemetry(cs::telemetry::Sink& a_sink) const
 	{
 		a_sink
-			.Field("enabled", IsEnabled())
 			.Field("resources_ready", _resourcesReady.load(std::memory_order_acquire))
 			.Field("white_fallback_ready", _whiteFallbackReady.load(std::memory_order_acquire))
 			.Field(

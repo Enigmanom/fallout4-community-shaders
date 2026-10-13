@@ -690,7 +690,6 @@ namespace cs::features
 		const auto rejected = [&](Reject a_reason) { return count(stats.rejected[static_cast<std::size_t>(a_reason)]); };
 		const auto cascadeSkipped = [&](CascadeSkip a_reason) { return count(_cascadeCounters.skipped[static_cast<std::size_t>(a_reason)]); };
 		a_sink
-			.Field("enabled", IsEnabled())
 			.Field("captures", count(_counters.captures))
 			.Field("skipped_interior", count(_counters.skippedInterior))
 			.Field("skipped_disabled", count(_counters.skippedDisabled))

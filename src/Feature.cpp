@@ -471,18 +471,20 @@ namespace cs
 			try {
 				if (state.detail.empty()) {
 					L->info(
-						"Feature state: {} state={} installed={} desired={}",
-						feature->GetName(),
-						FeatureRuntimeStateName(state.runtimeState),
-						state.installed,
-						state.desiredActive);
-				} else {
-					L->info(
-						"Feature state: {} state={} installed={} desired={} detail={}",
+						"Feature state: {} state={} installed={} desired={} enabled={}",
 						feature->GetName(),
 						FeatureRuntimeStateName(state.runtimeState),
 						state.installed,
 						state.desiredActive,
+						feature->IsEnabled());
+				} else {
+					L->info(
+						"Feature state: {} state={} installed={} desired={} enabled={} detail={}",
+						feature->GetName(),
+						FeatureRuntimeStateName(state.runtimeState),
+						state.installed,
+						state.desiredActive,
+						feature->IsEnabled(),
 						std::string_view(state.detail).substr(0, 256));
 				}
 			} catch (...) {

@@ -19,6 +19,7 @@ namespace cs::features
 		using ShaderFlag = RE::BSShaderProperty::EShaderPropertyFlag;
 
 		std::atomic_bool g_loadingMenuOpen{ false };
+		std::atomic_uint64_t g_corrections{ 0 };
 
 		bool Enabled()
 		{
@@ -95,8 +96,10 @@ namespace cs::features
 			static void thunk(RE::NiAVObject* a_object, RE::NiUpdateData* a_updateData)
 			{
 				func(a_object, a_updateData);
-				if (Enabled())
+				if (Enabled()) {
 					ResetPreviousWorldDownwards(a_object);
+					g_corrections.fetch_add(1, std::memory_order_relaxed);
+				}
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -120,6 +123,7 @@ namespace cs::features
 
 				player = RE::PlayerCharacter::GetSingleton();
 				RestorePreviousWorld(player ? player->Get3D(false) : nullptr, transforms);
+				g_corrections.fetch_add(1, std::memory_order_relaxed);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -144,6 +148,7 @@ namespace cs::features
 				if (a_geometry && Enabled() && !g_loadingMenuOpen.load(std::memory_order_relaxed) &&
 					(frozen || lod)) {
 					a_geometry->previousWorld = a_geometry->world;
+					g_corrections.fetch_add(1, std::memory_order_relaxed);
 				}
 				return func(a_property, a_geometry, a_renderMode, a_accumulator);
 			}
@@ -198,7 +203,8 @@ namespace cs::features
 			.Field("player_update_hook", _playerUpdateHooked)
 			.Field("set_sequence_position_hook", _setSequencePositionHooked)
 			.Field("menu_sink_registered", _menuSinkRegistered)
-			.Field("loading_menu", g_loadingMenuOpen.load(std::memory_order_relaxed));
+			.Field("loading_menu", g_loadingMenuOpen.load(std::memory_order_relaxed))
+			.Field("corrections", g_corrections.load(std::memory_order_relaxed));
 	}
 
 	namespace

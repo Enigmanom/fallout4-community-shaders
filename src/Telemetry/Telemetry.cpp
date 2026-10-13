@@ -585,6 +585,15 @@ namespace cs::telemetry
 
 	namespace pump
 	{
+		// The framework owns the enabled field so it reads the same on every toggleable feature.
+		static void CollectFeature(const Feature& a_feature, Sink& a_sink)
+		{
+			if (a_feature.SupportsEnableToggle())
+				a_sink.Field("enabled", a_feature.IsEnabled());
+			if (a_feature.ProducesTelemetry())
+				a_feature.CollectTelemetry(a_sink);
+		}
+
 		static void DumpAll();
 
 		inline constexpr char kFrameBufferComponent[] = "frame_buffer";
@@ -649,11 +658,11 @@ namespace cs::telemetry
 			EmitComponent<kSkyReflectionCubeComponent>(logger, frame, CollectSkyReflectionCube);
 			for (const auto* feature : FeatureManager::Get().GetAll()) {
 				try {
-					if (!feature->ProducesTelemetry())
+					if (!feature->ProducesTelemetry() && !feature->SupportsEnableToggle())
 						continue;
 
 					Sink sink;
-					feature->CollectTelemetry(sink);
+					CollectFeature(*feature, sink);
 					const auto fields = sink.ToLine();
 					if (fields.empty())
 						logger->info("frame={} feature={}", frame, feature->GetName());
@@ -701,7 +710,6 @@ namespace cs::telemetry
 						const auto& state = feature->GetState();
 						featureTable.insert_or_assign("loaded", feature->IsLoaded());
 						featureTable.insert_or_assign("active", feature->IsActive());
-						featureTable.insert_or_assign("enabled", feature->IsEnabled());
 						featureTable.insert_or_assign("installed", state.installed);
 						featureTable.insert_or_assign("desired_active", state.desiredActive);
 						featureTable.insert_or_assign(
@@ -710,8 +718,7 @@ namespace cs::telemetry
 							featureTable.insert_or_assign("detail", state.detail);
 
 						Sink sink;
-						if (feature->ProducesTelemetry())
-							feature->CollectTelemetry(sink);
+						CollectFeature(*feature, sink);
 						featureTable.insert_or_assign("telemetry", sink.AsTable());
 					} catch (const std::exception& e) {
 						featureTable.insert_or_assign("telemetry_error", e.what());

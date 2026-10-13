@@ -323,8 +323,7 @@ namespace cs::features
 
 	void ExponentialHeightFog::CollectTelemetry(telemetry::Sink& a_sink) const
 	{
-		a_sink.Field("enabled", IsEnabled())
-			.Field("fog_active", _fogActive.load())
+		a_sink.Field("fog_active", _fogActive.load())
 			.Field("injection_operational", _operational.load())
 			.Field("published_active", _frameReady.load())
 			.Field("volumetric_active", _volumetricActive.load())

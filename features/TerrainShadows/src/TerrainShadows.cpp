@@ -1252,7 +1252,6 @@ namespace cs::features
 			failed = _statusFailed;
 		}
 		a_sink
-			.Field("enabled", IsEnabled())
 			.Field("operational", _injectionsOperational.load(std::memory_order_relaxed))
 			.Field("worldspace", worldspace.empty() ? "none" : worldspace)
 			.Field("status", detail.empty() ? "unknown" : detail)

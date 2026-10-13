@@ -1257,9 +1257,6 @@ namespace cs::features
 				"operational",
 				_injectionsOperational.load(std::memory_order_relaxed))
 			.Field(
-				"configured_enabled",
-				IsEnabled())
-			.Field(
 				"resources_ready",
 				_resourcesReady.load(std::memory_order_relaxed))
 			.Field(

@@ -417,7 +417,6 @@ namespace cs::features
 			cs::engine::ShaderInjectionTarget::kBsdfLight);
 		const auto detail = GetValidationDetail();
 		a_sink
-			.Field("configured_enabled", IsEnabled())
 			.Field("has_water", water.cameraCellHeight != cs::engine::kNoWaterHeight)
 			.Field(
 				"water_height",
