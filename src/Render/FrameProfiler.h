@@ -54,5 +54,6 @@ namespace cs::render::profiling
 	void SetShaderFamily(int a_type, std::string_view a_name);
 	void RecordDraw();
 	std::span<const ShaderTiming> GetShaderTimings() noexcept;
+	// Any thread.
 	std::uint64_t FrameSequence() noexcept;
 }

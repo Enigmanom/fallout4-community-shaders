@@ -5,6 +5,7 @@
 #include "Shared/PerfUtils.h"
 
 #include <algorithm>
+#include <atomic>
 #include <map>
 #include <mutex>
 
@@ -44,7 +45,7 @@ namespace cs::render::profiling
 			std::vector<ShaderTiming> shaderTimings;
 			int shaderType = -1;
 			double lastDraw{};
-			std::uint64_t sequence{};
+			std::atomic<std::uint64_t> sequence{};
 		};
 
 		ProfilerState& State()
@@ -182,6 +183,6 @@ namespace cs::render::profiling
 
 	std::uint64_t FrameSequence() noexcept
 	{
-		return State().sequence;
+		return State().sequence.load(std::memory_order_relaxed);
 	}
 }
