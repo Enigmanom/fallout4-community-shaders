@@ -48,6 +48,7 @@ namespace cs::features
 		bool ValidateShaderInjections(std::string& a_error) override;
 		void Prepass() override;
 		void DrawSettings() override;
+		void OnEnabledChanged(bool a_enabled) noexcept override;
 		void RestoreDefaultSettings() override;
 
 		bool DefaultEnabled() const override { return false; }
@@ -74,7 +75,7 @@ namespace cs::features
 			std::uint32_t frame = UINT32_MAX;
 			Settings settings{};
 			bool sceneDisabled = false;
-			// Enabled, outside disabled scenes.
+			// Enabled and weather-enabled, outside disabled scenes.
 			bool active = false;
 		};
 		const FrameState& EvaluateFrame();
@@ -87,7 +88,7 @@ namespace cs::features
 		Settings _settings;
 		Settings _published;
 		mutable std::mutex _settingsMutex;
-		weather::VariableRegistry<std::remove_cv_t<decltype(image_based_lighting::kSchema)>> _weather;
+		weather::VariableRegistry<std::remove_cv_t<decltype(image_based_lighting::kWeatherSchema)>> _weather;
 		FrameState _frame;
 
 		// Two 3x1 R16G16B16A16_FLOAT textures: the SH coefficients of R, G and B.
@@ -102,6 +103,8 @@ namespace cs::features
 		std::atomic_bool _injectionsOperational{ false };
 		// The sky cube provider runs before the pack.
 		std::atomic_bool _wantsSkyCube{ false };
+		// The SH textures hold projections until cleared once after a disable.
+		std::atomic_bool _clearPending{ false };
 
 		struct Counters
 		{
@@ -111,7 +114,7 @@ namespace cs::features
 			std::atomic<std::uint64_t> cleared{ 0 };
 			std::atomic<std::uint64_t> skippedScene{ 0 };
 			std::atomic<std::uint64_t> consumerBinds{ 0 };
-			std::atomic_bool enabled{ false };
+			std::atomic_bool weatherEnabled{ true };
 			std::atomic_bool sceneDisabled{ false };
 			std::atomic_bool environmentPresent{ false };
 			std::atomic_bool skyPresent{ false };

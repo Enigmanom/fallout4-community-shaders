@@ -12,9 +12,9 @@ are `ImageBasedLighting`; code is `features\IBL`. Settings keys, defaults and ra
 `DisableInInteriors` and `DisableInLoadingScreen` on), except the omitted `UseStaticIBL` and
 `DisableInWorldMap` below. The b6 `IBLSettings` block carries the upstream `PerFrame` layout; an
 unpublished, disabled or unhealthy block reads `EnableIBL = 0`. Weather variables are upstream's set
-without `EnableIBL` (`EnvIBLScale`, `SkyIBLScale`, `EnvIBLSaturation`, `SkyIBLSaturation`, `DALCAmount`,
+(`EnableIBL`, `EnvIBLScale`, `SkyIBLScale`, `EnvIBLSaturation`, `SkyIBLSaturation`, `DALCAmount`,
 `FogAmount`) as `[features.ImageBasedLighting.weather]` profiles, evaluated once per frame because b6
-packs several times per frame. FO4-owned shader file: `package/Shaders/FO4/ImageBasedLightingConsumer.hlsli`.
+packs several times per frame. `EnableIBL` is a weather-only value (not in the user schema, default on) that applies only while the framework `enabled` is on; weather never writes `enabled`. FO4-owned shader file: `package/Shaders/FO4/ImageBasedLightingConsumer.hlsli`.
 
 Feature classification: **core** (rule 2). Pending rows remain unfinished and do not establish
 upstream parity.

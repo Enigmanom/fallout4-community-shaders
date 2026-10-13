@@ -11,6 +11,8 @@ namespace cs::features::image_based_lighting
 	// Upstream IBL::Settings without static IBL and the world-map toggle.
 	struct Settings
 	{
+		// Weather-only: the user schema omits it; the framework enabled state gates the feature.
+		bool EnableIBL = true;
 		bool PreserveFogLuminance = false;
 		float DALCAmount = 1.0f;
 		float EnvIBLScale = 1.0f;
@@ -24,8 +26,8 @@ namespace cs::features::image_based_lighting
 		bool DisableInLoadingScreen = true;
 	};
 
-	inline constexpr std::array<std::string_view, 6> kWeatherVariables{
-		"EnvIBLScale", "SkyIBLScale", "EnvIBLSaturation",
+	inline constexpr std::array<std::string_view, 7> kWeatherVariables{
+		"EnableIBL", "EnvIBLScale", "SkyIBLScale", "EnvIBLSaturation",
 		"SkyIBLSaturation", "DALCAmount", "FogAmount"
 	};
 
@@ -41,5 +43,12 @@ namespace cs::features::image_based_lighting
 			settings::Field{ "PreserveFogLuminance", "Preserve Fog Luminance", &Settings::PreserveFogLuminance },
 			settings::Field{ "DisableInInteriors", "Disable in interiors", &Settings::DisableInInteriors },
 			settings::Field{ "DisableInLoadingScreen", "Disable in loading screens", &Settings::DisableInLoadingScreen } }
+	};
+
+	// Weather profiles evaluate the user fields plus the weather-only EnableIBL.
+	inline constexpr settings::Schema kWeatherSchema{
+		std::tuple_cat(
+			kSchema.fields,
+			std::tuple{ settings::Field{ "EnableIBL", "Enable IBL", &Settings::EnableIBL } })
 	};
 }

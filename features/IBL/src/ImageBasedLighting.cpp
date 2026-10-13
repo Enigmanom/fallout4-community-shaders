@@ -54,7 +54,7 @@ namespace cs::features
 	{
 		auto candidate = _settings;
 		if (!settings::Parse(ibl::kSchema, a_config, candidate, a_error) ||
-			!_weather.Configure(ibl::kSchema, ibl::kWeatherVariables, a_config.get("weather"), a_error))
+			!_weather.Configure(ibl::kWeatherSchema, ibl::kWeatherVariables, a_config.get("weather"), a_error))
 			return false;
 		_settings = candidate;
 		_liveSettings = settings::BindLiveSettings(ibl::kSchema, _settings, [this] { PublishSettings(); });
@@ -191,12 +191,12 @@ namespace cs::features
 			const std::lock_guard lock(_settingsMutex);
 			published = _published;
 		}
-		_frame.settings = _weather.EvaluateCurrentWeather(ibl::kSchema, published);
+		_frame.settings = _weather.EvaluateCurrentWeather(ibl::kWeatherSchema, published);
 		_frame.sceneDisabled = IsSceneDisabled(_frame.settings);
-		_frame.active = IsEnabled() && !_frame.sceneDisabled;
+		_frame.active = IsEnabled() && _frame.settings.EnableIBL && !_frame.sceneDisabled;
 		_frame.frame = frame;
 		_wantsSkyCube.store(_frame.active, std::memory_order_release);
-		_counters.enabled.store(IsEnabled(), std::memory_order_relaxed);
+		_counters.weatherEnabled.store(_frame.settings.EnableIBL, std::memory_order_relaxed);
 		_counters.sceneDisabled.store(_frame.sceneDisabled, std::memory_order_relaxed);
 		_counters.dalcMode.store(_frame.settings.DALCMode, std::memory_order_relaxed);
 		return _frame;
@@ -254,9 +254,24 @@ namespace cs::features
 		a_context->Dispatch(1, 1, 1);
 	}
 
+	void ImageBasedLighting::OnEnabledChanged(bool a_enabled) noexcept
+	{
+		if (!a_enabled)
+			_clearPending.store(true, std::memory_order_release);
+	}
+
 	void ImageBasedLighting::Prepass()
 	{
 		_projected = false;
+		if (!IsEnabled()) {
+			if (_clearPending.exchange(false, std::memory_order_acq_rel) && _resourcesReady.load(std::memory_order_acquire)) {
+				if (auto* context = engine::GetImmediateContext()) {
+					Project(context, nullptr, *_envSH, kEnvironmentPass);
+					Project(context, nullptr, *_skySH, kSkyPass);
+				}
+			}
+			return;
+		}
 		const auto& frame = EvaluateFrame();
 		if (!_resourcesReady.load(std::memory_order_acquire) || !_injectionsOperational.load(std::memory_order_acquire))
 			return;
@@ -293,7 +308,7 @@ namespace cs::features
 	void ImageBasedLighting::CollectTelemetry(telemetry::Sink& a_sink) const
 	{
 		const auto count = [](const std::atomic<std::uint64_t>& a_value) { return a_value.load(std::memory_order_relaxed); };
-		a_sink.Field("enabled", _counters.enabled.load(std::memory_order_relaxed))
+		a_sink.Field("weather_enabled", _counters.weatherEnabled.load(std::memory_order_relaxed))
 			.Field("scene_disabled", _counters.sceneDisabled.load(std::memory_order_relaxed))
 			.Field("dalc_mode", static_cast<std::int64_t>(_counters.dalcMode.load(std::memory_order_relaxed)))
 			.Field("resources_ready", _resourcesReady.load(std::memory_order_relaxed))
