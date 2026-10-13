@@ -42,6 +42,10 @@ namespace cs::features::remote_control
 
 	[[nodiscard]] std::span<const Tool* const> GetTools() noexcept;
 
+	// Event sources owned by a tool; they publish through RemoteControl::EmitEvent.
+	void SubscribeShaderCacheEvents();
+	void SubscribeCaptureEvents();
+
 	// Registers every tool with the host; returns the names it registered.
 	std::vector<std::string_view> RegisterTools(DevBenchAPI::IDevBenchInterface001& a_host);
 

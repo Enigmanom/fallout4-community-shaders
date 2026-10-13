@@ -44,8 +44,15 @@ namespace cs::features
 		}
 		_hostBuild = host->GetBuildNumber();
 		_registeredTools = remote_control::RegisterTools(*host);
+		SubscribeToEvents();
 		_host.store(host, std::memory_order_release);
 		L->info("DevBench build {} present; registered {} tools", _hostBuild, _registeredTools.size());
+	}
+
+	void RemoteControl::SubscribeToEvents()
+	{
+		remote_control::SubscribeShaderCacheEvents();
+		remote_control::SubscribeCaptureEvents();
 	}
 
 	void RemoteControl::EmitEvent(const char* a_topic, const nlohmann::json& a_payload) const

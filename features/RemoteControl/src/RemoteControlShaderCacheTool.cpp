@@ -1,6 +1,8 @@
+#include "RemoteControl.h"
 #include "RemoteControlTools.h"
 
 #include "Render/ShaderCacheClear.h"
+#include "Render/ShaderVariantCompilation.h"
 
 namespace cs::features::remote_control
 {
@@ -23,6 +25,17 @@ namespace cs::features::remote_control
 				return OnFrame([action] { return Clear(action, engine::ShaderCacheScope::kMemoryAndDisk); });
 			return Error("unknown action (clear|deleteDisk)", { { "action", action } });
 		}
+	}
+
+	void SubscribeShaderCacheEvents()
+	{
+		engine::AddShaderCompileBatchObserver([](const engine::ShaderCompileBatch& a_batch) {
+			RemoteControl::GetSingleton()->EmitEvent("communityshaders.shaderRecompiled",
+				{ { "completedTasks", a_batch.completedTasks },
+					{ "failedTasks", a_batch.failedTasks },
+					{ "totalTasks", a_batch.totalTasks },
+					{ "durationMs", a_batch.duration.count() } });
+		});
 	}
 
 	const Tool kShaderCacheTool{

@@ -42,6 +42,7 @@ namespace cs::features
 	private:
 		RemoteControl() = default;
 
+		void SubscribeToEvents();
 		[[nodiscard]] int ReadHostPort();
 
 		std::atomic<DevBenchAPI::IDevBenchInterface001*> _host{ nullptr };

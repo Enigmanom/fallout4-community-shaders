@@ -1,3 +1,4 @@
+#include "RemoteControl.h"
 #include "RemoteControlTools.h"
 
 #include "RenderDoc.h"
@@ -21,6 +22,11 @@ namespace cs::features::remote_control
 			{ "d3d11", RenderDoc::CaptureTarget::kEngineD3D11 },
 			{ "d3d12", RenderDoc::CaptureTarget::kTemporalD3D12 }
 		};
+
+		std::string_view DeviceName(RenderDoc::CaptureTarget a_target)
+		{
+			return std::ranges::find(kDevices, a_target, &Device::target)->name;
+		}
 
 		Json RequestRenderDoc(const Device& a_device, std::uint32_t a_frames)
 		{
@@ -63,6 +69,22 @@ namespace cs::features::remote_control
 			// The request touches UI-owned buffers, so it is made at the frame boundary.
 			return OnFrame([device, frames] { return RequestRenderDoc(*device, frames); });
 		}
+	}
+
+	void SubscribeCaptureEvents()
+	{
+		RenderDoc::GetSingleton()->AddCaptureObserver([](const RenderDoc::CaptureCompletion& a_done) {
+			Json payload{ { "requestId", a_done.id }, { "device", DeviceName(a_done.target) } };
+			if (a_done.error.empty()) {
+				const auto path = a_done.path.u8string();
+				payload["frames"] = a_done.frames;
+				payload["path"] = std::string(path.begin(), path.end());
+				payload["bytes"] = a_done.bytes;
+			} else {
+				payload["error"] = a_done.error;
+			}
+			RemoteControl::GetSingleton()->EmitEvent("communityshaders.capture.completed", payload);
+		});
 	}
 
 	const Tool kCaptureTool{
