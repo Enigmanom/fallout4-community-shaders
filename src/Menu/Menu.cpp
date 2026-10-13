@@ -6,6 +6,7 @@
 #include "Menu/Section.h"
 #include "Plugin.h"
 #include "Render/Engine.h"
+#include "Render/ShaderCacheClear.h"
 #include "Render/ShaderInjection.h"
 #include "RenderDoc.h"
 #include "Settings/FeatureConfig.h"
@@ -1376,11 +1377,9 @@ namespace cs
 
 	bool Menu::ClearShaderCache(std::string& a_error)
 	{
-		const auto root = shader_cache::DefaultCacheRoot();
-		std::error_code error;
-		const auto removed = shader_cache::ClearCacheRecords(root, error);
-		if (error) {
-			L->warn("Failed to clear shader cache at '{}': {}", root.string(), error.message());
+		const auto cleared = engine::ClearShaderCache(engine::ShaderCacheScope::kMemoryAndDisk);
+		if (!cleared.succeeded) {
+			L->warn("Failed to clear shader cache at '{}': {}", cleared.root.string(), cleared.error);
 			ShowToast(
 				"Failed to clear the shader cache (see log)",
 				4.0,
@@ -1388,8 +1387,7 @@ namespace cs
 			a_error = "Failed to clear the shader cache; see the log.";
 			return false;
 		}
-		engine::InvalidateNativeShaderVariantCompilations();
-		L->info("Cleared {} shader cache entries from '{}'", removed, root.string());
+		L->info("Cleared {} shader cache entries from '{}'", cleared.removed, cleared.root.string());
 		ShowToast("Shader cache cleared", 2.5);
 		return true;
 	}
