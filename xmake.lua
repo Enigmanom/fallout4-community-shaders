@@ -26,7 +26,8 @@ local features = {
     "ExponentialHeightFog",
     "DynamicCubemaps",
     "IBL",
-    "WaterEffects"
+    "WaterEffects",
+    "RemoteControl"
 }
 
 set_project(plugin_name)

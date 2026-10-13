@@ -90,7 +90,8 @@ namespace
 			std::pair{ "Upscaling", MakeSchemaView(cs::render::temporal::kSchema) },
 			std::pair{ "FrameGeneration", MakeSchemaView(frame_generation::kSchema) },
 			std::pair{ "PerformanceOverlay", MakeSchemaView(performance_overlay::kSchema) },
-			std::pair{ "RenderDoc", MakeSchemaView(renderdoc_settings::kSchema) }
+			std::pair{ "RenderDoc", MakeSchemaView(renderdoc_settings::kSchema) },
+			std::pair{ "RemoteControl", SchemaView{} }
 		};
 		CHECK(features.size() == kAllFeatureKeys.size());
 		// Mirrors Feature::SupportsEnableToggle and DefaultEnabled.
