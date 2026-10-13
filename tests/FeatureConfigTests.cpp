@@ -237,18 +237,22 @@ namespace
 		CHECK(reset.find("# SurfaceThickness = 0.02\n") != std::string::npos);
 		CHECK(reset.find("# ShadowContrast = 1.0\n") != std::string::npos);
 		// The activation fields share a section; writing one must not drop the other.
+		const auto writeActivation = [&](std::string_view a_feature, std::string_view a_field, bool a_value) {
+			const std::array sectionPath{ std::string_view("features"), a_feature };
+			return static_cast<bool>(UpdateOwnedSettingsAt(a_path, sectionPath, toml::table{ { a_field, a_value } }, SectionWrite::kMerge));
+		};
 		CHECK(reset.find("# enabled = true\n") != std::string::npos);
-		CHECK(UpdateFeatureActivationAt(a_path, "ScreenSpaceShadows", "enabled", false));
-		CHECK(UpdateFeatureActivationAt(a_path, "ImageBasedLighting", "enabled", true));
+		CHECK(writeActivation("ScreenSpaceShadows", "enabled", false));
+		CHECK(writeActivation("ImageBasedLighting", "enabled", true));
 		auto activation = LoadFile(a_path).table;
 		CHECK(activation["features"]["ScreenSpaceShadows"]["load"].value<bool>() == true);
 		CHECK(activation["features"]["ScreenSpaceShadows"]["enabled"].value<bool>() == false);
 		CHECK(activation["features"]["ImageBasedLighting"]["enabled"].value<bool>() == true);
-		CHECK(UpdateFeatureActivationAt(a_path, "ScreenSpaceShadows", "load", false));
+		CHECK(writeActivation("ScreenSpaceShadows", "load", false));
 		activation = LoadFile(a_path).table;
 		CHECK(!activation["features"]["ScreenSpaceShadows"].as_table()->contains("load"));
 		CHECK(activation["features"]["ScreenSpaceShadows"]["enabled"].value<bool>() == false);
-		CHECK(UpdateFeatureActivationAt(a_path, "ScreenSpaceShadows", "enabled", true));
+		CHECK(writeActivation("ScreenSpaceShadows", "enabled", true));
 		activation = LoadFile(a_path).table;
 		CHECK(!activation["features"]["ScreenSpaceShadows"].as_table()->contains("enabled"));
 		CHECK(!activation["features"]["Upscaling"].as_table()->contains("enabled"));

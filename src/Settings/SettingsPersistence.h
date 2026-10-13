@@ -7,7 +7,7 @@
 
 namespace cs::settings
 {
-	// FO4: never persist a transient comparison variant as the user's configuration.
+	// FO4: never persist a transient comparison variant.
 	inline bool PersistenceBlockedByComparison(std::string_view a_featureKey)
 	{
 		return liveComparisonActive && a_featureKey != "PerformanceOverlay" && a_featureKey != "RenderDoc";

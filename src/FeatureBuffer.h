@@ -89,6 +89,6 @@ namespace cs
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 
-	// Inactive or disabled blocks are zeroed; LOD blending and Skylighting default neutral.
+	// Inactive or disabled blocks are zeroed; LOD, Skylighting stay neutral.
 	FeatureDataCB GetFeatureBufferData();
 }

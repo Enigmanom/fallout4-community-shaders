@@ -88,18 +88,21 @@ namespace cs::feature_config
 		explicit operator bool() const noexcept { return success; }
 	};
 
+	// kMerge leaves fields the value omits alone; kReplace resets them.
+	enum class SectionWrite
+	{
+		kReplace,
+		kMerge
+	};
+
 	WriteResult UpdateOwnedSettingsAt(
 		const std::filesystem::path& a_filePath,
 		std::span<const std::string_view> a_path,
-		const toml::table& a_value);
+		const toml::table& a_value,
+		SectionWrite a_mode = SectionWrite::kReplace);
 	WriteResult UpdateFeatureOwnedSettings(
 		std::string_view a_featureKey,
 		const toml::table& a_delta);
-	WriteResult UpdateFeatureActivationAt(
-		const std::filesystem::path& a_filePath,
-		std::string_view a_featureKey,
-		std::string_view a_field,
-		bool a_value);
 	WriteResult UpdateFeatureLoad(std::string_view a_featureKey, bool a_load);
 	WriteResult UpdateFeatureEnabled(std::string_view a_featureKey, bool a_enabled);
 	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value);

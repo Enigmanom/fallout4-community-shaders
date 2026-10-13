@@ -103,7 +103,6 @@ namespace cs::settings
 		return registry;
 	}
 
-	// An enabled default adds the framework-owned live switch beside `load`.
 	inline void AddFeatureSections(
 		Registry& a_registry,
 		std::string_view a_key,

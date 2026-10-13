@@ -585,7 +585,7 @@ namespace cs::telemetry
 
 	namespace pump
 	{
-		// The framework owns the enabled field so it reads the same on every toggleable feature.
+		// Framework-owned so enabled reads the same on every feature.
 		static void CollectFeature(const Feature& a_feature, Sink& a_sink)
 		{
 			if (a_feature.SupportsEnableToggle())

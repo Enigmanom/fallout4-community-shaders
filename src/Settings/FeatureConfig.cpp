@@ -222,7 +222,7 @@ namespace cs::feature_config
 
 		bool MutateSection(
 			toml::table& a_root, const settings::Registry& a_registry,
-			const settings::Section& a_section, const toml::table& a_value, std::string& a_error)
+			const settings::Section& a_section, const toml::table& a_value, SectionWrite a_mode, std::string& a_error)
 		{
 			auto* table = EnsureTablePath(a_root, std::span{ a_section.path }, a_error);
 			if (!table)
@@ -232,6 +232,8 @@ namespace cs::feature_config
 				return true;
 			}
 			for (const auto& field : a_section.fields) {
+				if (a_mode == SectionWrite::kMerge && !a_value.contains(field.key))
+					continue;
 				table->erase(field.key);
 				if (const auto* value = a_value.get(field.key)) {
 					const auto typed = field.read(*value);
@@ -244,7 +246,7 @@ namespace cs::feature_config
 					!std::equal(a_section.path.begin(), a_section.path.end(), child.path.begin()))
 					continue;
 				if (const auto* value = a_value[child.path.back()].as_table()) {
-					if (!MutateSection(a_root, a_registry, child, *value, a_error))
+					if (!MutateSection(a_root, a_registry, child, *value, a_mode, a_error))
 						return false;
 				}
 			}
@@ -380,7 +382,8 @@ namespace cs::feature_config
 	}
 
 	WriteResult UpdateOwnedSettingsAt(
-		const std::filesystem::path& a_filePath, std::span<const std::string_view> a_path, const toml::table& a_value)
+		const std::filesystem::path& a_filePath, std::span<const std::string_view> a_path, const toml::table& a_value,
+		SectionWrite a_mode)
 	{
 		auto& store = Config();
 		std::scoped_lock lock(store.mutex);
@@ -394,7 +397,7 @@ namespace cs::feature_config
 			return WriteError(a_filePath, "unregistered settings section");
 		auto candidate = store.root;
 		std::string error;
-		if (!MutateSection(candidate, store.registry, *section, a_value, error))
+		if (!MutateSection(candidate, store.registry, *section, a_value, a_mode, error))
 			return WriteError(a_filePath, error);
 		const auto document = RenderDocument(store.registry, candidate);
 		const auto written = WriteIfChanged(a_filePath, document);
@@ -409,30 +412,16 @@ namespace cs::feature_config
 		return UpdateOwnedSettingsAt(kConfigPath, path, a_delta);
 	}
 
-	// Activation fields share one section, and a section write replaces all of them.
-	WriteResult UpdateFeatureActivationAt(
-		const std::filesystem::path& a_filePath, std::string_view a_featureKey, std::string_view a_field, bool a_value)
-	{
-		toml::table delta;
-		if (const auto current = GetFeature(a_featureKey)) {
-			for (const auto field : { std::string_view("load"), std::string_view("enabled") }) {
-				if (const auto* node = current->get(field))
-					delta.insert(field, *node);
-			}
-		}
-		delta.insert_or_assign(a_field, a_value);
-		const std::array path{ std::string_view("features"), a_featureKey };
-		return UpdateOwnedSettingsAt(a_filePath, path, delta);
-	}
-
 	WriteResult UpdateFeatureLoad(std::string_view a_featureKey, bool a_load)
 	{
-		return UpdateFeatureActivationAt(kConfigPath, a_featureKey, "load", a_load);
+		const std::array path{ std::string_view("features"), a_featureKey };
+		return UpdateOwnedSettingsAt(kConfigPath, path, toml::table{ { "load", a_load } }, SectionWrite::kMerge);
 	}
 
 	WriteResult UpdateFeatureEnabled(std::string_view a_featureKey, bool a_enabled)
 	{
-		return UpdateFeatureActivationAt(kConfigPath, a_featureKey, "enabled", a_enabled);
+		const std::array path{ std::string_view("features"), a_featureKey };
+		return UpdateOwnedSettingsAt(kConfigPath, path, toml::table{ { "enabled", a_enabled } }, SectionWrite::kMerge);
 	}
 
 	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value)

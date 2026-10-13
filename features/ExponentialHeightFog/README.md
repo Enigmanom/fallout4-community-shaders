@@ -5,11 +5,11 @@ Uses the unchanged analytic and four-pass volumetric shaders from the shared pin
 This replaces the native-ramp extinction approximation.
 
 Set `load = true`, configure the relevant native shader ownership and restart.
-The framework `enabled` key (default `false`) toggles the effect live; `volumetricFogEnabled` selects the volume pipeline.
+The framework `enabled` key beside `load` (default `false`) toggles the effect live; `volumetricFogEnabled` selects the volume pipeline.
 Generated defaults contain the upstream settings and ranges. RGBA colors use four-element
 TOML arrays. The Fog Factor debug view and telemetry remain available.
 Remove legacy `density_multiplier` and `height_falloff_multiplier` overrides; they have
-no equivalent in the upstream model. `enabled` sits beside `load`, not under `settings`.
+no equivalent in the upstream model.
 
 ## Weather profiles
 

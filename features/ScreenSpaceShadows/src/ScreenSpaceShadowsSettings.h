@@ -13,6 +13,7 @@ namespace cs::features::sss_settings
 		float SurfaceThickness = 0.02f;
 		float BilinearThreshold = 0.02f;
 		float ShadowContrast = 1.0f;
+		// FO4: upstream's Enable is unread by HLSL; padding keeps the layout.
 		std::uint32_t pad = 0;
 		std::uint32_t SampleCount = 1;
 		std::uint32_t pad0[3]{};

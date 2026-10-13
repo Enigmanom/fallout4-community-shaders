@@ -49,8 +49,7 @@ namespace cs
 		bool IsHealthy() const noexcept { return _state.IsHealthy(); }
 		bool IsLoaded() const noexcept override { return _loaded; }
 
-		// Framework-owned live switch, persisted as `enabled` beside `load`.
-		// Features that cannot tear down live opt out and always report enabled.
+		// Framework-owned live switch; opt-outs always report enabled.
 		virtual bool SupportsEnableToggle() const { return true; }
 		virtual bool DefaultEnabled() const { return true; }
 		bool IsEnabled() const noexcept
@@ -109,7 +108,6 @@ namespace cs
 		virtual FullscreenDebugData GetFullscreenDebugData() const noexcept { return {}; }
 
 		virtual void RestoreDefaultSettings() {}
-		// Feature defaults plus the framework-owned enabled state.
 		void RestoreDefaults();
 
 		bool HasResettableSettings() const { return SupportsEnableToggle() || static_cast<bool>(GetSettingsBinding()); }
@@ -181,7 +179,6 @@ namespace cs
 		}
 		void ApplyActivationResult(const ActivationResult& a_result) { _state.ApplyActivationResult(a_result); }
 		void SetRuntimeStateOnly(FeatureRuntimeState a_state) noexcept { _state.runtimeState = a_state; }
-		// Wraps the feature's live access so snapshot/prepare/swap carry `enabled`.
 		void ComposeEnabledLiveSettings();
 		bool SaveEnabled();
 		void ResetLoadFailure() noexcept
@@ -242,7 +239,7 @@ namespace cs
 		void OnPostPostLoadAll();
 		void PrepassAll();
 
-		// Health gate only: lifecycle, binding and menu work runs while a feature is disabled.
+		// Health gate only; disabled features still get callbacks.
 		// Callback failures quarantine features without unloading them.
 		bool PrepareRuntimeCallback(Feature& a_feature, std::string_view a_phase) noexcept;
 		bool PrepareMenuCallback(Feature& a_feature, std::string_view a_phase) noexcept;

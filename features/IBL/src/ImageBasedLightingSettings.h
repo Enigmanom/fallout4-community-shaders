@@ -11,7 +11,7 @@ namespace cs::features::image_based_lighting
 	// Upstream IBL::Settings without static IBL and the world-map toggle.
 	struct Settings
 	{
-		// Weather-only: the user schema omits it; the framework enabled state gates the feature.
+		// Weather-only; the framework enabled state gates the feature.
 		bool EnableIBL = true;
 		bool PreserveFogLuminance = false;
 		float DALCAmount = 1.0f;
@@ -45,7 +45,6 @@ namespace cs::features::image_based_lighting
 			settings::Field{ "DisableInLoadingScreen", "Disable in loading screens", &Settings::DisableInLoadingScreen } }
 	};
 
-	// Weather profiles evaluate the user fields plus the weather-only EnableIBL.
 	inline constexpr settings::Schema kWeatherSchema{
 		std::tuple_cat(
 			kSchema.fields,

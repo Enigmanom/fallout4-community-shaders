@@ -49,7 +49,6 @@ namespace cs::host
 			       feature->get("load")->value_or(false);
 		}
 
-		// The framework-owned switch; edits persist through the standard flush.
 		void DrawEnabledToggle(Feature& a_feature)
 		{
 			if (!a_feature.SupportsEnableToggle())
