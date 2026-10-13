@@ -86,9 +86,6 @@ are FO4-only rule-4 core features.
   slice is core; RE confirms which material flag marks height-bearing `_s` textures (packs set one in BGSM).
   Composite `PARALLAX_OCCLUSION_MAPPING` macros prove emission, not executed relief, and prepass `0x40000`
   is SKIN_TINT. Terrain Variation must share the same UV offsets.
-- **Dynamic Cubemaps dry materials.** Implemented: the six native probe sites in `DFComposite.hlsl` sample
-  the DC cube (t34/t35) normalized to the authored cube's brightness, keeping FO4 gain, SSLR blend and
-  exclusions, with DC's roughness-to-mip contract rather than the native probe LOD.
 - **Subsurface Scattering.** Replace FO4's fixed second-composite blur with upstream separable/Burley on
   native class-5 eligibility; never stack both.
 - **Cloud Shadows.** Prior art on branch `cloud-shadows` (`3314d567`) maps material pointers to layers;

@@ -1,55 +1,38 @@
 # Terrain Shadows
 
-Rules, Kind legend and cross-cutting records: [README](README.md).
-
-Both `TerrainShadows/ShadowUpdate.cs.hlsl`
-and `TerrainShadows/TerrainShadows.hlsli` are staged unchanged. Native DDS dimensions, R16G16_UNORM
-shadow heights, 128-thread scans, componentwise penumbra maxima, one-degree softening, half-texel
-offsets, bounded UV, ZBlur, weight-1 full sweeps and weight-0.5 ordinary slices match the pin.
-There are no feature settings: the framework `enabled` replaces `EnableTerrainShadow` and b6 mirrors it; no downsampling setting or resize pass remains.
-The old v0.2.1 default downsample factor of four was a quality divergence: upstream allocates
-and scans the original heightmap dimensions. That additional work is an accepted parity cost.
-
-Feature classification: **core** (rule 2: upstream terrain-shadow algorithm and design).
-Pending rows remain unfinished and do not establish upstream parity.
+Both `TerrainShadows/ShadowUpdate.cs.hlsl` and `TerrainShadows/TerrainShadows.hlsli` are staged unchanged.
+Native DDS dimensions, R16G16_UNORM shadow heights, 128-thread scans, componentwise penumbra maxima,
+one-degree softening, half-texel offsets, bounded UV, ZBlur, weight-1 full sweeps and weight-0.5
+ordinary slices match the pin. There are no feature settings: the framework `enabled` replaces
+`EnableTerrainShadow`. No downsampling setting or resize pass remains; upstream's allocation and scan of
+the original heightmap dimensions is an accepted parity cost.
 
 ## Translations
 
 | Kind | Upstream | Fallout 4 / evidence | Where |
 |---|---|---|---|
-| Forced | Camera-relative consumer position plus caller origin | Absolute world position from unchanged b4 FrameBuffer; native b12 is engine-owned (`Water.hlsl`, `cbuffer PerFrame : register(b12)`) | `FO4/TerrainShadowsConsumer.hlsli` |
-| Forced | Skyrim light / worldspace accessors | Typed FO4 Sky propagation vector and inherited-land worldspace identity; engine-facts Sun light orientation, `TESWorldSpace::GetParentWorld(kLand)` | `TerrainShadows.cpp`, `World/Sky.cpp` |
-| Forced | Skyrim native directional consumers | Reconstructed BSDFLight, BSDistantTree, BSWater and lit BSEffect directional terms; point/ambient terms stay separate. FO4's deferred and forward shaders are different programs | `package/Shaders/{DFLight,DistantTree,Water,Effect}.hlsl`; lit Effect shadows only the directional part (README, Effect lighting) |
-| Forced | Direct world position in forward consumers | Screen/depth reconstruction uses FO4's depth partition, translated at the boundary with canonical t17 and b4 inverse projection; native depth uses `d <= 0.01` / `mad(d,1.01,-0.01)` (`DFComposite.hlsl`) | `FO4/TerrainShadowsConsumer.hlsli` |
-| Forced | Engine-owned render-state lifecycle | Bind t60 and caller s13 at the post-dirty DrawTriShape boundary, including OG/NG/AE. Native SetDirtyStates resubmits s0–s15 and otherwise overwrites the caller sampler (engine-facts Shader slots & bindings, Draw state flush call) | `RenderHooks.cpp`, `ShaderInjection.{h,cpp}`, `TerrainShadows.cpp` |
-| Framework | Host activation, settings, UI and shader ownership | Preserve load=false activation, TOML persistence, forwarding-only DearModdingUI, configured ownership and the stock identity gate; unavailable resources publish identity. Rebind t60 after UAV production and restore the per-draw low sampler without widening compute cleanup | `TerrainShadows.cpp`, `Feature.h`, `ShaderInjection.{h,cpp}` |
-| Framework | Upstream buffer viewer | Retain fullscreen shadow/heightmap views and sampled field statistics; host b7/t61 supplies debug constants/texture, separate from production b6/t60, without a feature-owned debug CB | `TerrainShadows.cpp`, `FO4/TerrainShadowsConsumer.hlsli`, `ShadowStatistics.cs.hlsl` |
-| Fix | Child readiness checks its own editor ID | Check readiness against the resolved inherited-land parent, correcting the upstream loading/readiness mismatch listed under Upstream PR candidates | `TerrainShadows.cpp` `ResolveWorldspaceEditorId`, `EnsureLiveResources` |
+| Forced | Skyrim native directional consumers | Reconstructed BSDFLight, BSDistantTree, BSWater and lit BSEffect directional terms; point/ambient terms stay separate (lit Effect shadows only the directional part) | `DFLight.hlsl`, `DistantTree.hlsl`, `Water.hlsl`, `Effect.hlsl` |
+| Fix | Child readiness checks its own editor ID | Readiness checks the resolved inherited-land parent (see the README PR candidates) | `TerrainShadows.cpp` `ResolveWorldspaceEditorId` |
 
 ## Not supported
 
-| Kind | Upstream | Evidence / boundary | Where |
+| Kind | Upstream | Evidence | Where |
 |---|---|---|---|
-| Forced | Skyrim RunGrass shader family | FO4 has no distinct RunGrass target; grass receives the terrain multiplier through the owned deferred directional BSDFLight routes (`ShaderInjectionTargets.h`) | `DFLight.hlsl` |
+| Forced | Skyrim RunGrass shader family | FO4 has no distinct RunGrass target; grass receives the terrain multiplier through the owned deferred directional BSDFLight routes | `DFLight.hlsl` |
 
 ## Pending
 
-| Kind | Upstream | Remaining work / evidence | Where |
+| Kind | Upstream | Remaining work | Where |
 |---|---|---|---|
-| Pending | Console/Papyrus GameHour hooks, fast-travel event and completed celestial generation | FO4 wait/sleep/load/interior-exit events request a full refresh, retained hour-jump polling covers large console/script/travel changes, and refresh waits for Sky's consumed hour. Exact small forward-hour edits and active-light versus Sky transition equivalence still need host hooks/evidence; not an accepted parity exception | `TerrainShadows.cpp` `OnDataLoaded`, `PollGameHourJump`, `OnPostDeferredPrePass` |
-| Pending | Particle and volumetric sunlight | Native FO4 particles contain only texture × vertex color × ColorScale; upstream reconstructs particle sunlight/ambient. Complete that lighting input boundary rather than shadowing emissive color. No particle source is shipped. Imagespace currently supplies SSLR, not volumetric generation; reconstruct/add that consumer | Native Particle family; `ShaderInjectionTargets.h` |
-| Pending | Reflections and other secondary views | BSLighting remains stock: secondary views need their own camera/depth publication. Engine-facts BSLighting forward-pass source limits these passes to modes 0/21; b4/t17 publish the main view | `SharedData.cpp`, `FO4/TerrainShadowsConsumer.hlsli` |
-| Pending | BSDistantTree receiver | A Commonwealth dusk capture binds the shadow field at t60 with s13 and `EnableTerrainShadow = 1` in b6 for the DFLight directional, Water and Effect receivers, and the debug view matches the field; that frame issued no DistantTree draw, so this receiver is unobserved | `package/Shaders/DistantTree.hlsl` |
+| Pending | Console/Papyrus GameHour hooks, fast-travel event and completed celestial generation | Wait/sleep/load/interior-exit events request a full refresh and hour-jump polling covers large changes; exact small forward-hour edits and active-light versus Sky transition equivalence still need host hooks | `TerrainShadows.cpp` `PollGameHourJump` |
+| Pending | Particle and volumetric sunlight | Native FO4 particles contain only texture × vertex color × ColorScale; upstream reconstructs particle sunlight/ambient. No particle source is shipped, and imagespace supplies SSLR, not volumetric generation | Native Particle family |
+| Pending | Reflections and other secondary views | BSLighting stays stock: secondary views need their own camera/depth publication | `SharedData.cpp` |
+| Pending | BSDistantTree receiver | Unobserved in capture | `DistantTree.hlsl` |
 
 ## Heightmap pack
 
-`package/Textures/Terrain/HeightMaps/` ships upstream-format maps for Commonwealth,
-SanctuaryHillsWorld, DiamondCity, DLC03FarHarbor and NukaWorld, built from Fallout4.esm and the
-official DLC masters. Creation Club content is excluded. Goodneighbor and NukaWorldMarket inherit parent
-land. DiamondCity's parent-use flags omit land, so it gets its own map.
-
-`scripts/generate_terrain_heightmaps.py` writes xLODGen's 1:1 LAND export. Against xLODGen 132 FO4 mode
-with the same plugins, NukaWorld is byte-identical and Commonwealth pixel-identical. xLODGen 132 crashes
-while saving worldspaces with land holes (FarHarbor, Sanctuary), so it cannot build the whole pack.
-Maps use xLODGen's lossless L16, which upstream also accepts. BC4 with the fixed ±32767 range
-measured a mean error of 85 game units (p99 270, max 862) on Commonwealth.
+`package/Textures/Terrain/HeightMaps/` ships upstream-format maps for Commonwealth, SanctuaryHillsWorld,
+DiamondCity, DLC03FarHarbor and NukaWorld, built from Fallout4.esm and the official DLC masters (Creation
+Club excluded). Goodneighbor and NukaWorldMarket inherit parent land; DiamondCity's parent-use flags omit
+land, so it gets its own map. `scripts/generate_terrain_heightmaps.py` writes xLODGen's 1:1 LAND export in
+its lossless L16 format, which upstream accepts.
