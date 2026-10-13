@@ -335,6 +335,19 @@ target("FrameDispatcherTests", function()
     add_tests("FrameDispatcher")
 end)
 
+target("SettingsJsonTests", function()
+    set_kind("binary")
+    set_default(false)
+    add_files(
+        "tests/SettingsJsonTests.cpp",
+        "src/Settings/SettingsJson.cpp",
+        "src/Settings/FeatureConfig.cpp"
+    )
+    add_sysincludedirs("extern/Streamline/external/json/include")
+    add_packages("vcpkg::tomlplusplus")
+    add_tests("SettingsJson")
+end)
+
 target("FrameGenerationRetirementGpuTests", function()
     set_kind("binary")
     set_default(false)

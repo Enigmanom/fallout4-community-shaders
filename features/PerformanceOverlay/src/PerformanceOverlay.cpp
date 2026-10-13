@@ -289,29 +289,11 @@ namespace cs::features
 			if (!a_restoring && !feature->IsHealthy())
 				throw std::runtime_error(std::format("{} is no longer healthy", feature->GetName()));
 			std::string error;
-			auto value = feature->GetLiveSettingsAccess().prepare(values, error);
+			auto value = FeatureManager::Get().PrepareLiveSettings(*feature, values, "ABComparison::Finalize", error);
 			if (!value)
 				throw std::runtime_error(std::format("{}: {}", feature->GetName(), error));
 			if (a_restoring && !feature->IsHealthy())
 				value->finalize = {};
-			if (value->finalize) {
-				value->finalize = [feature, finalize = std::move(value->finalize)] {
-					auto& manager = FeatureManager::Get();
-					if (!manager.PrepareRuntimeCallback(*feature, "ABComparison::Finalize"))
-						return;
-					try {
-						finalize();
-					} catch (const std::exception& error) {
-						manager.QuarantineRuntimeCallback(*feature, "ABComparison::Finalize", error.what());
-						manager.FinishRuntimeCallbackPass();
-						throw;
-					} catch (...) {
-						manager.QuarantineRuntimeCallback(*feature, "ABComparison::Finalize", "non-standard exception");
-						manager.FinishRuntimeCallbackPass();
-						throw;
-					}
-				};
-			}
 			prepared.push_back(std::move(*value));
 		}
 		cs::settings::ApplyPreparedLiveSettings(prepared);

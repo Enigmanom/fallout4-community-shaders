@@ -42,6 +42,30 @@ namespace cs::settings
 		},
 			a_value);
 	}
+
+	toml::table DefaultValues(const SchemaView& a_schema)
+	{
+		toml::table table;
+		for (const auto& field : a_schema) {
+			std::visit([&](const auto& value) {
+				using T = std::remove_cvref_t<decltype(value)>;
+				if constexpr (std::same_as<T, Float2> || std::same_as<T, Float3> || std::same_as<T, Color4>) {
+					toml::array components;
+					for (float component : value)
+						components.push_back(static_cast<double>(component));
+					table.insert_or_assign(field.key, std::move(components));
+				} else if constexpr (std::same_as<T, float>) {
+					table.insert_or_assign(field.key, static_cast<double>(value));
+				} else if constexpr (std::same_as<T, std::uint64_t>) {
+					table.insert_or_assign(field.key, static_cast<std::int64_t>(value));
+				} else {
+					table.insert_or_assign(field.key, value);
+				}
+			},
+				field.defaultValue);
+		}
+		return table;
+	}
 }
 
 namespace cs::feature_config
@@ -316,6 +340,22 @@ namespace cs::feature_config
 			error = written.error;
 		}
 		return { store.root, loaded.status, std::move(error) };
+	}
+
+	RefreshResult Reload()
+	{
+		auto& store = Config();
+		std::filesystem::path path;
+		settings::Registry registry;
+		{
+			std::scoped_lock lock(store.mutex);
+			path = store.path;
+			registry = store.registry;
+		}
+		const auto loaded = LoadFile(path);
+		if (path.empty() || loaded.status == FileLoadStatus::kParseError || loaded.status == FileLoadStatus::kIoError)
+			return { GetRoot(), loaded.status, path.empty() ? "settings store has not been initialized" : loaded.error };
+		return InitializeAt(path, std::move(registry));
 	}
 
 	toml::table GetRoot()

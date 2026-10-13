@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cctype>
 #include <exception>
+#include <format>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -267,6 +268,125 @@ namespace cs
 					return !a_feature || !a_feature->IsHealthy();
 				}),
 			_loadedFeatures.end());
+	}
+
+	std::optional<settings::PreparedLiveSettings> FeatureManager::PrepareLiveSettings(
+		Feature& a_feature,
+		const toml::table& a_values,
+		std::string_view a_phase,
+		std::string& a_error)
+	{
+		const auto& access = a_feature.GetLiveSettingsAccess();
+		if (!access.prepare) {
+			a_error = "feature has no live settings";
+			return std::nullopt;
+		}
+		auto value = access.prepare(a_values, a_error);
+		if (value && value->finalize) {
+			value->finalize = [this, feature = &a_feature, phase = std::string(a_phase), finalize = std::move(value->finalize)] {
+				if (!PrepareRuntimeCallback(*feature, phase))
+					return;
+				try {
+					finalize();
+				} catch (const std::exception& error) {
+					QuarantineRuntimeCallback(*feature, phase, error.what());
+					FinishRuntimeCallbackPass();
+					throw;
+				} catch (...) {
+					QuarantineRuntimeCallback(*feature, phase, "non-standard exception");
+					FinishRuntimeCallbackPass();
+					throw;
+				}
+			};
+		}
+		return value;
+	}
+
+	bool FeatureManager::SaveAllSettings(std::string& a_error)
+	{
+		constexpr std::string_view phase = "SaveAllSettings";
+		std::string failed;
+		for (auto* feature : _registeredFeatures) {
+			if (!PrepareMenuCallback(*feature, phase))
+				continue;
+			try {
+				if (feature->SaveSettings() && feature->SaveEnabled())
+					continue;
+			} catch (const std::exception& error) {
+				L->error("{} {} threw: {}", phase, feature->GetName(), error.what());
+			} catch (...) {
+				L->error("{} {} threw a non-standard exception", phase, feature->GetName());
+			}
+			failed += (failed.empty() ? "" : ", ");
+			failed += feature->GetName();
+		}
+		if (!failed.empty())
+			a_error = "failed to save: " + failed;
+		return failed.empty();
+	}
+
+	bool FeatureManager::LoadAllSettings(std::string& a_error)
+	{
+		const auto reloaded = feature_config::Reload();
+		if (reloaded.status != feature_config::FileLoadStatus::kParsed &&
+			reloaded.status != feature_config::FileLoadStatus::kMissing) {
+			a_error = reloaded.error;
+			return false;
+		}
+		std::vector<settings::PreparedLiveSettings> prepared;
+		for (auto* feature : _loadedFeatures) {
+			if (!feature->IsHealthy() || !feature->GetLiveSettingsAccess().prepare)
+				continue;
+			// The file stores only non-default values, so absent keys mean the default.
+			auto values = settings::DefaultValues(feature->GetSettingsSchema());
+			values.insert_or_assign("enabled", feature->DefaultEnabled());
+			if (const auto stored = feature_config::GetFeature(feature->GetConfigKey())) {
+				if (const auto* enabled = stored->get("enabled"))
+					values.insert_or_assign("enabled", *enabled);
+				if (const auto* overrides = stored->get_as<toml::table>("settings")) {
+					for (const auto& [key, node] : *overrides)
+						values.insert_or_assign(key, node);
+				}
+			}
+			std::string error;
+			auto value = PrepareLiveSettings(*feature, values, "LoadAllSettings::Finalize", error);
+			if (!value) {
+				a_error = std::format("{}: {}", feature->GetName(), error);
+				return false;
+			}
+			prepared.push_back(std::move(*value));
+		}
+		try {
+			settings::ApplyPreparedLiveSettings(prepared);
+		} catch (const std::exception& error) {
+			a_error = error.what();
+			return false;
+		} catch (...) {
+			a_error = "non-standard exception";
+			return false;
+		}
+		return true;
+	}
+
+	bool FeatureManager::ResetAllSettings(std::string& a_error)
+	{
+		constexpr std::string_view phase = "ResetAllSettings";
+		// Restoring republishes engine-side state, which only loaded features have.
+		const auto loaded = _loadedFeatures;
+		for (auto* feature : loaded) {
+			if (!PrepareRuntimeCallback(*feature, phase))
+				continue;
+			try {
+				feature->RestoreDefaults();
+			} catch (const std::exception& error) {
+				a_error = std::format("{}: {}", feature->GetName(), error.what());
+				return false;
+			} catch (...) {
+				a_error = std::format("{}: non-standard exception", feature->GetName());
+				return false;
+			}
+		}
+		return SaveAllSettings(a_error);
 	}
 
 	bool FeatureManager::ApplyDebugViews(

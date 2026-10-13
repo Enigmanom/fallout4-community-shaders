@@ -249,6 +249,19 @@ namespace cs
 			std::string_view a_reason) noexcept;
 		void FinishRuntimeCallbackPass() noexcept;
 
+		// Frame thread. Finalize runs under the same quarantine guard as other runtime callbacks.
+		std::optional<settings::PreparedLiveSettings> PrepareLiveSettings(
+			Feature& a_feature,
+			const toml::table& a_values,
+			std::string_view a_phase,
+			std::string& a_error);
+		// Persists every installed feature's settings and enabled flag.
+		bool SaveAllSettings(std::string& a_error);
+		// Rereads the TOML and applies each loaded feature's live fields; applies nothing on failure.
+		bool LoadAllSettings(std::string& a_error);
+		// Restores every loaded feature's defaults, then saves every installed feature.
+		bool ResetAllSettings(std::string& a_error);
+
 		// Notify each feature on first D3D11 device creation.
 		void OnD3D11ReadyAll(IDXGIAdapter* a_adapter, ID3D11Device* a_device);
 
