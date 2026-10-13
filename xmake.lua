@@ -213,7 +213,8 @@ target(plugin_name, function()
 
     add_files(
         "src/**.cpp",
-        "features/*/src/**.cpp"
+        "features/*/src/**.cpp",
+        "extern/bethesda-devbench/include/DevBenchAPI.cpp"
     )
     add_files("src/Menu/Changelog.rc", { includedirs = os.projectdir() })
 
@@ -238,7 +239,8 @@ target(plugin_name, function()
     add_includedirs(
         "features/Upscaling/src/RCAS",
         "extern/RenderDoc/include",
-        "extern/Streamline/include"
+        "extern/Streamline/include",
+        "extern/bethesda-devbench/include"
     )
 
     add_packages(

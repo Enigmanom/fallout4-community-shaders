@@ -20,9 +20,10 @@ cd fallout4-community-shaders
 pwsh scripts\fetch-submodules.ps1
 ```
 
-Use this script instead of `--recursive`: it keeps `community-shaders-shared` shallow
-without its unused Skyrim dependencies, fetching CommonLibF4 recursively and Streamline without
-its unused nested FidelityFX-SDK, and pulling LFS assets.
+Use this script instead of `--recursive`: it keeps `community-shaders-shared` shallow without its unused
+Skyrim dependencies, fetches `bethesda-devbench` shallow and non-recursively (only its `include/` API is
+used), fetches CommonLibF4 recursively and Streamline without its unused nested FidelityFX-SDK, and pulls
+LFS assets.
 
 ## Upstream sync
 

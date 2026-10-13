@@ -9,3 +9,8 @@
 	url = https://github.com/northaxosky/community-shaders-shared.git
 	branch = main
 	shallow = true
+[submodule "extern/bethesda-devbench"]
+	path = extern/bethesda-devbench
+	url = https://github.com/northaxosky/bethesda-devbench.git
+	branch = main
+	shallow = true

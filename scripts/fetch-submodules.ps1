@@ -26,7 +26,7 @@ $lfsCommand = 'git lfs install --local && git lfs pull'
 Push-Location (Split-Path -Parent $PSScriptRoot)
 try {
 	# Git has no per-submodule update-recursion policy. Never recurse into the shared repo.
-	Invoke-Git @('submodule', 'update', '--init', '--depth', '1', '--', 'extern/community-shaders-shared')
+	Invoke-Git @('submodule', 'update', '--init', '--depth', '1', '--', 'extern/community-shaders-shared', 'extern/bethesda-devbench')
 	Invoke-Git @('submodule', 'update', '--init', '--', 'extern/Streamline')
 	Invoke-Git (@('submodule', 'update', '--init', '--recursive', '--') + $recursiveSubmodules)
 
