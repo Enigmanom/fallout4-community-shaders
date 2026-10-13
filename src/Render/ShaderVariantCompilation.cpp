@@ -1,6 +1,7 @@
 #include "Render/ShaderVariantCompilation.h"
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <exception>
@@ -89,6 +90,91 @@ namespace cs::engine
 			std::string _error;
 			std::uint16_t _samplerMask = UINT16_MAX;
 		};
+
+		class BatchTracker
+		{
+		public:
+			void Enqueued()
+			{
+				const std::scoped_lock lock(_mutex);
+				if (_outstanding++ == 0) {
+					_batch = { .active = true };
+					_started = std::chrono::steady_clock::now();
+				}
+				++_batch.totalTasks;
+			}
+
+			void Finished(bool a_succeeded)
+			{
+				Settle([&] { ++(a_succeeded ? _batch.completedTasks : _batch.failedTasks); });
+			}
+
+			void Cancelled()
+			{
+				Settle([&] { --_batch.totalTasks; });
+			}
+
+			void AddObserver(ShaderCompileBatchObserver a_observer)
+			{
+				const std::scoped_lock lock(_mutex);
+				_observers.push_back(std::move(a_observer));
+			}
+
+			ShaderCompileBatch Snapshot() const
+			{
+				const std::scoped_lock lock(_mutex);
+				return Current();
+			}
+
+		private:
+			ShaderCompileBatch Current() const
+			{
+				auto batch = _batch;
+				if (batch.active) {
+					batch.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::steady_clock::now() - _started);
+				}
+				return batch;
+			}
+
+			template <class Update>
+			void Settle(Update&& a_update)
+			{
+				ShaderCompileBatch finished;
+				std::vector<ShaderCompileBatchObserver> observers;
+				{
+					const std::scoped_lock lock(_mutex);
+					a_update();
+					if (--_outstanding != 0)
+						return;
+					_batch.active = false;
+					_batch.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::steady_clock::now() - _started);
+					if (_batch.totalTasks == 0)
+						return;
+					finished = _batch;
+					observers = _observers;
+				}
+				for (const auto& observer : observers) {
+					try {
+						observer(finished);
+					} catch (...) {
+					}
+				}
+			}
+
+			mutable std::mutex _mutex;
+			std::vector<ShaderCompileBatchObserver> _observers;
+			ShaderCompileBatch _batch;
+			std::chrono::steady_clock::time_point _started;
+			std::uint32_t _outstanding = 0;
+		};
+
+		BatchTracker& Batches()
+		{
+			static BatchTracker tracker;
+			return tracker;
+		}
 
 		struct CompilationKey
 		{
@@ -190,6 +276,7 @@ namespace cs::engine
 						return handle;
 					}
 					_entries.emplace(std::move(key), handle);
+					Batches().Enqueued();
 					_queue.push_back({ .generation = _generation,
 						.request = std::move(a_request),
 						.handle = handle });
@@ -209,8 +296,10 @@ namespace cs::engine
 					_entries.clear();
 					invalidated.swap(_queue);
 				}
-				for (auto& task : invalidated)
+				for (auto& task : invalidated) {
 					task.handle->Fail("shader compilation invalidated");
+					Batches().Cancelled();
+				}
 			}
 
 			void Stop() noexcept override
@@ -224,8 +313,10 @@ namespace cs::engine
 					_entries.clear();
 					stopped.swap(_queue);
 				}
-				for (auto& task : stopped)
+				for (auto& task : stopped) {
 					task.handle->Fail("shader compilation stopped");
+					Batches().Cancelled();
+				}
 				for (auto& worker : _workers)
 					worker.request_stop();
 				_condition.notify_all();
@@ -265,11 +356,15 @@ namespace cs::engine
 						publish =
 							!_stopped && task.generation == _generation;
 					}
-					if (publish)
+					if (publish) {
+						const bool succeeded = !!output.shader;
 						task.handle->Complete(std::move(output));
-					else
+						Batches().Finished(succeeded);
+					} else {
 						task.handle->Fail(
 							"shader compilation invalidated");
+						Batches().Cancelled();
+					}
 				}
 			}
 
@@ -286,6 +381,16 @@ namespace cs::engine
 			ShaderVariantCompiler _compiler;
 			std::vector<std::jthread> _workers;
 		};
+	}
+
+	void AddShaderCompileBatchObserver(ShaderCompileBatchObserver a_observer)
+	{
+		Batches().AddObserver(std::move(a_observer));
+	}
+
+	ShaderCompileBatch GetShaderCompileBatch()
+	{
+		return Batches().Snapshot();
 	}
 
 	std::shared_ptr<ShaderVariantCompilationCache>

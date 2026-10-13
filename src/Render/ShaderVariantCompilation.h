@@ -5,6 +5,7 @@
 #include <d3d11.h>
 #include <winrt/base.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -69,6 +70,24 @@ namespace cs::engine
 		virtual void Invalidate() = 0;
 		virtual void Stop() noexcept = 0;
 	};
+
+	// A batch spans the first queued variant of an idle queue to the last one finishing, so a burst of
+	// compiles reports once. Variants invalidated before they finish are not counted.
+	struct ShaderCompileBatch
+	{
+		std::uint32_t completedTasks = 0;
+		std::uint32_t failedTasks = 0;
+		std::uint32_t totalTasks = 0;
+		std::chrono::milliseconds duration{};
+		bool active = false;
+	};
+
+	using ShaderCompileBatchObserver = std::function<void(const ShaderCompileBatch&)>;
+
+	// Observers run on compile worker threads when a batch finishes and must not block.
+	void AddShaderCompileBatchObserver(ShaderCompileBatchObserver a_observer);
+	// Any thread: the running batch, else the last finished one.
+	ShaderCompileBatch GetShaderCompileBatch();
 
 	std::shared_ptr<ShaderVariantCompilationCache>
 	CreateAsyncShaderVariantCompilationCache(
