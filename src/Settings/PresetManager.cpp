@@ -353,14 +353,9 @@ namespace cs
 			return false;
 		}
 
-		// Newer schemas may still contain supported settings.
-		if (const auto* metaTbl = table["meta"].as_table()) {
-			if (const auto schemaNode = (*metaTbl)["schema_version"].value<std::int64_t>()) {
-				if (*schemaNode != 1) {
-					L->warn("Preset '{}' has [meta].schema_version={} but this build expects {}; loading known fields",
-						a_meta.name, *schemaNode, 1);
-				}
-			}
+		if (table["meta"]["schema_version"].value<std::int64_t>() != 1) {
+			a_err = "preset [meta].schema_version must be 1";
+			return false;
 		}
 
 		PresetApplyContext ctx{ a_meta.builtin };
@@ -710,7 +705,7 @@ namespace cs
 				}
 			} else {
 				L->warn("auto-load preset '{}' not found; unified TOML settings remain in effect",
-					activeName.empty() ? activeIdentity : activeName);
+					activeIdentity);
 			}
 		}
 
