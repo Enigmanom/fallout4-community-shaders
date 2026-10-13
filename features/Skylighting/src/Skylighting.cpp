@@ -157,7 +157,7 @@ namespace cs::features
 
 	ID3D11ShaderResourceView* Skylighting::GetProbeArraySRV() const noexcept
 	{
-		return _settings.enabled ? GetBindableProbeArraySRV() : nullptr;
+		return IsEnabled() ? GetBindableProbeArraySRV() : nullptr;
 	}
 
 	ID3D11ShaderResourceView* Skylighting::GetBindableProbeArraySRV() const noexcept
@@ -415,7 +415,7 @@ namespace cs::features
 		_debugFrameReady = false;
 		cs::render::InvalidateFullscreenDebugData();
 		const auto mode = _debugVisualization.load(std::memory_order_acquire);
-		if (mode == DebugVisualization::kOff || !_settings.enabled || !_injectionsOperational.load(std::memory_order_acquire) || !_probesReady.load(std::memory_order_acquire))
+		if (mode == DebugVisualization::kOff || !IsEnabled() || !_injectionsOperational.load(std::memory_order_acquire) || !_probesReady.load(std::memory_order_acquire))
 			return;
 		auto* shader = _debugCompute[mode == DebugVisualization::kUp ? 1 : 0].get();
 		auto* normals = cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kGbufferNormal);
@@ -490,7 +490,7 @@ namespace cs::features
 			_counters.skippedDisabled.fetch_add(1, std::memory_order_relaxed);
 			return CaptureState::kDisabled;
 		}
-		if (!_settings.enabled) {
+		if (!IsEnabled()) {
 			_wasEnabled = false;
 			_counters.skippedDisabled.fetch_add(1, std::memory_order_relaxed);
 			return CaptureState::kDisabled;
@@ -662,7 +662,7 @@ namespace cs::features
 			"cascade_count={} split_end=({:.1f},{:.1f}) "
 			"probe_state={} probe_dispatches={} probe_skipped_not_full_sky={} probe_skipped_no_occlusion={} probe_skipped_no_grid={} resets={} resets_load={} resets_rebuild={} resets_enable={} "
 			"grid_cell=({},{},{}) array_origin=({},{},{}) valid_margin=({},{},{}) probe_update_gpu_ms={:.3f} water_draws_bound={} effect_draws_bound={} composite_draws_bound={} dflight_draws_bound={} tiled_dispatches_bound={} shadow_vis_draws_bound={}",
-			_settings.enabled ? 1 : 0, stateName, _anchorFrames, frameCount, count(_counters.captures), count(_counters.skippedInterior), count(_counters.skippedDisabled),
+			IsEnabled() ? 1 : 0, stateName, _anchorFrames, frameCount, count(_counters.captures), count(_counters.skippedInterior), count(_counters.skippedDisabled),
 			count(_counters.skippedTargets), count(_counters.failed),
 			occlusionDistance, OcclusionSHBasis4Pi.x, OcclusionSHBasis4Pi.y, OcclusionSHBasis4Pi.z, OcclusionSHBasis4Pi.w, frameCount % 4,
 			count(stats.accepted), count(stats.delegated), ownTotal, count(stats.ownNew),
@@ -690,7 +690,7 @@ namespace cs::features
 		const auto rejected = [&](Reject a_reason) { return count(stats.rejected[static_cast<std::size_t>(a_reason)]); };
 		const auto cascadeSkipped = [&](CascadeSkip a_reason) { return count(_cascadeCounters.skipped[static_cast<std::size_t>(a_reason)]); };
 		a_sink
-			.Field("enabled", _settings.enabled)
+			.Field("enabled", IsEnabled())
 			.Field("captures", count(_counters.captures))
 			.Field("skipped_interior", count(_counters.skippedInterior))
 			.Field("skipped_disabled", count(_counters.skippedDisabled))
@@ -759,7 +759,7 @@ namespace cs::features
 	cs::SkylightingFeatureData Skylighting::GetCommonBufferData()
 	{
 		const auto* graphics = cs::engine::GetGraphicsState();
-		if (!graphics || !_settings.enabled)
+		if (!graphics || !IsEnabled())
 			return {};
 		// FO4: packs repeat within a frame and the advance must happen once.
 		if (_grid.frame == graphics->frameCount)
@@ -803,7 +803,7 @@ namespace cs::features
 	void Skylighting::Prepass()
 	{
 		auto state = ProbeState::kDispatched;
-		if (!_settings.enabled) {
+		if (!IsEnabled()) {
 			state = ProbeState::kDisabled;
 		} else if (!cs::engine::IsFullSky()) {
 			_probeCounters.skippedNotFullSky.fetch_add(1, std::memory_order_relaxed);
@@ -885,7 +885,7 @@ namespace cs::features
 		auto* device = cs::engine::GetDevice();
 		if (!IsHealthy() || !_probesReady.load(std::memory_order_acquire) || !device)
 			return CascadeSkip::kUnavailable;
-		if (!_settings.enabled)
+		if (!IsEnabled())
 			return CascadeSkip::kDisabled;
 		if (!cs::engine::IsFullSky())
 			return CascadeSkip::kNotFullSky;
@@ -999,7 +999,7 @@ namespace cs::features
 	void Skylighting::DrawSettings()
 	{
 		settings::SettingsEdit edit{ *this };
-		const auto& [enabledField, maxZenith, minDiffuse, minSpecular] = skylighting::kSchema.fields;
+		const auto& [maxZenith, minDiffuse, minSpecular] = skylighting::kSchema.fields;
 		const auto labelOf = [](const auto& a_field) {
 			return std::string(a_field.description) + "##" + std::string(a_field.key);
 		};
@@ -1008,8 +1008,6 @@ namespace cs::features
 			edit.Continuous(dmui::ui::SliderScalar(labelOf(a_field).c_str(), &(_settings.*a_field.member), &range.min, &range.max, "%.2f"));
 		};
 
-		if (const ui::Section section{ "skylighting-general", "General" }; section)
-			edit.Discrete(dmui::ui::Checkbox("Enabled", &_settings.enabled));
 		if (const ui::Section section{ "skylighting-visibility", "Visibility" }; section) {
 			dmui::ui::Text("%s", "Minimum visibility values. Diffuse darkens objects. Specular removes the sky from reflections.");
 			drawVisibility(minDiffuse);

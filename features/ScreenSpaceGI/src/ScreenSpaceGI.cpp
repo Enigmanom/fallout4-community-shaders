@@ -157,9 +157,10 @@ namespace cs::features
 		if (!_vanillaSSAOSnapshot)
 			_vanillaSSAOSnapshot = *state->applied;
 		// FO4: DrawModel and console commands rewrite both native AO bits.
-		const bool applied = _settings.enableVanillaSSAO && *_vanillaSSAOSnapshot;
+		const bool vanilla = !IsEnabled() || _settings.enableVanillaSSAO;
+		const bool applied = vanilla && *_vanillaSSAOSnapshot;
 		*state->applied = applied;
-		*state->active = _settings.enableVanillaSSAO && (*state->base || applied);
+		*state->active = vanilla && (*state->base || applied);
 		_vanillaSSAOApplied = applied;
 	}
 
@@ -385,7 +386,7 @@ namespace cs::features
 		_cameraReady = false;
 		_tiledAvailable = false;
 		_motionAvailable = false;
-		if (!_settings.enabled)
+		if (!IsEnabled())
 			return;
 		if (_recompile && !CompileShaders()) {
 			_failed = true;
@@ -507,7 +508,7 @@ namespace cs::features
 
 	cs::ScreenSpaceGIFeatureData ScreenSpaceGI::GetCommonBufferData() const
 	{
-		return { .Enabled = _settings.enabled ? 1u : 0u };
+		return { .Enabled = IsEnabled() ? 1u : 0u };
 	}
 
 	void ScreenSpaceGI::UpdateConsumer(bool a_enabled, bool a_tiled)
@@ -529,7 +530,7 @@ namespace cs::features
 		if (!a_context || !_consumer)
 			return;
 		const auto* state = cs::engine::GetGraphicsState();
-		const bool ready = _settings.enabled && _produced && state && _hasFrame && _lastFrame == state->frameCount;
+		const bool ready = IsEnabled() && _produced && state && _hasFrame && _lastFrame == state->frameCount;
 		UpdateConsumer(ready, _tiled);
 		auto* cb = _consumer->CB();
 		cs::engine::BindFrameConstantBuffers(a_context, cs::engine::ShaderStage::kPixel, kConsumerSlot, 1, &cb);
@@ -570,7 +571,7 @@ namespace cs::features
 
 	void ScreenSpaceGI::CollectTelemetry(cs::telemetry::Sink& a_sink) const
 	{
-		a_sink.Field("enabled", _settings.enabled).Field("injection_registered", _started.load()).Field("resources_ready", _resourcesReady.load()).Field("resource_init_failed", _failed.load()).Field("ao_produced", _produced.load()).Field("ao_denoised", false).Field("vanilla_ssao_applied", _vanillaSSAOApplied.load()).Field("radiance_available", _produced.load()).Field("bounce_produced", _produced && _settings.enableGI).Field("bounce_denoised", _produced && _settings.enableGI && _settings.enableBlur).Field("normal_bound", _binds > 0 && _produced).Field("history_valid", _produced && _historyUsed).Field("motion_available", _motionAvailable.load()).Field("temporal_dispatches", static_cast<std::int64_t>(_produced && _settings.enableTemporalDenoiser ? 2 + _settings.enableBlur : 0)).Field("reset_count", static_cast<std::int64_t>(_resetCount.load())).Field("last_reset_reason", std::string_view(_resetReason.load())).Field("tiled_b_available", _tiledAvailable.load()).Field("tiled_lighting_active", _tiled.load()).Field("camera_ready", _cameraReady.load()).Field("camera_origin", std::format("{} {} {}", _origin[0].load(), _origin[1].load(), _origin[2].load())).Field("camera_previous_origin", std::format("{} {} {}", _previousOrigin[0].load(), _previousOrigin[1].load(), _previousOrigin[2].load())).Field("radiance_source_count", static_cast<std::int64_t>(_produced && _settings.enableGI ? (_tiled ? 2 : 1) : 0)).Field("composition_binds", static_cast<std::int64_t>(_binds.load())).Field("repeat_callbacks", static_cast<std::int64_t>(_repeats.load())).Field("contaminated_light_classes", std::int64_t{ 16 }).Field("contaminated_routes", std::int64_t{ 24 }).Field("resolution_mode", static_cast<std::int64_t>(_settings.resolutionMode)).Field("generation", static_cast<std::int64_t>(_generation)).Dimensions("working", _width, _height);
+		a_sink.Field("enabled", IsEnabled()).Field("injection_registered", _started.load()).Field("resources_ready", _resourcesReady.load()).Field("resource_init_failed", _failed.load()).Field("ao_produced", _produced.load()).Field("ao_denoised", false).Field("vanilla_ssao_applied", _vanillaSSAOApplied.load()).Field("radiance_available", _produced.load()).Field("bounce_produced", _produced && _settings.enableGI).Field("bounce_denoised", _produced && _settings.enableGI && _settings.enableBlur).Field("normal_bound", _binds > 0 && _produced).Field("history_valid", _produced && _historyUsed).Field("motion_available", _motionAvailable.load()).Field("temporal_dispatches", static_cast<std::int64_t>(_produced && _settings.enableTemporalDenoiser ? 2 + _settings.enableBlur : 0)).Field("reset_count", static_cast<std::int64_t>(_resetCount.load())).Field("last_reset_reason", std::string_view(_resetReason.load())).Field("tiled_b_available", _tiledAvailable.load()).Field("tiled_lighting_active", _tiled.load()).Field("camera_ready", _cameraReady.load()).Field("camera_origin", std::format("{} {} {}", _origin[0].load(), _origin[1].load(), _origin[2].load())).Field("camera_previous_origin", std::format("{} {} {}", _previousOrigin[0].load(), _previousOrigin[1].load(), _previousOrigin[2].load())).Field("radiance_source_count", static_cast<std::int64_t>(_produced && _settings.enableGI ? (_tiled ? 2 : 1) : 0)).Field("composition_binds", static_cast<std::int64_t>(_binds.load())).Field("repeat_callbacks", static_cast<std::int64_t>(_repeats.load())).Field("contaminated_light_classes", std::int64_t{ 16 }).Field("contaminated_routes", std::int64_t{ 24 }).Field("resolution_mode", static_cast<std::int64_t>(_settings.resolutionMode)).Field("generation", static_cast<std::int64_t>(_generation)).Dimensions("working", _width, _height);
 	}
 
 	void ScreenSpaceGI::DrawSettings()
@@ -608,8 +609,7 @@ namespace cs::features
 		};
 		if (const ui::Section section{ "ssgi-toggles", "Toggles" }; section) {
 			static_cast<void>(dmui::ui::Checkbox("Show Advanced Options", &showAdvanced));
-			toggle("Enabled", _settings.enabled);
-			dmui::ui::BeginDisabled(!_settings.enabled);
+			dmui::ui::BeginDisabled(!IsEnabled());
 			toggle("Indirect Lighting (IL)", _settings.enableGI, true);
 			dmui::ui::EndDisabled();
 			toggle("Vanilla SSAO", _settings.enableVanillaSSAO);
@@ -620,7 +620,7 @@ namespace cs::features
 			}
 		}
 		if (const ui::Section section{ "ssgi-quality", "Quality/Performance" }; section) {
-			dmui::ui::BeginDisabled(!_settings.enabled);
+			dmui::ui::BeginDisabled(!IsEnabled());
 			if (dmui::ui::Button("AO only"))
 				preset(1, 6, -1, false);
 			dmui::ui::SameLine();
@@ -652,7 +652,7 @@ namespace cs::features
 			dmui::ui::EndDisabled();
 		}
 		if (const ui::Section section{ "ssgi-visual", "Visual" }; section) {
-			dmui::ui::BeginDisabled(!_settings.enabled);
+			dmui::ui::BeginDisabled(!IsEnabled());
 			slider("AO Power", &Settings::aoPower, "%.2f");
 			dmui::ui::BeginDisabled(!_settings.enableGI);
 			slider("IL Source Brightness", &Settings::giStrength, "%.2f");
@@ -671,14 +671,14 @@ namespace cs::features
 			dmui::ui::EndDisabled();
 		}
 		if (const ui::Section section{ "ssgi-visual-il", "Visual - IL" }; section) {
-			dmui::ui::BeginDisabled(!_settings.enabled || !_settings.enableGI);
+			dmui::ui::BeginDisabled(!IsEnabled() || !_settings.enableGI);
 			if (showAdvanced)
 				slider("IL Distance Compensation", &Settings::giDistanceCompensation, "%.1f");
 			percentSlider("IL Saturation", &Settings::giSaturation);
 			dmui::ui::EndDisabled();
 		}
 		if (const ui::Section section{ "ssgi-denoising", "Denoising" }; section) {
-			dmui::ui::BeginDisabled(!_settings.enabled);
+			dmui::ui::BeginDisabled(!IsEnabled());
 			toggle("Temporal Denoiser", _settings.enableTemporalDenoiser, true);
 			dmui::ui::SameLine();
 			toggle("Blur", _settings.enableBlur);

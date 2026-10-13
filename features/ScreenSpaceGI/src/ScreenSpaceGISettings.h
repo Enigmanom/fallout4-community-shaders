@@ -7,7 +7,6 @@ namespace cs::features::ssgi_settings
 	// Upstream d330bf12d defaults and ranges.
 	struct Settings
 	{
-		bool enabled = true;
 		bool enableGI = true;
 		bool enableExperimentalSpecularGI = false;
 		bool enableVanillaSSAO = false;
@@ -36,7 +35,6 @@ namespace cs::features::ssgi_settings
 
 	inline constexpr settings::Schema kSchema{
 		std::tuple{
-			settings::Field{ "Enabled", "Enable screen-space global illumination.", &Settings::enabled },
 			settings::Field{ "EnableGI", "Enable indirect lighting.", &Settings::enableGI },
 			settings::Field{ "EnableExperimentalSpecularGI", "Enable experimental unblurred specular indirect lighting.", &Settings::enableExperimentalSpecularGI },
 			settings::Field{ "EnableVanillaSSAO", "Enable Fallout 4's built-in SSAO.", &Settings::enableVanillaSSAO },

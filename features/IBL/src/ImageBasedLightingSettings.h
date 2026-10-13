@@ -11,7 +11,6 @@ namespace cs::features::image_based_lighting
 	// Upstream IBL::Settings without static IBL and the world-map toggle.
 	struct Settings
 	{
-		bool EnableIBL = false;
 		bool PreserveFogLuminance = false;
 		float DALCAmount = 1.0f;
 		float EnvIBLScale = 1.0f;
@@ -25,14 +24,13 @@ namespace cs::features::image_based_lighting
 		bool DisableInLoadingScreen = true;
 	};
 
-	inline constexpr std::array<std::string_view, 7> kWeatherVariables{
-		"EnableIBL", "EnvIBLScale", "SkyIBLScale", "EnvIBLSaturation",
+	inline constexpr std::array<std::string_view, 6> kWeatherVariables{
+		"EnvIBLScale", "SkyIBLScale", "EnvIBLSaturation",
 		"SkyIBLSaturation", "DALCAmount", "FogAmount"
 	};
 
 	inline constexpr settings::Schema kSchema{
 		std::tuple{
-			settings::Field{ "EnableIBL", "Enable IBL", &Settings::EnableIBL },
 			settings::Field{ "EnvIBLScale", "Env IBL Scale", &Settings::EnvIBLScale, settings::Range{ 0.0f, 10.0f } },
 			settings::Field{ "SkyIBLScale", "Sky IBL Scale", &Settings::SkyIBLScale, settings::Range{ 0.0f, 10.0f } },
 			settings::Field{ "EnvIBLSaturation", "Env IBL Saturation", &Settings::EnvIBLSaturation, settings::Range{ 0.0f, 2.0f } },

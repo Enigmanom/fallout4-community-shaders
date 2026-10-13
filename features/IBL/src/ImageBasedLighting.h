@@ -50,6 +50,7 @@ namespace cs::features
 		void DrawSettings() override;
 		void RestoreDefaultSettings() override;
 
+		bool DefaultEnabled() const override { return false; }
 		bool HasWeatherProfiles() const override { return true; }
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(telemetry::Sink& a_sink) const override;
@@ -73,7 +74,7 @@ namespace cs::features
 			std::uint32_t frame = UINT32_MAX;
 			Settings settings{};
 			bool sceneDisabled = false;
-			// EnableIBL after weather, outside disabled scenes.
+			// Enabled, outside disabled scenes.
 			bool active = false;
 		};
 		const FrameState& EvaluateFrame();

@@ -30,6 +30,7 @@ namespace cs::features
 		void Load() override;
 		void Prepass() override;
 		void OnLoadingMenuClosed() override;
+		void OnEnabledChanged(bool) noexcept override { QueueReset("enabled_changed"); }
 		void OnD3D11Ready(IDXGIAdapter*, ID3D11Device*) override;
 		void DrawSettings() override;
 		void RestoreDefaultSettings() override;

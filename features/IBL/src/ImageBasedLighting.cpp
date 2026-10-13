@@ -88,7 +88,7 @@ namespace cs::features
 		}
 		// FO4: vanilla never renders the reflections cube; the host does.
 		if (!engine::RegisterSkyReflectionCubeConsumer("ImageBasedLighting", [this] {
-				return _wantsSkyCube.load(std::memory_order_acquire);
+				return IsEnabled() && _wantsSkyCube.load(std::memory_order_acquire);
 			})) {
 			FailLoad("Image Based Lighting needs the host sky reflection cube.");
 			return;
@@ -193,10 +193,10 @@ namespace cs::features
 		}
 		_frame.settings = _weather.EvaluateCurrentWeather(ibl::kSchema, published);
 		_frame.sceneDisabled = IsSceneDisabled(_frame.settings);
-		_frame.active = _frame.settings.EnableIBL && !_frame.sceneDisabled;
+		_frame.active = IsEnabled() && !_frame.sceneDisabled;
 		_frame.frame = frame;
 		_wantsSkyCube.store(_frame.active, std::memory_order_release);
-		_counters.enabled.store(_frame.settings.EnableIBL, std::memory_order_relaxed);
+		_counters.enabled.store(IsEnabled(), std::memory_order_relaxed);
 		_counters.sceneDisabled.store(_frame.sceneDisabled, std::memory_order_relaxed);
 		_counters.dalcMode.store(_frame.settings.DALCMode, std::memory_order_relaxed);
 		return _frame;
@@ -223,7 +223,7 @@ namespace cs::features
 	std::optional<std::array<ID3D11ShaderResourceView*, ImageBasedLighting::kSHSlotCount>>
 	ImageBasedLighting::GetSHResources() const noexcept
 	{
-		if (!IsHealthy() || !_projected || !_envSH || !_skySH)
+		if (!IsHealthy() || !IsEnabled() || !_projected || !_envSH || !_skySH)
 			return std::nullopt;
 		return std::array{ _envSH->srv.get(), _skySH->srv.get() };
 	}
@@ -324,8 +324,6 @@ namespace cs::features
 		};
 
 		if (const ui::Section section{ "ibl-general", "General" }; section) {
-			toggle("Enable IBL", _settings.EnableIBL,
-				"Toggle IBL. When enabled, ambient lighting is derived from cubemap spherical harmonics instead of the vanilla system.");
 			toggle("Disable in interiors", _settings.DisableInInteriors, "Disables IBL in interior cells.");
 			toggle("Disable in loading screens", _settings.DisableInLoadingScreen,
 				"Disables IBL during loading screens and the main menu.");
