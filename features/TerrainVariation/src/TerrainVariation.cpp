@@ -205,7 +205,7 @@ namespace cs::features
 		if (!_injectionsOperational.load(std::memory_order_acquire))
 			return {};
 		cs::TerrainVariationFeatureData data{};
-		data.Enabled = _settings.enabled ? 1u : 0u;
+		data.Enabled = IsEnabled() ? 1u : 0u;
 		data.shared.enableLODTerrainTilingFix = _settings.enableLODTerrainTilingFix ? 1u : 0u;
 		data.shared.enableMeshSupport = _settings.enableMeshSupport ? 1u : 0u;
 		return data;
@@ -214,9 +214,6 @@ namespace cs::features
 	void TerrainVariation::DrawSettings()
 	{
 		settings::SettingsEdit edit{ *this };
-		if (const ui::Section section{ "terrain-variation-general", "General" }; section)
-			edit.Discrete(dmui::ui::Checkbox("Enabled", &_settings.enabled));
-
 		const auto toggle = [&](const auto& field, const char* a_tooltip) {
 			const std::string label = std::string(field.description) + "##" + std::string(field.key);
 			edit.Discrete(dmui::ui::Checkbox(label.c_str(), &(_settings.*field.member)));
@@ -225,7 +222,7 @@ namespace cs::features
 				dmui::ui::Text("%s", a_tooltip);
 			}
 		};
-		const auto& [enabledField, lodTiling, meshSupport] = terrain_variation::kSchema.fields;
+		const auto& [lodTiling, meshSupport] = terrain_variation::kSchema.fields;
 		if (const ui::Section section{ "terrain-variation-coverage", "Coverage" }; section) {
 			toggle(lodTiling, "Applies the tiling fix to LOD terrain objects.\nThis helps reduce the visible tiling effect on distant terrain.");
 			toggle(meshSupport, "Applies the tiling fix to meshes that use landscape textures, such as dirt cliffs and mountain slabs.\nAlpha tested meshes like foliage and decals are never affected.");

@@ -179,7 +179,7 @@ namespace cs::features
 		}
 		engine::RegisterPreDeferredLightsImpl([this] { RenderFrame(); Prepass(); }, engine::HookPriority::Late);
 		if (!engine::RegisterPostForwardSky([this] {
-				if (!CanBind() || !_enabled.load(std::memory_order_acquire))
+				if (!CanBind() || !_fogActive.load(std::memory_order_acquire))
 					return;
 				auto* renderer = RE::BSGraphics::GetRendererData();
 				if (!renderer)
@@ -228,7 +228,8 @@ namespace cs::features
 			settings = _published;
 		}
 		_frameSettings = _weather.EvaluateCurrentWeather(ehf::kSchema, settings);
-		_enabled.store(_frameSettings.enabled != 0, std::memory_order_relaxed);
+		_frameSettings.enabled = IsEnabled() ? 1u : 0u;
+		_fogActive.store(_frameSettings.enabled != 0, std::memory_order_relaxed);
 		auto* graphics = engine::GetGraphicsState();
 		auto* manager = engine::GetRenderTargetManager();
 		if (!graphics || !engine::GetWorldCameraRecord()) {
@@ -252,7 +253,7 @@ namespace cs::features
 		}
 		if (!_volume.SkyReady())
 			_frameSettings.enabled = 0;
-		_enabled.store(_frameSettings.enabled != 0, std::memory_order_relaxed);
+		_fogActive.store(_frameSettings.enabled != 0, std::memory_order_relaxed);
 		if (!_volume.Integrated())
 			_frameSettings.volumetricFogEnabled = 0;
 		const auto grid = _volume.Grid();
@@ -322,7 +323,8 @@ namespace cs::features
 
 	void ExponentialHeightFog::CollectTelemetry(telemetry::Sink& a_sink) const
 	{
-		a_sink.Field("enabled", _enabled.load())
+		a_sink.Field("enabled", IsEnabled())
+			.Field("fog_active", _fogActive.load())
 			.Field("injection_operational", _operational.load())
 			.Field("published_active", _frameReady.load())
 			.Field("volumetric_active", _volumetricActive.load())
@@ -363,7 +365,7 @@ namespace cs::features
 			ehf::kSchema.fields);
 		std::apply([&](const auto&... fields) {
 			const auto draw = [&](const auto& field) {
-				if (field.key == "enabled")
+				if (field.key == "startDistance")
 					begin("ehf-fog", "Fog");
 				else if (field.key == "fogInscatteringColor")
 					begin("ehf-inscattering", "Inscattering");

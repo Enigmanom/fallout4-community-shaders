@@ -6,6 +6,7 @@ namespace cs::features::exponential_height_fog
 {
 	struct Settings
 	{
+		// FO4: mirrors Feature::IsEnabled() for the b6 layout; not persisted.
 		std::uint32_t enabled = 0, useDynamicCubemaps = 1;
 		float startDistance = 0.0f, fogHeight = 0.0f, fogHeightFalloff = 0.2f, fogDensity = 0.005f;
 		float fogHeight2 = 0.0f, fogHeightFalloff2 = 0.2f, fogDensity2 = 0.0f;
@@ -48,7 +49,6 @@ namespace cs::features::exponential_height_fog
 
 	inline constexpr settings::Schema kSchema{
 		std::tuple{
-			settings::Field{ "enabled", "Enable Exponential Height Fog", &Settings::enabled, settings::Range{ 0u, 1u } },
 			settings::Field{ "startDistance", "Start Distance", &Settings::startDistance, settings::Range{ 0.0f, 100000.0f } },
 			settings::Field{ "fogHeight", "Fog Height", &Settings::fogHeight, settings::Range{ -22000.0f, 22000.0f } },
 			settings::Field{ "fogHeightFalloff", "Fog Height Falloff", &Settings::fogHeightFalloff, settings::Range{ 0.001f, 2.0f } },

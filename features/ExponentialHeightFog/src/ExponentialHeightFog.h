@@ -19,6 +19,7 @@ namespace cs::features
 		using Settings = exponential_height_fog::Settings;
 		std::string_view GetName() const override { return "ExponentialHeightFog"; }
 		std::string_view GetDisplayName() const override { return "Exponential Height Fog"; }
+		bool DefaultEnabled() const override { return false; }
 		std::string GetCategory() const override { return FeatureCategories::kLighting; }
 		std::string GetFeatureSummary() const override { return "Height-dependent fog for atmospheric depth."; }
 		bool Configure(const toml::table&, std::string&) override;
@@ -50,7 +51,7 @@ namespace cs::features
 		std::atomic_bool _debugFogFactor{ false };
 		mutable std::mutex _settingsMutex;
 		std::atomic_bool _resourcesReady{ false }, _operational{ false }, _frameReady{ false };
-		std::atomic_bool _enabled{ false }, _volumetricActive{ false };
+		std::atomic_bool _fogActive{ false }, _volumetricActive{ false };
 		std::atomic_uint32_t _width{ 0 }, _height{ 0 }, _slices{ 0 };
 		std::atomic_uint64_t _binds{ 0 }, _failures{ 0 };
 	};

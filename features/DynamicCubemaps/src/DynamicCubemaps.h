@@ -61,6 +61,7 @@ namespace cs::features
 		void Load() override;
 		void Prepass() override;
 		void OnLoadingMenuClosed() override;
+		void OnEnabledChanged(bool a_enabled) noexcept override;
 		void OnD3D11Ready(IDXGIAdapter* a_adapter, ID3D11Device* a_device) override;
 		bool ValidateShaderInjections(std::string& a_error) override;
 		void DrawSettings() override;
@@ -191,7 +192,6 @@ namespace cs::features
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
 		std::atomic_bool _resourcesReady{ false };
-		std::atomic_bool _enabled{ true };
 		std::atomic_bool _enabledSSR{ true };
 		std::atomic<float> _materialReflections{ 1.0f };
 		std::atomic_bool _queuedReset{ false };

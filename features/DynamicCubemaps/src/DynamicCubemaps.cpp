@@ -239,13 +239,14 @@ namespace cs::features
 		return true;
 	}
 
+	void DynamicCubemaps::OnEnabledChanged(bool a_enabled) noexcept
+	{
+		if (a_enabled)
+			_queuedReset.store(true, std::memory_order_release);
+	}
+
 	void DynamicCubemaps::PublishSettings() noexcept
 	{
-		const bool wasEnabled = _enabled.exchange(
-			_settings.enabled, std::memory_order_acq_rel);
-		if (!wasEnabled && _settings.enabled) {
-			_queuedReset.store(true, std::memory_order_release);
-		}
 		_enabledSSR.store(_settings.enabledSSR, std::memory_order_release);
 		_materialReflections.store(_settings.materialReflections, std::memory_order_release);
 	}
@@ -267,7 +268,7 @@ namespace cs::features
 
 		// FO4 vanilla never renders the reflections cube; the host does.
 		if (!cs::engine::RegisterSkyReflectionCubeConsumer("DynamicCubemaps", [this] {
-				return _enabled.load(std::memory_order_acquire) &&
+				return IsEnabled() &&
 			           _resourcesReady.load(std::memory_order_acquire) &&
 			           _injectionsOperational.load(std::memory_order_acquire);
 			})) {
@@ -333,7 +334,7 @@ namespace cs::features
 	{
 		return _resourcesReady.load(std::memory_order_acquire) &&
 		       _injectionsOperational.load(std::memory_order_acquire) &&
-		       _enabled.load(std::memory_order_acquire);
+		       IsEnabled();
 	}
 
 	ID3D11ShaderResourceView* DynamicCubemaps::PublishedSRV(bool a_reflections) const noexcept
@@ -821,7 +822,7 @@ namespace cs::features
 	{
 		if (!_injectionsOperational.load(std::memory_order_acquire) ||
 			!_resourcesReady.load(std::memory_order_acquire) ||
-			!_enabled.load(std::memory_order_acquire)) {
+			!IsEnabled()) {
 			return;
 		}
 
@@ -1257,7 +1258,7 @@ namespace cs::features
 				_injectionsOperational.load(std::memory_order_relaxed))
 			.Field(
 				"configured_enabled",
-				_enabled.load(std::memory_order_relaxed))
+				IsEnabled())
 			.Field(
 				"resources_ready",
 				_resourcesReady.load(std::memory_order_relaxed))
@@ -1324,8 +1325,7 @@ namespace cs::features
 	{
 		cs::DynamicCubemapsFeatureData data{};
 		if (_injectionsOperational.load(std::memory_order_acquire)) {
-			data.Enabled =
-				_enabled.load(std::memory_order_acquire) ? 1u : 0u;
+			data.Enabled = IsEnabled() ? 1u : 0u;
 			data.EnabledSSR =
 				_enabledSSR.load(std::memory_order_acquire) ? 1u : 0u;
 			if (data.Enabled)
@@ -1338,8 +1338,6 @@ namespace cs::features
 	{
 		settings::SettingsEdit edit{ *this };
 		bool changed = false;
-		if (const ui::Section section{ "dynamic-cubemaps-general", "General" }; section)
-			changed |= edit.Discrete(dmui::ui::Checkbox("Enabled", &_settings.enabled));
 		if (const ui::Section section{ "dynamic-cubemaps-ssr", "Screen Space Reflections" }; section) {
 			changed |= edit.Discrete(dmui::ui::Checkbox("Enable Screen Space Reflections", &_settings.enabledSSR));
 			if (dmui::ui::IsItemHovered())

@@ -20,6 +20,11 @@ namespace cs::features
 
 		std::atomic_bool g_loadingMenuOpen{ false };
 
+		bool Enabled()
+		{
+			return MotionVectorFixes::GetSingleton()->IsEnabled();
+		}
+
 		void ResetPreviousWorldDownwards(RE::NiAVObject* a_object)
 		{
 			if (!a_object) {
@@ -90,7 +95,8 @@ namespace cs::features
 			static void thunk(RE::NiAVObject* a_object, RE::NiUpdateData* a_updateData)
 			{
 				func(a_object, a_updateData);
-				ResetPreviousWorldDownwards(a_object);
+				if (Enabled())
+					ResetPreviousWorldDownwards(a_object);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -99,6 +105,11 @@ namespace cs::features
 		{
 			static void thunk(RE::Main* a_main)
 			{
+				if (!Enabled()) {
+					func(a_main);
+					return;
+				}
+
 				thread_local std::unordered_map<RE::NiAVObject*, RE::NiTransform> transforms;
 				transforms.clear();
 
@@ -130,7 +141,7 @@ namespace cs::features
 									  ShaderFlag::kLODLandscape,
 									  ShaderFlag::kLODLandBlend,
 									  ShaderFlag::kMultiTextureLandscape);
-				if (a_geometry && !g_loadingMenuOpen.load(std::memory_order_relaxed) &&
+				if (a_geometry && Enabled() && !g_loadingMenuOpen.load(std::memory_order_relaxed) &&
 					(frozen || lod)) {
 					a_geometry->previousWorld = a_geometry->world;
 				}

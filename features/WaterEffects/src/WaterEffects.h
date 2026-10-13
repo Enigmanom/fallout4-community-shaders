@@ -5,7 +5,6 @@
 #include "FeatureCategories.h"
 #include "ShaderDefines.h"
 #include "Utils/CSBuffer.h"
-#include "WaterEffectsSettings.h"
 
 #include <array>
 #include <atomic>
@@ -53,13 +52,11 @@ namespace cs::features
 			return "Projects animated water caustics onto submerged surfaces lit by the sun and adds parallax depth to water normals.";
 		}
 
-		bool Configure(const toml::table& a_config, std::string& a_error) override;
 		void Load() override;
 		void Prepass() override;
 		void OnD3D11Ready(IDXGIAdapter* a_adapter, ID3D11Device* a_device) override;
 		bool ValidateShaderInjections(std::string& a_error) override;
 		void DrawSettings() override;
-		void RestoreDefaultSettings() override;
 
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
@@ -68,14 +65,9 @@ namespace cs::features
 		void SetDebugView(std::string_view a_view) noexcept override;
 		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
-		using Settings = water_effects::Settings;
-
 	private:
 		WaterEffects() = default;
 
-		bool SaveSettings() override;
-		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(water_effects::kSchema, _settings); }
-		void PublishSettings() noexcept;
 		bool BuildCausticsResources(ID3D11Device* a_device, std::string& a_error);
 		void SetValidationDetail(std::string a_detail);
 		std::string GetValidationDetail() const;
@@ -86,8 +78,6 @@ namespace cs::features
 
 		bool CanBind() const noexcept;
 
-		Settings _settings;
-		std::atomic_bool _enabled{ true };
 		std::atomic<DebugVisualization> _debugVisualization{
 			DebugVisualization::kOff
 		};

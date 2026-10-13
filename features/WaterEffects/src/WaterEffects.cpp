@@ -15,7 +15,6 @@
 #include "Log.h"
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
-#include "Menu/SettingsEdit.h"
 #include "Render/Annotation.h"
 #include "Render/CanonicalDepth.h"
 #include "Render/Engine.h"
@@ -25,7 +24,6 @@
 #include "Render/ScopedContextState.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
-#include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/CSUtil.h"
 #include "World/Water.h"
@@ -92,34 +90,8 @@ namespace cs::features
 		_debugVisualization.store(visualization, std::memory_order_release);
 	}
 
-	bool WaterEffects::Configure(
-		const toml::table& a_config,
-		std::string& a_error)
-	{
-		auto candidate = _settings;
-		if (!settings::Parse(we::kSchema, a_config, candidate, a_error))
-			return false;
-		_settings = candidate;
-		_liveSettings = settings::BindLiveSettings(we::kSchema, _settings, [this] { PublishSettings(); });
-		if (!a_config.contains("settings"))
-			PublishSettings();
-		return true;
-	}
-
-	void WaterEffects::PublishSettings() noexcept
-	{
-		_enabled.store(_settings.enabled, std::memory_order_release);
-	}
-
-	bool WaterEffects::SaveSettings()
-	{
-		return settings::SaveDelta(we::kSchema, GetConfigKey(), _settings, *L);
-	}
-
 	void WaterEffects::Load()
 	{
-		PublishSettings();
-
 		// FO4: only owned, validated routes may activate a live contribution.
 		if (!cs::engine::RegisterFeatureShaderBindings("WaterEffects", *this, [this](cs::engine::ShaderReplacementRegistration& registration) {
 				if (registration.targetId == cs::engine::ShaderInjectionTarget::kBsdfLight) {
@@ -148,7 +120,7 @@ namespace cs::features
 			"consumers=BSDFLight+BSDFComposite t{}/s{}+host debug, enabled={}.",
 			kCausticsPSSlot,
 			kCausticsSamplerPSSlot,
-			_settings.enabled);
+			IsEnabled());
 	}
 
 	bool WaterEffects::BuildCausticsResources(
@@ -402,7 +374,7 @@ namespace cs::features
 
 	bool WaterEffects::CanBind() const noexcept
 	{
-		return _injectionsOperational.load(std::memory_order_acquire) && _enabled.load(std::memory_order_acquire) && _resourcesReady.load(std::memory_order_acquire) && _causticsSrv && _causticsSampler;
+		return _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() && _resourcesReady.load(std::memory_order_acquire) && _causticsSrv && _causticsSampler;
 	}
 
 	void WaterEffects::Prepass()
@@ -425,7 +397,7 @@ namespace cs::features
 	cs::WaterEffectsFeatureData WaterEffects::GetCommonBufferData() const
 	{
 		cs::WaterEffectsFeatureData data{};
-		data.EnabledParallax = _injectionsOperational.load(std::memory_order_acquire) && _enabled.load(std::memory_order_acquire) ? 1u : 0u;
+		data.EnabledParallax = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u;
 		return data;
 	}
 
@@ -445,7 +417,7 @@ namespace cs::features
 			cs::engine::ShaderInjectionTarget::kBsdfLight);
 		const auto detail = GetValidationDetail();
 		a_sink
-			.Field("configured_enabled", _enabled.load(std::memory_order_relaxed))
+			.Field("configured_enabled", IsEnabled())
 			.Field("has_water", water.cameraCellHeight != cs::engine::kNoWaterHeight)
 			.Field(
 				"water_height",
@@ -489,19 +461,7 @@ namespace cs::features
 
 	void WaterEffects::DrawSettings()
 	{
-		settings::SettingsEdit edit{ *this };
-		if (const ui::Section section{ "water-effects-general", "General" }; section) {
-			if (edit.Discrete(dmui::ui::Checkbox("Enabled", &_settings.enabled)))
-				PublishSettings();
-		}
 		Menu::Get().DrawDebugViewSelector(*this);
-	}
-
-	void WaterEffects::RestoreDefaultSettings()
-	{
-		_settings = Settings{};
-		PublishSettings();
-		SaveSettings();
 	}
 
 	namespace
