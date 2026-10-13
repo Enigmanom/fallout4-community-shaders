@@ -19,6 +19,8 @@ namespace cs::settings
 	{
 		std::function<toml::table()> snapshot;
 		std::function<std::optional<PreparedLiveSettings>(const toml::table&, std::string&)> prepare;
+		// Live-settable keys that an A/B comparison must not capture.
+		std::vector<std::string_view> notComparable;
 	};
 
 	template <class... Fields>
@@ -26,12 +28,11 @@ namespace cs::settings
 		const Schema<Fields...>& a_schema,
 		typename Schema<Fields...>::SettingsType& a_settings,
 		std::function<void()> a_finalize = {},
-		std::vector<std::string_view> a_excluded = {},
+		std::vector<std::string_view> a_notComparable = {},
 		std::function<bool(const typename Schema<Fields...>::SettingsType&, std::string&)> a_validate = {})
 	{
-		const auto included = [excluded = std::move(a_excluded)](const auto& a_field) {
-			return a_field.timing == ApplyTiming::kImmediate &&
-			       std::ranges::find(excluded, a_field.key) == excluded.end();
+		const auto included = [](const auto& a_field) {
+			return a_field.timing == ApplyTiming::kImmediate;
 		};
 		return {
 			[&a_schema, &a_settings, included] {
@@ -78,7 +79,8 @@ namespace cs::settings
 					},
 					finalize
 				};
-			}
+			},
+			std::move(a_notComparable)
 		};
 	}
 

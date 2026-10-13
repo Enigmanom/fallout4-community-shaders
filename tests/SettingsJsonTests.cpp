@@ -99,6 +99,17 @@ namespace
 		CHECK(issues.restartOnly == std::vector<std::string>{ "boot" });
 		CHECK(issues.unknown == std::vector<std::string>{ "typo" });
 	}
+
+	void TestNotComparableKeysStayLive()
+	{
+		TestSettings settings;
+		auto access = BindLiveSettings(kSchema, settings, {}, { "label" });
+		CHECK(access.snapshot().contains("label"));
+		CHECK(Apply(access, json{ { "label", "c" } }));
+		CHECK(settings.label == "c");
+		const auto values = JsonToToml(json{ { "label", "d" } });
+		CHECK(values && ClassifyKeys(*values, access.snapshot(), MakeSchemaView(kSchema)).empty());
+	}
 }
 
 int main()
@@ -106,6 +117,7 @@ int main()
 	TestLiveRoundTrip();
 	TestRejectionsLeaveStateUntouched();
 	TestKeyClassification();
+	TestNotComparableKeysStayLive();
 	if (failures)
 		return 1;
 	std::cout << "Settings JSON tests passed\n";

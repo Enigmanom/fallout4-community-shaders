@@ -276,8 +276,12 @@ namespace cs::features
 		Snapshot snapshot;
 		for (auto* feature : FeatureManager::Get().GetAll()) {
 			const auto& access = feature->GetLiveSettingsAccess();
-			if (feature->IsHealthy() && access.snapshot)
-				snapshot.emplace(feature, access.snapshot());
+			if (!feature->IsHealthy() || !access.snapshot)
+				continue;
+			auto values = access.snapshot();
+			for (const auto key : access.notComparable)
+				values.erase(key);
+			snapshot.emplace(feature, std::move(values));
 		}
 		return snapshot;
 	}

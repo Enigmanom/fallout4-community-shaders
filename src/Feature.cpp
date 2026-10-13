@@ -136,7 +136,8 @@ namespace cs
 					enabled = previous;
 				};
 				return prepared;
-			}
+			},
+			std::move(_liveSettings.notComparable)
 		};
 	}
 
