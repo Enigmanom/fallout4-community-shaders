@@ -190,7 +190,7 @@ namespace cs::features
 		}
 		settings = candidate;
 		_liveSettings = cs::settings::BindLiveSettings(frame_generation::kSchema, settings,
-			[] { render::TemporalPipeline::Get().SubmitLiveConfiguration(); }, { "detailed_diagnostics" });
+			[] { render::TemporalPipeline::Get().SubmitLiveConfiguration(); });
 		return true;
 	}
 
