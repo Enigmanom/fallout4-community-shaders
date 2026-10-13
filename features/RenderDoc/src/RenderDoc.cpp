@@ -166,7 +166,7 @@ namespace cs::features
 			}
 		}
 
-		std::filesystem::path ResolveCaptureFolder(const std::string& a_configured)
+		std::optional<std::filesystem::path> ResolveCaptureFolder(const std::string& a_configured)
 		{
 			// FO4: captures follow the F4SE save-folder identity rather than the game Data tree.
 			if (!a_configured.empty()) {
@@ -187,8 +187,7 @@ namespace cs::features
 			std::unique_ptr<wchar_t[], decltype(&REX::W32::CoTaskMemFree)> knownPath(
 				knownBuffer, REX::W32::CoTaskMemFree);
 			if (!knownPath || knownResult != 0) {
-				L->warn("Failed to resolve the Documents folder for RenderDoc captures; using {}", kLegacyCaptureFolder);
-				return kLegacyCaptureFolder;
+				return std::nullopt;
 			}
 
 			std::filesystem::path path = knownPath.get();
@@ -236,6 +235,9 @@ namespace cs::features
 		if (_attemptedLoad)
 			return false;
 		_attemptedLoad = true;
+
+		if (!ResolveCapturePath(a_error))
+			return false;
 
 		std::filesystem::path path;
 		try {
@@ -286,13 +288,27 @@ namespace cs::features
 		return true;
 	}
 
+	bool RenderDoc::ResolveCapturePath(std::string& a_error)
+	{
+		auto folder = ResolveCaptureFolder(_settings.captureFolder);
+		if (!folder) {
+			a_error = "Failed to resolve the Documents folder for RenderDoc captures";
+			return false;
+		}
+		_resolvedCaptureFolder = std::move(*folder);
+		_resolvedCaptureFolderUtf8 = PathToUtf8(_resolvedCaptureFolder);
+		return true;
+	}
+
 	void RenderDoc::ApplyCapturePath()
 	{
 		if (!_api)
 			return;
 
-		_resolvedCaptureFolder = ResolveCaptureFolder(_settings.captureFolder);
-		_resolvedCaptureFolderUtf8 = PathToUtf8(_resolvedCaptureFolder);
+		if (std::string error; !ResolveCapturePath(error)) {
+			L->warn("{}; keeping the previous capture folder", error);
+			return;
+		}
 		L->info("RenderDoc capture folder: {}", _resolvedCaptureFolderUtf8);
 
 		std::error_code ec;

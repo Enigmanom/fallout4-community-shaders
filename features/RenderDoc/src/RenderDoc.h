@@ -73,6 +73,7 @@ namespace cs::features
 		bool SaveSettings() override;
 		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(renderdoc_settings::kSchema, _settings); }
 		bool TryLoadRuntime(std::string& a_error);
+		bool ResolveCapturePath(std::string& a_error);
 		void ApplyCapturePath();
 		bool CheckCaptureDiskSpace(int a_frames) const;
 		[[nodiscard]] bool BindCaptureTarget(bool a_reportUnavailable);
