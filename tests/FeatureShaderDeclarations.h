@@ -2,6 +2,7 @@
 
 #include "../features/DynamicCubemaps/src/ShaderDefines.h"
 #include "../features/ExponentialHeightFog/src/ShaderDefines.h"
+#include "../features/ExtendedMaterials/src/ShaderDefines.h"
 #include "../features/IBL/src/ShaderDefines.h"
 #include "../features/InverseSquareLighting/src/ShaderDefines.h"
 #include "../features/LODBlending/src/ShaderDefines.h"
@@ -33,6 +34,7 @@ namespace cs::engine
 				{ "TerrainShadows", &terrain_shader::kShaderDefines },
 				{ "LODBlending", &lod_blending_shader::kShaderDefines },
 				{ "TerrainVariation", &terrain_variation_shader::kShaderDefines },
+				{ "ExtendedMaterials", &extended_materials_shader::kShaderDefines },
 				{ "WaterEffects", &water_effects::kShaderDefines },
 				{ "UnifiedWater", &unified_water::kShaderDefines },
 				{ "UpscalingSamplerBias", &upscaling::kSamplerBiasShaderDefines }

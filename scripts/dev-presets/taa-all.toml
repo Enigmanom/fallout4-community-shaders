@@ -36,6 +36,9 @@ load = true
 [features.TerrainVariation]
 load = true
 
+[features.ExtendedMaterials]
+load = true
+
 [features.MotionVectorFixes]
 load = true
 

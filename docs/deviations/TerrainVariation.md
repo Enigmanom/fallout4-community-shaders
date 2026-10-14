@@ -26,6 +26,6 @@ and mesh variation off).
 
 | Kind | Upstream | Remaining work | Where |
 |---|---|---|---|
-| Pending | `StochasticEffectParallax` and `StochasticHeightChannel` consumers (terrain and mesh POM, parallax soft shadows) | Need the Extended Materials marcher; the header functions are staged unchanged | Extended Materials slice |
+| Pending | `StochasticEffectParallax` and `StochasticHeightChannel` consumers in parallax soft shadows | Terrain and mesh POM consume them through [Extended Materials](ExtendedMaterials.md); shadows wait for its extension slice | Extended Materials slice |
 | Pending | Stochastic RMAOS for `TRUE_PBR` landscape and meshes | FO4 has no TruePBR consumer yet; the FO4 material map already uses the shared offsets | TruePBR slice |
 | Pending | Residual seams in admitted textures | Mild cases remain (`rockslab02`, `driedgrass01`, some mud and silt specs, `dirtclifferoded`); admitted by folder and under review | `TerrainVariation.cpp` |

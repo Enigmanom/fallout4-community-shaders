@@ -1,5 +1,6 @@
 #include "DynamicCubemapsSettings.h"
 #include "ExponentialHeightFogSettings.h"
+#include "ExtendedMaterialsSettings.h"
 #include "FrameGenerationSettings.h"
 #include "ImageBasedLightingSettings.h"
 #include "InverseSquareLightingSettings.h"
@@ -88,6 +89,7 @@ namespace
 			std::pair{ "TerrainShadows", SchemaView{} },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
 			std::pair{ "TerrainVariation", MakeSchemaView(terrain_variation::kSchema) },
+			std::pair{ "ExtendedMaterials", MakeSchemaView(extended_materials::kSchema) },
 			std::pair{ "MotionVectorFixes", SchemaView{} },
 			std::pair{ "Upscaling", MakeSchemaView(cs::render::temporal::kSchema) },
 			std::pair{ "FrameGeneration", MakeSchemaView(frame_generation::kSchema) },

@@ -134,6 +134,7 @@ the host's neutral linear-color policy in the LinearLighting block.
 - [Terrain Shadows](TerrainShadows.md)
 - [LOD Blending](LODBlending.md)
 - [Terrain Variation](TerrainVariation.md)
+- [Extended Materials](ExtendedMaterials.md)
 - [Dynamic Cubemaps](DynamicCubemaps.md)
 - [Image Based Lighting](IBL.md)
 - [RenderDoc](RenderDoc.md)

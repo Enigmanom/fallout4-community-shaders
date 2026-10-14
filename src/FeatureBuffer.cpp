@@ -2,6 +2,7 @@
 
 #include "DynamicCubemaps.h"
 #include "ExponentialHeightFog.h"
+#include "ExtendedMaterials.h"
 #include "ImageBasedLighting.h"
 #include "LODBlending.h"
 #include "ScreenSpaceGI.h"
@@ -56,7 +57,10 @@ namespace cs
 					features::ImageBasedLighting::GetSingleton()),
 			.unifiedWaterSettings =
 				CollectFeatureData<UnifiedWaterFeatureData>(
-					features::UnifiedWater::GetSingleton())
+					features::UnifiedWater::GetSingleton()),
+			.extendedMaterialsSettings =
+				CollectFeatureData<ExtendedMaterialsFeatureData>(
+					features::ExtendedMaterials::GetSingleton())
 		};
 	}
 }

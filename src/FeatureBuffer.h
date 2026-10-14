@@ -8,6 +8,7 @@ namespace cs
 {
 	// Feature contributors retain host contracts; the substrate packs shared and FO4-only fields.
 	using LODBlendingFeatureData = render::LODBlendingSettings;
+	using ExtendedMaterialsFeatureData = render::CPMSettings;
 
 	struct alignas(16) TerrainShadowsFeatureData
 	{
@@ -78,8 +79,9 @@ namespace cs
 		ScreenSpaceGIFeatureData screenSpaceGISettings;
 		render::IBLSettings iblSettings;
 		UnifiedWaterFeatureData unifiedWaterSettings;
+		ExtendedMaterialsFeatureData extendedMaterialsSettings;
 	};
-	static_assert(sizeof(FeatureDataCB) == 624);
+	static_assert(sizeof(FeatureDataCB) == 656);
 	static_assert(sizeof(FeatureDataCB) % 16 == 0);
 	static_assert(offsetof(FeatureDataCB, terrainShadowsSettings) == 0);
 	static_assert(offsetof(TerrainShadowsFeatureData, EnableTerrainShadow) == 0);
@@ -95,6 +97,7 @@ namespace cs
 	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 384);
 	static_assert(offsetof(FeatureDataCB, iblSettings) == 560);
 	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 608);
+	static_assert(offsetof(FeatureDataCB, extendedMaterialsSettings) == 624);
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 

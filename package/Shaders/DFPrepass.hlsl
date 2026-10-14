@@ -118,7 +118,18 @@
 #		define PREPASS_MOTION_VECTOR (!BLEND || TESSELLATE_DISP_HEIGHT || DISMEMBERMENT_MEATCUFF)
 #	endif
 
-#	if defined(LOD_BLENDING) || defined(TERRAIN_VARIATION) || defined(FO4_PREPASS_VERTEX_AO)
+// FO4: PARALLAX/LANDSCAPE map to prepass variants that carry world position.
+#	if defined(EXTENDED_MATERIALS) && !TESSELLATE_DISP_HEIGHT && !(defined(OG) && BLEND)
+#		if TEXTURE && !LANDSCAPE && !MODELSPACENORMALS && !(LOD_LANDSCAPE || SKIN_TINT || HAIR || EYE || FACE || TREE_ANIM || GRASS || DISMEMBERMENT_MEATCUFF || PIPBOY_SCREEN || MENU_SCREEN)
+#			define EMAT
+#			define EMAT_OBJECT
+#		elif LANDSCAPE && !INSTANCED
+#			define EMAT
+#			define EMAT_LANDSCAPE
+#		endif
+#	endif
+
+#	if defined(LOD_BLENDING) || defined(TERRAIN_VARIATION) || defined(FO4_PREPASS_VERTEX_AO) || defined(EMAT)
 #		include "FO4/FO4ShaderData.hlsli"
 #	endif
 
@@ -151,7 +162,15 @@ float4 SampleTerrainVariation(Texture2D tex, SamplerState samp, float2 uv, Stoch
 
 cbuffer PerFrame_CB12 : register(b12)
 {
+#	if defined(EMAT)
+	float4 cb12_pad_0_11[12];
+	float4 ViewToWorld_row0;
+	float4 ViewToWorld_row1;
+	float4 ViewToWorld_row2;
+	float4 cb12_pad_15_29[15];
+#	else
 	float4 cb12_pad_0_29[30];
+#	endif
 	float4 cb12_idx30_global_fade;
 
 	float4 PrevFrame_WorldToClip_row0;
@@ -382,6 +401,70 @@ Texture2D<float4> g_tLandNormalNoise : register(t15);
 SamplerState g_sLandNormalNoise : register(s15);
 #	endif
 
+#	if defined(EMAT)
+#		include "Common/Random.hlsli"
+#	endif
+#	if defined(EMAT_OBJECT)
+// FO4: the _s alpha is a full-resolution height map like Skyrim's _p.
+#		define PARALLAX
+// FO4: LANDSCAPE is always defined as 0/1; the kernel tests defined().
+#		undef LANDSCAPE
+#		include "ExtendedMaterials/ExtendedMaterials.hlsli"
+#		define LANDSCAPE 0
+#		undef PARALLAX
+#	elif defined(EMAT_LANDSCAPE)
+// FO4: four layers, height in each _s alpha; layers 5-6 weigh zero.
+struct EMLandscapeInput
+{
+	float4 LandBlendWeights1;
+	float4 LandBlendWeights2;
+};
+// FO4: no Terrain Helper displacement layers.
+namespace Permutation
+{
+	static const uint ExtraFeatureDescriptor = 0;
+	namespace ExtraFeatureFlags
+	{
+		static const int THLand0HasDisplacement = (1 << 0);
+		static const int THLand1HasDisplacement = (1 << 1);
+		static const int THLand2HasDisplacement = (1 << 2);
+		static const int THLand3HasDisplacement = (1 << 3);
+		static const int THLand4HasDisplacement = (1 << 4);
+		static const int THLand5HasDisplacement = (1 << 5);
+		static const int THLandHasDisplacement = (1 << 9);
+	}
+}
+#		define PS_INPUT EMLandscapeInput
+#		define TexColorSampler g_tLandMaterial[0]
+#		define TexLandColor2Sampler g_tLandMaterial[1]
+#		define TexLandColor3Sampler g_tLandMaterial[2]
+#		define TexLandColor4Sampler g_tLandMaterial[3]
+#		define TexLandColor5Sampler g_tLandMaterial[3]
+#		define TexLandColor6Sampler g_tLandMaterial[3]
+#		define TexLandTHDisp0Sampler g_tLandMaterial[0]
+#		define TexLandTHDisp1Sampler g_tLandMaterial[1]
+#		define TexLandTHDisp2Sampler g_tLandMaterial[2]
+#		define TexLandTHDisp3Sampler g_tLandMaterial[3]
+#		define TexLandTHDisp4Sampler g_tLandMaterial[3]
+#		define TexLandTHDisp5Sampler g_tLandMaterial[3]
+#		define SampTerrainParallaxSampler g_sLandMaterial[0]
+#		include "ExtendedMaterials/ExtendedMaterials.hlsli"
+#		undef PS_INPUT
+#		undef TexColorSampler
+#		undef TexLandColor2Sampler
+#		undef TexLandColor3Sampler
+#		undef TexLandColor4Sampler
+#		undef TexLandColor5Sampler
+#		undef TexLandColor6Sampler
+#		undef TexLandTHDisp0Sampler
+#		undef TexLandTHDisp1Sampler
+#		undef TexLandTHDisp2Sampler
+#		undef TexLandTHDisp3Sampler
+#		undef TexLandTHDisp4Sampler
+#		undef TexLandTHDisp5Sampler
+#		undef SampTerrainParallaxSampler
+#	endif
+
 struct PS_INPUT
 {
 	float4 position: SV_POSITION;
@@ -471,7 +554,7 @@ struct PS_OUTPUT
 #	endif
 	PS_OUTPUT main(PS_INPUT input) {
 		PS_OUTPUT output;
-#	if defined(TERRAIN_VARIATION_LOD)
+#	if defined(TERRAIN_VARIATION_LOD) || defined(EMAT)
 		float screenNoise = Random::InterleavedGradientNoise(input.position.xy, SharedData::FrameCount);
 #	endif
 #	if defined(LOD_BLENDING) && (LANDSCAPE || GRASS) && VC
@@ -547,7 +630,81 @@ struct PS_OUTPUT
 				DEST = TEX.Sample(SAMP, UV);                        \
 			}
 #	else
+#		if defined(EMAT_OBJECT)
+	StochasticOffsets meshOffset = (StochasticOffsets)0;
+	const bool applyMeshTV = false;
+#		endif
 #		define MESH_TV_SAMPLE(DEST, TEX, SAMP, UV) float4 DEST = TEX.Sample(SAMP, UV)
+#	endif
+
+#	if defined(EMAT)
+		// FO4: tangent rows are view space; b12 c12-c14 hold view-to-world.
+		float3x3 viewToWorld = float3x3(ViewToWorld_row0.xyz, ViewToWorld_row1.xyz, ViewToWorld_row2.xyz);
+		float3 cameraPosition = float3(ViewToWorld_row0.w, ViewToWorld_row1.w, ViewToWorld_row2.w);
+		float3 worldPosition = input.curr_pos_u.xyz;
+		float3 viewPosition = mul(worldPosition - cameraPosition, viewToWorld);
+		float3 viewDirection = normalize(cameraPosition - worldPosition);
+		float3x3 tbnTr = transpose(mul(viewToWorld, float3x3(input.tangent, input.bitangent, input.normal)));
+		tbnTr[0] = normalize(tbnTr[0]);
+		tbnTr[1] = normalize(tbnTr[1]);
+		tbnTr[2] = normalize(tbnTr[2]);
+
+		float pixelOffset = 0;
+#		if defined(EMAT_LANDSCAPE)
+		DisplacementParams displacementParams[6];
+		displacementParams[0].DisplacementScale = 1.f;
+		displacementParams[0].DisplacementOffset = 0.f;
+		displacementParams[0].HeightScale = 1;
+		displacementParams[0].FlattenAmount = 0;
+#		else
+		float mipLevel = 0;
+		// FO4: packs author alpha 255 as the surface; -0.5 makes it the zero plane.
+		DisplacementParams displacementParams;
+		displacementParams.DisplacementScale = 1.f;
+		displacementParams.DisplacementOffset = -0.5f;
+		displacementParams.HeightScale = 1;
+		displacementParams.FlattenAmount = 0;
+#		endif
+
+		float curvature = 0;
+		float normalSmoothness = 0;
+		float3 vertexNormal = tbnTr[2];
+		if (SharedData::extendedMaterialSettings.EnableParallaxWarpingFix
+#		if defined(EMAT_LANDSCAPE)
+			&& SharedData::extendedMaterialSettings.EnableTerrainParallax
+#		endif
+		) {
+			float3 ndx = ddx(vertexNormal);
+			float3 ndy = ddy(vertexNormal);
+			float3 fdx = ddx(worldPosition);
+			float3 fdy = ddy(worldPosition);
+			float fragSize = rcp(length(max(abs(fdx), abs(fdy))));
+			float normalDelta = length(max(abs(ndx), abs(ndy))) * fragSize;
+			float3 flatWorldNormal = normalize(-cross(fdx, fdy));
+			normalSmoothness = saturate(1.0 - dot(vertexNormal, flatWorldNormal));
+#		if defined(EMAT_LANDSCAPE)
+			curvature = sqrt(normalDelta);
+			displacementParams[0].HeightScale = saturate(1.0 - curvature);
+			displacementParams[0].FlattenAmount = (normalSmoothness + curvature);
+#		else
+			// Objects: keep HeightScale; flatten only grazing, bent faces.
+			curvature = normalDelta;
+			float facing = saturate(dot(vertexNormal, viewDirection));
+			float grazing = 1.0 - facing;
+			float bend = saturate(normalSmoothness + curvature);
+			float silhouette = saturate(grazing - facing);
+			// Cap FlattenAmount: 1/facing explodes at grazing angles.
+			displacementParams.FlattenAmount = saturate(silhouette * bend * rcp(max(facing, 0.0625)));
+#		endif
+		}
+#	endif
+
+#	if defined(EMAT_OBJECT)
+		// FO4: no parallax flag exists; cb2_pad.z marks non-LOD meshes.
+		if (SharedData::extendedMaterialSettings.EnableParallax && cb2_pad.z != 0.0) {
+			mipLevel = ExtendedMaterials::GetMipLevel(uv, g_tMaterial);
+			uv = ExtendedMaterials::GetParallaxCoords(viewPosition.z, uv, mipLevel, viewDirection, tbnTr, screenNoise, g_tMaterial, g_sMaterial, 3, displacementParams, applyMeshTV, meshOffset, pixelOffset);
+		}
 #	endif
 
 #	if LANDSCAPE
@@ -558,10 +715,49 @@ struct PS_OUTPUT
 		// FO4: lodAlbedoUV is layerUV/48, Skyrim's zw is /96.
 		StochasticOffsets sharedOffset = (StochasticOffsets)0;
 		[branch] if (FO4SharedData::EnabledTerrainVariation != 0)
-		{
 			sharedOffset = ComputeStochasticOffsets(input.lodAlbedoUV * 0.5);
-			g_terrainStochasticLodBase = ComputeTerrainStochasticLodBase(uv);
+#		elif defined(EMAT_LANDSCAPE)
+		StochasticOffsets sharedOffset = (StochasticOffsets)0;
+#		endif
+#		if defined(EMAT_LANDSCAPE)
+		// FO4: four layers, normalised as upstream does before the march.
+		float landWeightSum = dot(input.layerWeights, 1.0);
+		EMLandscapeInput landInput;
+		landInput.LandBlendWeights1 = landWeightSum > 0.0 ? input.layerWeights / landWeightSum : input.layerWeights;
+		landInput.LandBlendWeights2 = 0.0;
+		if (SharedData::extendedMaterialSettings.EnableTerrainParallax) {
+			float mipLevels[6];
+			float terrainMaxTexDim = 0.0;
+			ExtendedMaterials::InitializeTerrainMipLevels(uv, mipLevels, terrainMaxTexDim);
+
+			displacementParams[1] = displacementParams[0];
+			displacementParams[2] = displacementParams[0];
+			displacementParams[3] = displacementParams[0];
+			displacementParams[4] = displacementParams[0];
+			displacementParams[5] = displacementParams[0];
+
+			float weights[6];
+			weights[0] = weights[1] = weights[2] = weights[3] = weights[4] = weights[5] = 0.0;
+
+			const bool doTerrainPom = ExtendedMaterials::TerrainHasAnyDisplacement() &&
+		                              ExtendedMaterials::TerrainMaxWeightedHeightScale(landInput, displacementParams) > 0.01;
+			[branch] if (doTerrainPom)
+			{
+				uv = ExtendedMaterials::GetParallaxCoords(landInput, viewPosition.z, uv, mipLevels, terrainMaxTexDim, viewDirection, tbnTr, screenNoise, displacementParams, sharedOffset, pixelOffset, weights);
+			}
+			else if (SharedData::extendedMaterialSettings.EnableHeightBlending)
+			{
+				float unusedHeight;
+				unusedHeight = ExtendedMaterials::GetTerrainHeight(screenNoise, landInput, uv, mipLevels, displacementParams, 1.0, landInput.LandBlendWeights1, landInput.LandBlendWeights2.xy, sharedOffset, weights);
+			}
+
+			if (SharedData::extendedMaterialSettings.EnableHeightBlending)
+				input.layerWeights = float4(weights[0], weights[1], weights[2], weights[3]);
 		}
+#		endif
+#		if defined(TERRAIN_VARIATION) && !INSTANCED
+		[branch] if (FO4SharedData::EnabledTerrainVariation != 0)
+			g_terrainStochasticLodBase = ComputeTerrainStochasticLodBase(uv);
 #			define SampleTerrain(TEX, SAMP, UV, OFFSET) SampleTerrainVariation(TEX, SAMP, UV, OFFSET)
 #		else
 #			define SampleTerrain(TEX, SAMP, UV, OFFSET) TEX.Sample(SAMP, UV)

@@ -39,7 +39,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |
 | [Exponential Height Fog](deviations/ExponentialHeightFog.md) | Core | Analytic/froxel fog; shadow/environment/weather/secondary consumers; local-light scattering (needs LLF light grid) | N/A: ENB | Pt | H | L | High |
-| Extended Materials | Mixed | Object POM + contact refinement, warping fix, terrain POM/height blend (height from `_s` alpha) | Ext: complex envmask material, parallax soft shadows | NS | H | M | Med |
+| [Extended Materials](deviations/ExtendedMaterials.md) | Mixed | Object POM + contact refinement, warping fix, terrain POM/height blend (height from `_s` alpha); parallax material gate pending | Ext: complex envmask material, sun parallax soft shadows (prepass R8 via MRT6). N/A: point-light parallax shadows | Pt | H | M | Med |
 | Extended Translucency | Mixed | Alpha models on an existing alpha route* | Ext: per-mesh NIF metadata, world translucent coverage | NS | M | S | Low |
 | Grass Collision | Core | Contact field, blade deformation/motion, optimized-grass consumer | — | NS | H | M | Med |
 | Grass Lighting | Mixed | Brightness/facing, complex-atlas decode, LOD brightness | Ext: exact specular/transmission/AO, PBR grass. N/A: forward activation | NS | M | S/M | Med |
@@ -83,9 +83,9 @@ are FO4-only rule-4 core features.
   (`Lighting.hlsl:1175-1217`), so it ships as one EM slice in `DFPrepass` before material sampling. Vanilla
   textures carry no height, but FO4 parallax texture packs store it in the `_s` (specular/smoothness) alpha,
   which `DFPrepass` already binds at t2 (landscape t8+). Reading it is a relocated upstream datum, so the
-  slice is core; RE confirms which material flag marks height-bearing `_s` textures (packs set one in BGSM).
-  Composite `PARALLAX_OCCLUSION_MAPPING` macros prove emission, not executed relief, and prepass `0x40000`
-  is SKIN_TINT. Terrain Variation must share the same UV offsets.
+  slice is core. No draw identifies a parallax material: the engine drops the BGSM parallax flag and no
+  prepass bit or constant carries one, so objects march ungated on the flat-alpha convention until a host
+  classifier recovers that flag. Terrain shares Terrain Variation's UV offsets.
 - **Subsurface Scattering.** Replace FO4's fixed second-composite blur with upstream separable/Burley on
   native class-5 eligibility; never stack both.
 - **Cloud Shadows.** Prior art on branch `cloud-shadows` (`3314d567`) maps material pointers to layers;
@@ -118,7 +118,8 @@ Ordered by user value over effort, respecting dependencies.
 ## Extension slices
 
 Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
-full materials; Extended Materials complex materials and parallax shadows; Grass Optimizations renderer;
+full materials; Extended Materials complex materials (envmask-alpha height, RGB metal/colour) and sun parallax
+shadows (computed once in `DFPrepass`, an R8 multiplier to DFLight via MRT6); Grass Optimizations renderer;
 Terrain Blending lit transition; Terrain
 Helper ESP; Skin RFAOS; SSS profiles; Hair Kajiya-Kay and blended hair; LLF capacity/shadow
 redesign; full Volumetric Lighting renderer; Extended Translucency world coverage.
