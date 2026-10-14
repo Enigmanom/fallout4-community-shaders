@@ -129,7 +129,7 @@ jobs:
       - name: Run unit tests
         run: xmake test -g unit
 
-      # Each suite already compiles on every core, so run them one at a time.
+      # Each suite already compiles on every core; cap concurrent suites at two.
       - name: Compile stock and feature shaders
         run: xmake test -g shaders -j 2
 
