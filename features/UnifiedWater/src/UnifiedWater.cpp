@@ -69,6 +69,8 @@ namespace cs::features
 		stl::detour_thunk<ReleaseWorld>(engine::water::id::ReleaseWorld);
 		stl::detour_thunk<UpdateDisplacement>(engine::water::id::UpdateDisplacement);
 		stl::detour_thunk<UpdateWaterSystem>(engine::water::id::UpdateWaterSystem);
+		if (!engine::water::InstallTileWaterOverride())
+			throw std::runtime_error("Unified Water AddLODWater call site did not match.");
 		if (!Attach::func.address() || !Detach::func.address() || !Visibility::func.address() ||
 			!SetWorldSpace::func.address() || !ReleaseWorld::func.address() ||
 			!UpdateDisplacement::func.address() || !UpdateWaterSystem::func.address()) {
@@ -199,8 +201,12 @@ namespace cs::features
 		}
 		// FO4: the attach gate bypasses unchecked tile segment getters.
 		func(a_chunk);
+		std::vector<engine::water::TileWater> tiles;
+		tiles.reserve(built.size());
+		for (const auto& [shape, instruction] : built)
+			tiles.push_back({ shape, static_cast<RE::TESWaterForm*>(instruction->form.ptr), instruction->waterHeight });
 		// FO4: terrain water is drawn only once AddLODWater registers it.
-		engine::water::RegisterVanillaWater(a_chunk);
+		engine::water::RegisterTileWater(a_chunk, tiles);
 		for (const auto& [shape, instruction] : built)
 			engine::water::ConfigureTileProperty(shape);
 		self._managed.insert_or_assign(parent, std::move(managed));
@@ -372,6 +378,7 @@ namespace cs::features
 			.Field("chunks_detached", _chunksDetached.load())
 			.Field("vanilla_fallbacks", _vanillaFallbacks.load())
 			.Field("visibility_updates", _visibilityUpdates.load())
+			.Field("tile_water_overrides", engine::water::TileWaterOverrides())
 			.Field("exterior", _exterior.load())
 			.Field("lod_root_culled", engine::water::GetWaterLOD() && engine::water::GetWaterLOD()->GetAppCulled());
 	}

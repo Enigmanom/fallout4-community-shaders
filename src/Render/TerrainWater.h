@@ -53,6 +53,13 @@ namespace cs::engine::water
 	static_assert(offsetof(TerrainChunk, water) == 0x10);
 	static_assert(offsetof(TerrainChunk, loaded) == 0x20);
 
+	struct TileWater
+	{
+		RE::NiAVObject* geometry;
+		RE::TESWaterForm* form;
+		float height;
+	};
+
 	struct TileCell
 	{
 		RE::NiAVObject* geometry;
@@ -64,6 +71,10 @@ namespace cs::engine::water
 	bool DisableVanillaWaterLOD();
 	void Prepare(TerrainChunk* a_chunk);
 	void RegisterVanillaWater(TerrainChunk* a_chunk);
+	// Registers like vanilla, but each listed tile keeps its own WATR and height.
+	void RegisterTileWater(TerrainChunk* a_chunk, std::span<const TileWater> a_tiles);
+	bool InstallTileWaterOverride();
+	std::uint64_t TileWaterOverrides() noexcept;
 	void UnregisterVanillaWater(TerrainChunk* a_chunk);
 	void ConfigureTileProperty(RE::BSGeometry* a_shape);
 	void RemoveWater(RE::NiAVObject* a_shape);

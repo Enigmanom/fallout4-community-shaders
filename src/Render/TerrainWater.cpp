@@ -13,6 +13,8 @@
 #include <atomic>
 #include <cfloat>
 #include <mutex>
+#include <utility>
+#include <vector>
 
 namespace cs::engine::water
 {
@@ -76,6 +78,55 @@ namespace cs::engine::water
 			// FO4: undersized buffers silently return truncated records.
 			return a_file->actualChunkSize == a_size && a_file->GetChunkData(a_data, a_size);
 		}
+	}
+
+	namespace
+	{
+		thread_local std::span<const TileWater> t_tiles;
+		std::atomic_uint64_t g_overrides{ 0 };
+
+		struct LODWaterAddWater
+		{
+			static bool thunk(void* a_system, RE::NiAVObject* a_geometry, RE::TESWaterForm* a_form, float a_height,
+				void* a_bounds, bool a_forceNonHorizontal, bool a_addRipples)
+			{
+				// FO4: AddLODWater passes the worldspace WATR; tiles need their cell's.
+				if (const auto tile = std::ranges::find(t_tiles, a_geometry, &TileWater::geometry); tile != t_tiles.end()) {
+					if (tile->form != a_form)
+						g_overrides.fetch_add(1, std::memory_order_relaxed);
+					a_form = tile->form;
+					a_height = tile->height;
+				}
+				return func(a_system, a_geometry, a_form, a_height, a_bounds, a_forceNonHorizontal, a_addRipples);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+	}
+
+	bool InstallTileWaterOverride()
+	{
+		static REL::Relocation<std::uintptr_t> addLODWater{ REL::VariantID{ 759998, 2213947, 2213947 } };
+		const auto sites = REX::FModule::IsRuntimeOG() ?
+		                       std::vector<std::uintptr_t>{ addLODWater.address() + 0xC8, addLODWater.address() + 0x106 } :
+		                       std::vector<std::uintptr_t>{ addLODWater.address() + 0x139 };
+		for (const auto site : sites)
+			if (*reinterpret_cast<const std::uint8_t*>(site) != 0xE8)
+				return false;
+		for (const auto site : sites)
+			stl::write_thunk_call<LODWaterAddWater>(site);
+		return true;
+	}
+
+	std::uint64_t TileWaterOverrides() noexcept
+	{
+		return g_overrides.load(std::memory_order_relaxed);
+	}
+
+	void RegisterTileWater(TerrainChunk* a_chunk, std::span<const TileWater> a_tiles)
+	{
+		const auto previous = std::exchange(t_tiles, a_tiles);
+		RegisterVanillaWater(a_chunk);
+		t_tiles = previous;
 	}
 
 	RE::NiNode* GetWaterLOD()
