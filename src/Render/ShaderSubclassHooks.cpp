@@ -242,7 +242,7 @@ namespace cs::engine
 		// Stock never reads the cb2 pad declared directly before material flags (constantTable byte 0x60), so it carries the lane.
 		constexpr std::size_t kPrepassMaterialFlagsSlot = 0x60 - 0x58;
 		constexpr std::uint64_t kLaneDiagnosticLimit = 16;
-		// Landscape draws lay that register out as land_material_gate, which stock reads.
+		// Landscape draws lay that register out as WetnessControl_Reflect, which stock reads.
 		constexpr std::uint32_t kPrepassLandscapeBit = 1U << 5;
 		// Context::GetConstantBuffer level of the per-geometry cb2.
 		constexpr std::uint32_t kPerGeometryConstantLevel = 2;

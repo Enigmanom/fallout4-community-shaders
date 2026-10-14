@@ -28,7 +28,15 @@ cbuffer TiledLightingParameters : register(b0)
 
 cbuffer DeferredPerFrame : register(b12)
 {
-	float4 PerFrame[30];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
 };
 
 Texture2D<float4> MainDepth : register(t0);
@@ -96,16 +104,16 @@ void ShadeTiledPixel(uint tileIndex, uint2 pixel)
 	float4 reprojection3;
 	if (nearDepth) {
 		linearDepth = depth * 100.0;
-		reprojection0 = PerFrame[24];
-		reprojection1 = PerFrame[25];
-		reprojection2 = PerFrame[26];
-		reprojection3 = PerFrame[27];
+		reprojection0 = FirstPersonClipToView[0];
+		reprojection1 = FirstPersonClipToView[1];
+		reprojection2 = FirstPersonClipToView[2];
+		reprojection3 = FirstPersonClipToView[3];
 	} else {
 		linearDepth = depth * 1.01 - 0.01;
-		reprojection0 = PerFrame[20];
-		reprojection1 = PerFrame[21];
-		reprojection2 = PerFrame[22];
-		reprojection3 = PerFrame[23];
+		reprojection0 = ClipToView[0];
+		reprojection1 = ClipToView[1];
+		reprojection2 = ClipToView[2];
+		reprojection3 = ClipToView[3];
 	}
 	float2 pixelFloat = (float2)pixel;
 	float4 ndcParts =
@@ -163,16 +171,16 @@ void ShadeTiledPixel(uint tileIndex, uint2 pixel)
 		float4 reprojection3;
 		if (nearDepth) {
 			linearDepth = depth * 100.0;
-			reprojection0 = PerFrame[24];
-			reprojection1 = PerFrame[25];
-			reprojection2 = PerFrame[26];
-			reprojection3 = PerFrame[27];
+			reprojection0 = FirstPersonClipToView[0];
+			reprojection1 = FirstPersonClipToView[1];
+			reprojection2 = FirstPersonClipToView[2];
+			reprojection3 = FirstPersonClipToView[3];
 		} else {
 			linearDepth = depth * 1.01 - 0.01;
-			reprojection0 = PerFrame[20];
-			reprojection1 = PerFrame[21];
-			reprojection2 = PerFrame[22];
-			reprojection3 = PerFrame[23];
+			reprojection0 = ClipToView[0];
+			reprojection1 = ClipToView[1];
+			reprojection2 = ClipToView[2];
+			reprojection3 = ClipToView[3];
 		}
 		float2 pixelFloat = (float2)pixel;
 		float4 ndcParts =
@@ -218,8 +226,8 @@ void ShadeTiledPixel(uint tileIndex, uint2 pixel)
 		float cosPrimary;
 		float sinSecondary;
 		float cosSecondary;
-		sincos(PerFrame[29].y, sinPrimary, cosPrimary);
-		sincos(PerFrame[29].x, sinSecondary, cosSecondary);
+		sincos(HairSpecularShift.y, sinPrimary, cosPrimary);
+		sincos(HairSpecularShift.x, sinSecondary, cosSecondary);
 
 		float3 viewTangent =
 			viewDirection - normalView * normalDotView;
@@ -276,9 +284,9 @@ void ShadeTiledPixel(uint tileIndex, uint2 pixel)
 							materialViewSine * primaryPerpendicular,
 						0.0);
 					float primaryPower =
-						exp2(log2(primaryVisibility) * PerFrame[28].w);
+						exp2(log2(primaryVisibility) * HairSpecularScaleAndPower.w);
 					float primaryIntensity = saturate(
-						PerFrame[28].z * primaryPower +
+						HairSpecularScaleAndPower.z * primaryPower +
 						normalDotLightPositive);
 					primaryIntensity = min(albedoAlpha, primaryIntensity);
 					diffuse = light.Color * primaryIntensity;
@@ -297,8 +305,8 @@ void ShadeTiledPixel(uint tileIndex, uint2 pixel)
 						float secondaryPower =
 							exp2(
 								log2(secondaryVisibility) *
-								PerFrame[28].y) *
-							PerFrame[28].x;
+								HairSpecularScaleAndPower.y) *
+							HairSpecularScaleAndPower.x;
 						specular =
 							light.Color * secondaryPower *
 							normalDotLightSaturated.z;

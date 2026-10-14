@@ -598,8 +598,8 @@ namespace cs::engine
 					compare(a_record.y, a_mirror.y);
 					compare(a_record.z, a_mirror.z);
 				};
-				comparePosition(g_prepassCamera->CameraPosAdjust, g_worldSnapshot.data.CameraPosAdjust);
-				comparePosition(g_prepassCamera->CameraPreviousPosAdjust, g_worldSnapshot.data.CameraPreviousPosAdjust);
+				comparePosition(g_prepassCamera->PosAdjust, g_worldSnapshot.data.PosAdjust);
+				comparePosition(g_prepassCamera->PreviousPosAdjust, g_worldSnapshot.data.PreviousPosAdjust);
 				g_cameraComparisons.fetch_add(1, std::memory_order_relaxed);
 				if (maximum > 1e-5f)
 					g_cameraMismatches.fetch_add(1, std::memory_order_relaxed);
@@ -729,8 +729,8 @@ namespace cs::engine
 			std::memcpy(&record.ViewProjection, entry.camViewData.viewProjMat, sizeof(record.ViewProjection));
 			std::memcpy(&record.ViewProjectionUnjittered, entry.camViewData.viewProjUnjittered, sizeof(record.ViewProjectionUnjittered));
 			std::memcpy(&record.PreviousViewProjectionUnjittered, entry.camViewData.previousViewProjUnjittered, sizeof(record.PreviousViewProjectionUnjittered));
-			record.CameraPosAdjust = { entry.posAdjust.x, entry.posAdjust.y, entry.posAdjust.z, 0 };
-			record.CameraPreviousPosAdjust = { entry.previousPosAdjust.x, entry.previousPosAdjust.y, entry.previousPosAdjust.z, 0 };
+			record.PosAdjust = { entry.posAdjust.x, entry.posAdjust.y, entry.posAdjust.z, 0 };
+			record.PreviousPosAdjust = { entry.previousPosAdjust.x, entry.previousPosAdjust.y, entry.previousPosAdjust.z, 0 };
 			record.frameCount = state->frameCount;
 			return PrepareWorldCameraRecord(record) ? std::optional{ record } : std::nullopt;
 		}

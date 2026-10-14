@@ -33,7 +33,7 @@ namespace cs::engine
 		kImmediate       // every frame, from BSDFPrePassShader::SetupGeometry
 	};
 
-	// One classifier owns each cb2_pad component.
+	// One classifier owns each PrepassFeatureLane component.
 	enum class PrepassLaneComponent : std::uint8_t
 	{
 		kX,

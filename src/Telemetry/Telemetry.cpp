@@ -341,8 +341,8 @@ namespace cs::telemetry
 				.Field("latest_frame", static_cast<std::int64_t>(status.latestFrameCount))
 				.Field(
 					"latest_is_perspective",
-					cs::engine::IsPerspectiveProjection(latest.data.ViewProjectionUnjittered[3]))
-				.Field("latest_camera_pos_adjust", FormatFloat4(latest.data.CameraPosAdjust))
+					cs::engine::IsPerspectiveProjection(latest.data.UnjitteredWorldToClip[3]))
+				.Field("latest_camera_pos_adjust", FormatFloat4(latest.data.PosAdjust))
 				.Field("latest_view_to_world_row0", FormatFloat4(latest.data.ViewToWorld[0]))
 				.Field("latest_view_to_world_row1", FormatFloat4(latest.data.ViewToWorld[1]))
 				.Field("latest_view_to_world_row2", FormatFloat4(latest.data.ViewToWorld[2]))
@@ -387,7 +387,7 @@ namespace cs::telemetry
 				.Field(
 					"published_is_perspective",
 					cs::engine::IsPerspectiveProjection(
-						published.data.ViewProjectionUnjittered[3]))
+						published.data.UnjitteredWorldToClip[3]))
 				.Field(
 					"published_camera_origin",
 					FormatVector3(
@@ -396,7 +396,7 @@ namespace cs::telemetry
 						publishedOrigin.z))
 				.Field(
 					"published_camera_pos_adjust",
-					FormatFloat4(published.data.CameraPosAdjust))
+					FormatFloat4(published.data.PosAdjust))
 				.Field(
 					"published_view_to_world_row0",
 					FormatFloat4(published.data.ViewToWorld[0]))
@@ -435,15 +435,15 @@ namespace cs::telemetry
 				.Field(
 					"record_pos_adjust",
 					FormatVector3(
-						camera->CameraPosAdjust.x,
-						camera->CameraPosAdjust.y,
-						camera->CameraPosAdjust.z))
+						camera->PosAdjust.x,
+						camera->PosAdjust.y,
+						camera->PosAdjust.z))
 				.Field(
 					"record_prev_pos_adjust",
 					FormatVector3(
-						camera->CameraPreviousPosAdjust.x,
-						camera->CameraPreviousPosAdjust.y,
-						camera->CameraPreviousPosAdjust.z));
+						camera->PreviousPosAdjust.x,
+						camera->PreviousPosAdjust.y,
+						camera->PreviousPosAdjust.z));
 		}
 
 		void CollectLodRoot(Sink& a_sink, std::string_view a_name, const cs::engine::SkyReflectionCubeLodRoot& a_root)

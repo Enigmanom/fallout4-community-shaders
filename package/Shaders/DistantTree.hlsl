@@ -100,7 +100,26 @@ struct VS_OUTPUT
 
 cbuffer PerFrame : register(b12)
 {
-	float4 cb12[47];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 }
 
 cbuffer PerTechnique : register(b0)
@@ -138,29 +157,29 @@ VS_OUTPUT main(VS_INPUT input)
 	vsout.TexCoord = float3(input.TexCoord, DiffuseDir.z);
 
 	float4 fogPlanePosition = float4(projSpacePosition.xyz, 1);
-	float fogPlane = dot(cb12[14], fogPlanePosition) + cb12[35].z;
-	float2 fogRamp = saturate(fogPlane * cb12[46].xy - cb12[46].zw);
+	float fogPlane = dot(ViewToWorld[2], fogPlanePosition) + PosAdjust.z;
+	float2 fogRamp = saturate(fogPlane * FogHeightRamps.xy - FogHeightRamps.zw);
 
 	float depth =
-		length(projSpacePosition.xyz) * cb12[41].x - cb12[41].z;
+		length(projSpacePosition.xyz) * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 	float saturatedDepth = saturate(depth);
 	float fogAmount = lerp(fogRamp.x, fogRamp.y, saturatedDepth);
-	float fogDensity = (1 - fogAmount) + fogAmount * cb12[44].w;
+	float fogDensity = (1 - fogAmount) + fogAmount * FogColor2.w;
 
-	float fogFade = cb12[43].w;
+	float fogFade = FogColor1.w;
 	if (depth > 0.75) {
 		fogFade =
-			min(lerp(cb12[43].w, 1, (saturatedDepth - 0.75) / 0.25), 1);
+			min(lerp(FogColor1.w, 1, (saturatedDepth - 0.75) / 0.25), 1);
 	}
 
-	float alphaScale = min(pow(saturatedDepth, cb12[42].w), fogFade);
+	float alphaScale = min(pow(saturatedDepth, FogColor0.w), fogFade);
 	float nearScale = 1;
 	if (depth < 0.015) {
 		nearScale = saturatedDepth / 0.015;
 	}
 
-	float3 fogColorNear = lerp(cb12[42].xyz, cb12[44].xyz, alphaScale);
-	float3 fogColorFar = lerp(cb12[43].xyz, cb12[45].xyz, alphaScale);
+	float3 fogColorNear = lerp(FogColor0.xyz, FogColor2.xyz, alphaScale);
+	float3 fogColorFar = lerp(FogColor1.xyz, FogColor3.xyz, alphaScale);
 	vsout.FogParam.xyz =
 		lerp(fogColorNear, fogColorFar, fogAmount);
 	vsout.FogParam.w = (alphaScale * fogDensity) * nearScale;
