@@ -24,50 +24,10 @@ namespace cs::engine::water
 			return *reinterpret_cast<T*>(static_cast<std::byte*>(a_object) + a_offset);
 		}
 
-		using Holds = RE::BSTArray<RE::NiPointer<RE::NiRefObject>>;
-
-		struct WaterObject : RE::NiRefObject
-		{
-			std::byte plane[0x10];
-			RE::NiPointer<RE::NiAVObject> geometry;
-			RE::NiPointer<RE::NiAVObject> ripple;
-			RE::TESWaterForm* form;
-			RE::NiPointer<RE::NiRefObject> reflections;
-			RE::NiPointer<RE::NiRefObject> normals;
-			RE::NiPointer<RE::NiRefObject> displacement;
-		};
-		using Objects = RE::BSTArray<RE::NiPointer<WaterObject>>;
-
 		void* System()
 		{
 			static REL::Relocation<void**> system{ REL::VariantID{ 1006049, 2689094, 4796380 } };
 			return *system;
-		}
-
-		bool AddWater(void* a_system, RE::NiAVObject* a_shape, RE::TESWaterForm* a_form, float a_height)
-		{
-			using Fn = bool (*)(void*, RE::NiAVObject*, RE::TESWaterForm*, float, void*, bool, bool);
-			static REL::Relocation<Fn> fn{ REL::VariantID{ 1169411, 2213934, 2213934 } };
-			return fn(a_system, a_shape, a_form, a_height, nullptr, true, false);
-		}
-
-		void QueueDeferredRelease(RE::NiPointer<RE::NiRefObject>& a_object)
-		{
-			// FO4: NiObjectGarbage::Add retains its argument; it does not consume it.
-			static REL::Relocation<bool (*)(RE::NiPointer<RE::NiRefObject>&)> fn{ REL::VariantID{ 1093452, 2270153, 2270153 } };
-			fn(a_object);
-		}
-
-		void RemoveOrphanedEntry(Holds& a_entries, const RE::NiRefObject* a_entry)
-		{
-			if (!a_entry || std::atomic_ref{ const_cast<std::uint32_t&>(a_entry->refCount) }.load() != 1)
-				return;
-			const auto it = std::ranges::find_if(a_entries, [&](const auto& candidate) { return candidate.get() == a_entry; });
-			if (it == a_entries.end())
-				return;
-			RE::NiPointer<RE::NiRefObject> released{ it->get() };
-			QueueDeferredRelease(released);
-			a_entries.erase(it);
 		}
 
 		bool ActiveCell(RE::TESObjectCELL* a_cell)
@@ -189,38 +149,6 @@ namespace cs::engine::water
 			else
 				RemoveWater(child.get());
 		}
-	}
-
-	void ReserveWaterObjects(std::uint32_t a_count)
-	{
-		const auto system = System();
-		if (!system)
-			return;
-		const std::scoped_lock guard(Member<RE::BSSpinLock>(system, 0x118));
-		auto& objects = Member<Objects>(system, 0x18);
-		objects.reserve(objects.size() + a_count);
-	}
-
-	bool InitializeTile(RE::NiAVObject* a_shape, RE::TESWaterForm* a_form, float a_height)
-	{
-		const auto system = System();
-		if (!system || !a_shape || !a_form)
-			return false;
-		const std::scoped_lock guard(Member<RE::BSSpinLock>(system, 0x118));
-		if (!AddWater(system, a_shape, a_form, a_height))
-			return false;
-		auto& objects = Member<Objects>(system, 0x18);
-		if (objects.empty() || objects.back()->geometry.get() != a_shape) {
-			EnableWaterSystem();
-			RemoveWater(a_shape);
-			return false;
-		}
-		const auto reflections = objects.back()->reflections.get();
-		const auto normals = objects.back()->normals.get();
-		objects.pop_back();
-		RemoveOrphanedEntry(Member<Holds>(system, 0x30), reflections);
-		RemoveOrphanedEntry(Member<Holds>(system, 0x48), normals);
-		return true;
 	}
 
 	void ConfigureTileProperty(RE::BSGeometry* a_shape)

@@ -21,7 +21,7 @@ namespace cs::engine::water
 		inline constexpr REL::VariantID SetWorldSpace{ 1217659, 2192046, 2192046 };
 		inline constexpr REL::VariantID ReleaseWorld{ 1484325, 2202930, 2202930 };
 		inline constexpr REL::VariantID UpdateDisplacement{ 281128, 2213930, 2213930 };
-		inline constexpr REL::VariantID UpdateTerrain{ 921774, 2213650, 2213650 };
+		inline constexpr REL::VariantID UpdateWaterSystem{ 1496807, 2213929, 2213929 };
 	}
 	struct WaterSystem;
 	// FO4: these native terrain types are absent from the pinned CommonLibF4 API.
@@ -55,7 +55,7 @@ namespace cs::engine::water
 
 	struct TileCell
 	{
-		const RE::NiAVObject* geometry;
+		RE::NiAVObject* geometry;
 		std::int32_t x;
 		std::int32_t y;
 	};
@@ -65,8 +65,6 @@ namespace cs::engine::water
 	void Prepare(TerrainChunk* a_chunk);
 	void RegisterVanillaWater(TerrainChunk* a_chunk);
 	void UnregisterVanillaWater(TerrainChunk* a_chunk);
-	void ReserveWaterObjects(std::uint32_t a_count);
-	bool InitializeTile(RE::NiAVObject* a_shape, RE::TESWaterForm* a_form, float a_height);
 	void ConfigureTileProperty(RE::BSGeometry* a_shape);
 	void RemoveWater(RE::NiAVObject* a_shape);
 	void EnableWaterSystem();

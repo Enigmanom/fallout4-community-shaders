@@ -74,10 +74,9 @@ namespace cs::features
 			static void thunk(engine::water::WaterSystem* a_system);
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
-		struct UpdateTerrain
+		struct UpdateWaterSystem
 		{
-			static void thunk(Node* a_node, const RE::NiPoint3& a_position,
-				RE::TESObjectCELL* a_cell, std::uint32_t a_contentMask);
+			static void thunk(engine::water::WaterSystem* a_system, void* a_process);
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 		void ApplyEnabledState();

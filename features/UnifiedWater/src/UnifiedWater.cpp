@@ -68,10 +68,10 @@ namespace cs::features
 		stl::detour_thunk<SetWorldSpace>(engine::water::id::SetWorldSpace);
 		stl::detour_thunk<ReleaseWorld>(engine::water::id::ReleaseWorld);
 		stl::detour_thunk<UpdateDisplacement>(engine::water::id::UpdateDisplacement);
-		stl::detour_thunk<UpdateTerrain>(engine::water::id::UpdateTerrain);
+		stl::detour_thunk<UpdateWaterSystem>(engine::water::id::UpdateWaterSystem);
 		if (!Attach::func.address() || !Detach::func.address() || !Visibility::func.address() ||
 			!SetWorldSpace::func.address() || !ReleaseWorld::func.address() ||
-			!UpdateDisplacement::func.address() || !UpdateTerrain::func.address()) {
+			!UpdateDisplacement::func.address() || !UpdateWaterSystem::func.address()) {
 			throw std::runtime_error("Unified Water native hook installation failed.");
 		}
 		_hooks.store(true, std::memory_order_release);
@@ -157,6 +157,16 @@ namespace cs::features
 		}
 		ManagedWater managed;
 		managed.original = DetachChildren(parent);
+		// FO4: tiles reuse the Prepare-built terrain water property.
+		RE::NiProperty* prepared = nullptr;
+		for (const auto& child : managed.original)
+			if (const auto geometry = child ? child->IsGeometry() : nullptr; geometry && geometry->properties[1])
+				prepared = geometry->properties[1].get();
+		if (!prepared) {
+			self.RestoreOriginal(parent, managed);
+			self.AttachVanilla(a_chunk);
+			return;
+		}
 		std::vector<std::pair<RE::BSTriShape*, const unified_water::Instruction*>> built;
 		for (const auto& instruction : *result.instructions) {
 			if (!instruction.form.ptr)
@@ -170,6 +180,12 @@ namespace cs::features
 				break;
 			const auto posX = (instruction.x - node->baseCellX) * 4096.0f + instruction.size * 2048.0f;
 			const auto posY = (instruction.y - node->baseCellY) * 4096.0f + instruction.size * 2048.0f;
+			RE::NiCloningProcess propertyClone{};
+			propertyClone.copyType = RE::NiCloningProcess::CopyType::kCopyExact;
+			const auto property = static_cast<RE::NiProperty*>(prepared->CreateClone(propertyClone));
+			if (!property)
+				break;
+			shape->properties[1] = RE::NiPointer<RE::NiProperty>{ property };
 			shape->local.scale = static_cast<float>(instruction.size);
 			shape->local.translate = { posX, posY, instruction.waterHeight };
 			parent->AttachChild(shape, true);
@@ -183,29 +199,10 @@ namespace cs::features
 		}
 		// FO4: the attach gate bypasses unchecked tile segment getters.
 		func(a_chunk);
-		engine::water::ReserveWaterObjects(static_cast<std::uint32_t>(built.size()));
-		bool initialized = true;
-		for (const auto& [shape, instruction] : built) {
-			if (!engine::water::InitializeTile(shape, static_cast<RE::TESWaterForm*>(instruction->form.ptr), instruction->waterHeight)) {
-				initialized = false;
-				break;
-			}
+		// FO4: terrain water is drawn only once AddLODWater registers it.
+		engine::water::RegisterVanillaWater(a_chunk);
+		for (const auto& [shape, instruction] : built)
 			engine::water::ConfigureTileProperty(shape);
-		}
-		if (!initialized) {
-			self.RestoreOriginal(parent, managed);
-			self.AttachVanilla(a_chunk, true);
-			return;
-		}
-		if (const auto root = engine::water::GetWaterLOD())
-			root->AttachChild(parent, true);
-		else {
-			self.RestoreOriginal(parent, managed);
-			a_chunk->chunk->AttachChild(parent, true);
-			a_chunk->waterAttached = false;
-			self._vanillaFallbacks.fetch_add(1);
-			return;
-		}
 		self._managed.insert_or_assign(parent, std::move(managed));
 		RE::NiUpdateData update{};
 		parent->Update(update);
@@ -238,8 +235,7 @@ namespace cs::features
 			func(a_chunk);
 			return;
 		}
-		if (!owned)
-			engine::water::UnregisterVanillaWater(a_chunk);
+		engine::water::UnregisterVanillaWater(a_chunk);
 		// Hide UW-managed water from vanilla detach so it does not delete it
 		a_chunk->water = nullptr;
 		func(a_chunk);
@@ -315,12 +311,11 @@ namespace cs::features
 		}
 	}
 
-	void UnifiedWater::UpdateTerrain::thunk(Node* a_node,
-		const RE::NiPoint3& a_position, RE::TESObjectCELL* a_cell,
-		std::uint32_t a_contentMask)
+	void UnifiedWater::UpdateWaterSystem::thunk(engine::water::WaterSystem* a_system, void* a_process)
 	{
+		// FO4: runs every frame, so live toggles apply with a static camera.
 		GetSingleton()->ApplyEnabledState();
-		func(a_node, a_position, a_cell, a_contentMask);
+		func(a_system, a_process);
 	}
 
 	void UnifiedWater::UpdateWaterLODCull() const
@@ -376,7 +371,9 @@ namespace cs::features
 			.Field("chunks_attached", _chunksAttached.load())
 			.Field("chunks_detached", _chunksDetached.load())
 			.Field("vanilla_fallbacks", _vanillaFallbacks.load())
-			.Field("visibility_updates", _visibilityUpdates.load());
+			.Field("visibility_updates", _visibilityUpdates.load())
+			.Field("exterior", _exterior.load())
+			.Field("lod_root_culled", engine::water::GetWaterLOD() && engine::water::GetWaterLOD()->GetAppCulled());
 	}
 
 	namespace

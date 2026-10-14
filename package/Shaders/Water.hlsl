@@ -172,6 +172,9 @@ VS_OUTPUT main(VS_INPUT input)
 #	ifdef TERRAIN_SHADOWS
 #		include "FO4/TerrainShadowsConsumer.hlsli"
 #	endif
+#	ifdef UNIFIED_WATER
+#		include "FO4/FO4ShaderData.hlsli"
+#	endif
 
 #	ifdef DYNAMIC_CUBEMAPS
 // FO4 water compiles without upstream's WATER permutation define.
