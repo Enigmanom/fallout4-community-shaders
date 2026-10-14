@@ -7,7 +7,6 @@
 #include "ShaderDefines.h"
 
 #include <atomic>
-#include <span>
 #include <string>
 
 namespace cs::features
@@ -29,9 +28,6 @@ namespace cs::features
 		void RestoreDefaultSettings() override;
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
-		std::span<const FeatureDebugView> GetDebugViews() const noexcept override;
-		void SetDebugView(std::string_view a_view) noexcept override;
-		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
 		cs::ExtendedMaterialsFeatureData GetCommonBufferData() const;
 
@@ -46,6 +42,5 @@ namespace cs::features
 		Settings _settings;
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
-		std::atomic_bool _debugParallaxShift{ false };
 	};
 }

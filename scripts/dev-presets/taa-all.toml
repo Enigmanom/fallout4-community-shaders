@@ -1,4 +1,4 @@
-# Every feature except RenderDoc, which diagnostics enable on demand.
+# Every feature; deploy-dev.ps1 also forces the dev tools (RenderDoc, RemoteControl, CSEditor) on.
 
 [logging]
 telemetry = true

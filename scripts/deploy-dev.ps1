@@ -50,7 +50,21 @@ if ($PSCmdlet.ShouldProcess($modPath, "build, install and deploy with $Toml")) {
 	robocopy $install $modPath /MIR /NJH /NJS /NP /NDL /XF FO4CommunityShaders.toml meta.ini /XD ShaderCache Presets | Out-Null
 	if ($LASTEXITCODE -ge 8) { throw "robocopy failed (exit $LASTEXITCODE)." }
 	New-Item -ItemType Directory -Force (Join-Path $modPath $plugin) | Out-Null
-	Copy-Item -LiteralPath $Toml -Destination (Join-Path $modPath "$plugin\FO4CommunityShaders.toml") -Force
+	# Dev tools stay loaded whatever the chosen TOML says, so every deployed build can be inspected.
+	$settings = Get-Content -LiteralPath $Toml -Raw
+	foreach ($tool in 'RenderDoc', 'RemoteControl', 'CSEditor') {
+		$section = "(?ms)^\[features\.$tool\][ \t]*\r?\n(?:(?!^\[).)*?^[ \t]*#?[ \t]*load[ \t]*=[ \t]*\w+[^\r\n]*"
+		if ($settings -match "(?m)^\[features\.$tool\][ \t]*\r?$") {
+			if ($settings -match $section) {
+				$settings = [regex]::Replace($settings, $section, { param($m) $m.Value -replace '[ \t]*#?[ \t]*load[ \t]*=[ \t]*\w+[^\r\n]*$', 'load = true' }, 1)
+			} else {
+				$settings = $settings -replace "(?m)^\[features\.$tool\][ \t]*\r?$", "[features.$tool]`nload = true"
+			}
+		} else {
+			$settings = $settings.TrimEnd() + "`n`n[features.$tool]`nload = true`n"
+		}
+	}
+	Set-Content -LiteralPath (Join-Path $modPath "$plugin\FO4CommunityShaders.toml") -Value $settings -NoNewline
 
 	foreach ($name in 'FO4CommunityShaders.dll', 'FO4CommunityShaders.pdb') {
 		$built = (Get-FileHash (Join-Path $install "F4SE\Plugins\$name") -Algorithm SHA256).Hash

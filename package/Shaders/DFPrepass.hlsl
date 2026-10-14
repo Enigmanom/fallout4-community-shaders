@@ -403,6 +403,14 @@ SamplerState g_sLandNormalNoise : register(s15);
 
 #	if defined(EMAT)
 #		include "Common/Random.hlsli"
+
+// FO4: no material marks height, so an _s alpha averaging 1 (absent or flat) carries none.
+float HeightScaleOf(Texture2D<float4> a_texture, SamplerState a_sampler)
+{
+	uint width, height, mips;
+	a_texture.GetDimensions(0, width, height, mips);
+	return a_texture.SampleLevel(a_sampler, 0.5, mips - 1).a < 254.5 / 255.0 ? 1.0 : 0.0;
+}
 #	endif
 #	if defined(EMAT_OBJECT)
 // FO4: the _s alpha is a full-resolution height map like Skyrim's _p.
@@ -638,7 +646,6 @@ struct PS_OUTPUT
 #	endif
 
 #	if defined(EMAT)
-		const float2 geometricUV = uv;
 		// FO4: tangent rows are view space; b12 c12-c14 hold view-to-world.
 		float3x3 viewToWorld = float3x3(ViewToWorld_row0.xyz, ViewToWorld_row1.xyz, ViewToWorld_row2.xyz);
 		float3 cameraPosition = float3(ViewToWorld_row0.w, ViewToWorld_row1.w, ViewToWorld_row2.w);
@@ -702,8 +709,12 @@ struct PS_OUTPUT
 #	if defined(EMAT_OBJECT)
 		// FO4: cb2_pad.z marks non-LOD meshes whose _s format stores alpha.
 		if (SharedData::extendedMaterialSettings.EnableParallax && cb2_pad.z != 0.0) {
-			mipLevel = ExtendedMaterials::GetMipLevel(uv, g_tMaterial);
-			uv = ExtendedMaterials::GetParallaxCoords(viewPosition.z, uv, mipLevel, viewDirection, tbnTr, screenNoise, g_tMaterial, g_sMaterial, 3, displacementParams, applyMeshTV, meshOffset, pixelOffset);
+			displacementParams.HeightScale *= HeightScaleOf(g_tMaterial, g_sMaterial);
+			[branch] if (displacementParams.HeightScale > 0.0)
+			{
+				mipLevel = ExtendedMaterials::GetMipLevel(uv, g_tMaterial);
+				uv = ExtendedMaterials::GetParallaxCoords(viewPosition.z, uv, mipLevel, viewDirection, tbnTr, screenNoise, g_tMaterial, g_sMaterial, 3, displacementParams, applyMeshTV, meshOffset, pixelOffset);
+			}
 		}
 #	endif
 
@@ -735,6 +746,9 @@ struct PS_OUTPUT
 			displacementParams[3] = displacementParams[0];
 			displacementParams[4] = displacementParams[0];
 			displacementParams[5] = displacementParams[0];
+			[unroll] for (uint heightLayer = 0; heightLayer < 4; ++heightLayer)
+				displacementParams[heightLayer]
+					.HeightScale *= HeightScaleOf(g_tLandMaterial[heightLayer], g_sLandMaterial[heightLayer]);
 
 			float weights[6];
 			weights[0] = weights[1] = weights[2] = weights[3] = weights[4] = weights[5] = 0.0;
@@ -1573,22 +1587,6 @@ struct PS_OUTPUT
 #		endif
 
 		output.motionVec = (currNDC - prevNDC) * float2(-0.5, 0.5);
-#	endif
-#	if defined(EMAT)
-		// Debug: red object or green terrain by parallax shift in texels, blue unshifted.
-		[branch] if (FO4SharedData::DebugOwner == FullscreenDebugOwner::ExtendedMaterials && FO4SharedData::DebugMode == ExtendedMaterialsDebugMode::ParallaxShift)
-		{
-			float2 heightDims;
-#		if defined(EMAT_OBJECT)
-			g_tMaterial.GetDimensions(heightDims.x, heightDims.y);
-			const float3 shiftColor = float3(1, 0, 0);
-#		else
-			g_tLandMaterial[0].GetDimensions(heightDims.x, heightDims.y);
-			const float3 shiftColor = float3(0, 1, 0);
-#		endif
-			const float shiftTexels = length((uv - geometricUV) * heightDims);
-			output.albedo.xyz = shiftTexels > 0.5 ? shiftColor * (0.25 + 0.75 * saturate(shiftTexels / 8.0)) : float3(0, 0, 0.5);
-		}
 #	endif
 		return output;
 	}
