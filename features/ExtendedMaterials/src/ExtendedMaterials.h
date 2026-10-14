@@ -19,11 +19,7 @@ namespace cs::features
 		std::string_view GetName() const override { return "ExtendedMaterials"; }
 		std::string_view GetDisplayName() const override { return "Extended Materials"; }
 		std::string GetCategory() const override { return FeatureCategories::kLighting; }
-		std::string GetFeatureSummary() const override
-		{
-			return "Extended Materials adds advanced material effects including parallax occlusion mapping.\n"
-			       "This feature enhances surface detail and depth perception for more realistic textures.";
-		}
+		std::string GetFeatureSummary() const override { return "Parallax occlusion mapping for objects and terrain."; }
 
 		bool Configure(const toml::table& a_config, std::string& a_error) override;
 		void Load() override;
