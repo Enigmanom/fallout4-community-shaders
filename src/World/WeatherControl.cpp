@@ -46,7 +46,7 @@ namespace cs::engine
 				a_sky->ForceWeather(a_weather, a_override);
 		}
 
-		// Forces the sky onto the locked weather, claiming the override slot so nothing lerps away from it.
+		// Claims the override slot so nothing lerps away from the lock.
 		void ReapplyLock(RE::Sky* a_sky, RE::TESWeather* a_weather)
 		{
 			if (a_sky && a_weather)
@@ -82,7 +82,7 @@ namespace cs::engine
 		stl::detour_thunk<SetWeather_Hook>(RE::ID::Sky::SetWeather);
 		stl::detour_thunk<ForceWeather_Hook>(RE::ID::Sky::ForceWeather);
 		if (SetWeather_Hook::func.address() == 0 || ForceWeather_Hook::func.address() == 0) {
-			// MaintainWeatherLock still re-applies the lock every frame without the detours.
+			// MaintainWeatherLock still re-applies the lock without detours.
 			L->warn("Weather lock detours failed; the lock may briefly flash before correcting");
 			return;
 		}
@@ -103,7 +103,7 @@ namespace cs::engine
 			ForceWeatherOriginal(sky, a_weather, false);
 		else
 			SetWeatherOriginal(sky, a_weather, true, false);
-		// Retarget the lock so the per-frame upkeep enforces the new choice instead of reverting it.
+		// Retarget the lock so upkeep enforces the new choice.
 		if (GetLockedWeather())
 			LockWeather(a_weather);
 		L->info("Changed weather to {}", DescribeWeather(a_weather));
@@ -147,7 +147,7 @@ namespace cs::engine
 		auto* sky = RE::Sky::GetSingleton();
 		if (!locked || !sky)
 			return;
-		// The engine applies the release on its next sky update, so clear the flag before it lands.
+		// The release lands on the next sky update; clear the flag first.
 		const bool releasePending = sky->flags.any(RE::Sky::Flags::kReleaseWeatherOverride);
 		if (!releasePending && sky->currentWeather == locked && sky->overrideWeather == locked)
 			return;

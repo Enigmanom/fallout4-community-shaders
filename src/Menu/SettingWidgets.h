@@ -12,6 +12,12 @@
 
 namespace cs::ui
 {
+	inline void Tooltip(const char* a_text)
+	{
+		if (dmui::ui::IsItemHovered())
+			dmui::ui::SetTooltip("%s", a_text);
+	}
+
 	struct EditResult
 	{
 		bool changed = false;
@@ -19,7 +25,7 @@ namespace cs::ui
 		bool completed = false;
 	};
 
-	// One schema value's host widget; a_edit bounds sliders and is ignored for vectors.
+	// One schema value's widget; a_edit bounds sliders, not vectors.
 	template <class T>
 	EditResult EditSetting(const char* a_label, std::string_view a_id, T& a_value, const settings::Range<T>& a_edit,
 		const char* a_format = nullptr, dmui::ui::SliderFlags a_flags = dmui::ui::SliderFlags::kNone)

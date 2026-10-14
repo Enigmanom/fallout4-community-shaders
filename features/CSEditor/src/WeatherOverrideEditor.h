@@ -1,7 +1,6 @@
 #pragma once
 
-#include "WeatherPanel.h"
-
+#include <set>
 #include <string>
 
 namespace RE
@@ -11,13 +10,15 @@ namespace RE
 
 namespace cs::features::cs_editor
 {
-	// Edits each feature's per-weather overrides for one weather and persists them.
+	// Edits and persists each feature's overrides for one weather.
 	class WeatherOverrideEditor
 	{
 	public:
-		void Draw(const RE::TESWeather* a_weather, const Theme& a_theme);
+		void Draw(const RE::TESWeather* a_weather);
 
 	private:
 		std::string _error;
+		// Features with live overrides not yet written to the TOML.
+		std::set<std::string, std::less<>> _unsaved;
 	};
 }

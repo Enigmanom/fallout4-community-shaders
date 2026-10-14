@@ -7,7 +7,7 @@
 
 namespace cs::features
 {
-	// Upstream CS Editor: weather picker, time controls and per-weather feature overrides.
+	// Upstream CS Editor's weather picker, time and override tools.
 	class CSEditor final : public Feature
 	{
 	public:

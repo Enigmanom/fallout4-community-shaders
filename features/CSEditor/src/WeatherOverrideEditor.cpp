@@ -8,6 +8,7 @@
 #include "World/WeatherProfiles.h"
 
 #include <DearModdingUI/UI.h>
+#include <DearModdingUI/UI/Colors.h>
 
 #include <format>
 #include <variant>
@@ -77,7 +78,7 @@ namespace cs::features::cs_editor
 		}
 	}
 
-	void WeatherOverrideEditor::Draw(const RE::TESWeather* a_weather, const Theme& a_theme)
+	void WeatherOverrideEditor::Draw(const RE::TESWeather* a_weather)
 	{
 		const ui::Section section{ "cs-editor-overrides", "Weather Overrides" };
 		if (!section)
@@ -90,8 +91,7 @@ namespace cs::features::cs_editor
 		dmui::ui::Text("Editing: %s", engine::DescribeWeather(a_weather).c_str());
 		dmui::ui::TextDisabled("Overrides apply live and blend with the weather transition.");
 		if (!_error.empty()) {
-			const dmui::ui::Vec4 error = a_theme ? a_theme->statusError : dmui::ui::Vec4{ 1.0f, 0.4f, 0.4f, 1.0f };
-			dmui::ui::TextColored(error, "%s", _error.c_str());
+			dmui::ui::TextColored(dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusError), "%s", _error.c_str());
 		}
 
 		for (auto* feature : FeatureManager::Get().GetAll()) {
@@ -153,17 +153,22 @@ namespace cs::features::cs_editor
 			}
 			dmui::ui::PopID();
 
-			if (!changed && !clear)
-				continue;
-			std::string error;
-			if (!profiles->Set(key, clear ? nullptr : &profile, error)) {
-				_error = std::format("{}: {}", feature->GetDisplayName(), error);
-				continue;
+			const auto name = feature->GetName();
+			if (changed || clear) {
+				std::string error;
+				if (!profiles->Set(key, clear ? nullptr : &profile, error)) {
+					_error = std::format("{}: {}", feature->GetDisplayName(), error);
+					continue;
+				}
+				_error.clear();
+				_unsaved.emplace(name);
 			}
-			_error.clear();
-			if (!(completed || clear))
+			// A released slider completes on a later frame than its last change.
+			if (!(completed || clear) || !_unsaved.contains(name))
 				continue;
-			if (const auto saved = weather::Save(feature->GetConfigKey(), *profiles); !saved)
+			if (const auto saved = weather::Save(feature->GetConfigKey(), *profiles); saved)
+				_unsaved.erase(_unsaved.find(name));
+			else
 				Menu::ShowToast(saved.error, 6.0, DMUI_STATUS_SEVERITY_ERROR, std::string(feature->GetDisplayName()));
 		}
 	}

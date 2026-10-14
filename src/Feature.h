@@ -99,7 +99,7 @@ namespace cs
 		// Persists edits recorded by settings::SettingsEdit, optionally only once an edit completes.
 		void FlushSettings(bool a_completedOnly = false);
 		virtual std::vector<std::string_view> GetRestartSettings() const { return {}; }
-		// Per-weather overrides read from the feature's `weather` table; null when it has none.
+		// Per-weather overrides from the `weather` table; null when absent.
 		virtual weather::Profiles* GetWeatherProfiles() { return nullptr; }
 		// The CS Editor draws a section with this title; empty opts out.
 		virtual std::string_view GetWeatherAnalysisTitle() const { return {}; }

@@ -2,7 +2,7 @@
 
 Ports the weather picker, weather lock, time controls, weather status/information panels and
 per-feature weather-analysis seam from the pinned `src/Features/CSEditor.{h,cpp}` and
-`src/CSEditor/EditorWindow.cpp`. Per-weather feature overrides are edited in place on the page.
+`src/CSEditor/EditorWindow.cpp`.
 
 ## Translations
 
@@ -18,4 +18,4 @@ per-feature weather-analysis seam from the pinned `src/Features/CSEditor.{h,cpp}
 | Tweak | Lightning color edited with `ColorEdit3` | Three 0–255 sliders | The forwarding UI has no color editor | `WeatherPanel.cpp` |
 | Tweak | Wind panel shows effective wind and wind-vs-player using a 30.5° offset | Player heading only | The offset is Skyrim-calibrated | `WeatherPanel.cpp` |
 | Divergence | Weather overrides edited in the Weather Widget, stored as per-weather JSON | Edited on the CS Editor page, stored in each feature's `[features.<key>.weather]` TOML map | Existing typed weather profiles | `WeatherOverrideEditor.cpp`, `World/WeatherProfiles.h` |
-| Pending | Weather detail overlay window, editor window shell, form widgets, light editor, palette, interior-only panel | Not ported | Out of this port's scope | — |
+| Pending | Weather detail overlay window, editor window shell, form widgets, light editor, palette, interior-only panel | Not ported | — | — |

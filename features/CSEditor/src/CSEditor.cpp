@@ -1,6 +1,5 @@
 #include "CSEditor.h"
 
-#include "Host/HostClient.h"
 #include "Menu/Section.h"
 #include "World/EditorIDs.h"
 #include "World/GameTime.h"
@@ -10,6 +9,7 @@
 #include "RE/S/Sky.h"
 
 #include <DearModdingUI/UI.h>
+#include <DearModdingUI/UI/Colors.h>
 
 namespace cs::features
 {
@@ -38,12 +38,8 @@ namespace cs::features
 
 	void CSEditor::DrawSettings()
 	{
-		const auto theme = host::HostClient::Get().Client().GetThemeColors();
-		const auto showError = [&](const char* a_message) {
-			if (theme)
-				dmui::ui::TextColored(theme->statusError, "%s", a_message);
-			else
-				dmui::ui::Text("%s", a_message);
+		const auto showError = [](const char* a_message) {
+			dmui::ui::TextColored(dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusError), "%s", a_message);
 		};
 
 		if (const ui::Section section{ "cs-editor-time", "Time" }; section)
@@ -62,12 +58,12 @@ namespace cs::features
 			engine::LoadWeatherList();
 
 		if (const ui::Section section{ "cs-editor-status", "Weather Status" }; section)
-			_weather.DrawStatus(*sky, theme);
+			_weather.DrawStatus(*sky);
 		if (const ui::Section section{ "cs-editor-controls", "Weather Controls" }; section)
-			_weather.DrawControls(*sky, theme);
+			_weather.DrawControls(*sky);
 		if (const ui::Section section{ "cs-editor-information", "Weather Information" }; section)
-			_weather.DrawInformation(*sky, theme);
-		_overrides.Draw(_weather.GetTargetWeather(*sky), theme);
+			_weather.DrawInformation(*sky);
+		_overrides.Draw(_weather.GetTargetWeather(*sky));
 		_weather.DrawFeatureAnalysis(*this);
 	}
 

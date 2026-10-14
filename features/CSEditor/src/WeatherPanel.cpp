@@ -3,6 +3,7 @@
 #include "Feature.h"
 #include "Host/HostClient.h"
 #include "Menu/Section.h"
+#include "Menu/SettingWidgets.h"
 #include "World/EditorIDs.h"
 #include "World/GameTime.h"
 #include "World/Weather.h"
@@ -15,6 +16,7 @@
 #include "RE/T/TESWeather.h"
 
 #include <DearModdingUI/UI.h>
+#include <DearModdingUI/UI/Colors.h>
 
 #include <algorithm>
 #include <array>
@@ -45,8 +47,7 @@ namespace cs::features::cs_editor
 			dmui::ui::Vec4 color;
 		};
 
-		// Priority order for weather classification colors, highest first.
-		// FO4: vanilla sets the Snow bit on Glowing Sea haze, dust and radstorms, and the aurora bits only on radstorms.
+		// FO4: Snow bit marks dust/radstorms, aurora bits radstorms; highest first.
 		constexpr std::array<FlagInfo, 6> kFlags{
 			FlagInfo{ Flag::kRainy, "Rainy", { 0.4f, 0.7f, 1.0f, 1.0f } },
 			FlagInfo{ Flag::kPermAurora, "Radstorm", { 0.5f, 1.0f, 0.3f, 1.0f } },
@@ -56,7 +57,6 @@ namespace cs::features::cs_editor
 			FlagInfo{ Flag::kPleasant, "Pleasant", {} }
 		};
 
-		// Filter checkbox order.
 		constexpr std::array<Flag, 6> kFilterOrder{
 			Flag::kPleasant, Flag::kCloudy, Flag::kRainy, Flag::kSnow, Flag::kPermAurora, Flag::kAuroraFollowsSun
 		};
@@ -76,26 +76,25 @@ namespace cs::features::cs_editor
 			return *std::ranges::find(kFlags, a_flag, &FlagInfo::flag);
 		}
 
-		dmui::ui::Vec4 FlagColor(Flag a_flag, const Theme& a_theme)
+		dmui::ui::Vec4 FlagColor(Flag a_flag)
 		{
-			// Pleasant follows the theme's success color.
 			if (a_flag == Flag::kPleasant)
-				return a_theme ? a_theme->statusSuccess : dmui::ui::Vec4{ 0.4f, 0.8f, 0.4f, 1.0f };
+				return dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusSuccess);
 			return Info(a_flag).color;
 		}
 
-		dmui::ui::Vec4 WeatherColor(const RE::TESWeather* a_weather, const Theme& a_theme)
+		dmui::ui::Vec4 WeatherColor(const RE::TESWeather* a_weather)
 		{
-			const dmui::ui::Vec4 info = a_theme ? a_theme->statusInfo : dmui::ui::Vec4{ 0.4f, 0.6f, 1.0f, 1.0f };
+			const auto info = dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusInfo);
 			if (!a_weather)
 				return info;
 			const auto flags = Flags(*a_weather);
 			for (const auto& entry : kFlags) {
 				if (flags & static_cast<std::uint32_t>(entry.flag))
-					return FlagColor(entry.flag, a_theme);
+					return FlagColor(entry.flag);
 			}
 			if (flags == 0)
-				return a_theme ? a_theme->statusWarning : dmui::ui::Vec4{ 1.0f, 0.8f, 0.3f, 1.0f };
+				return dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusWarning);
 			return info;
 		}
 
@@ -133,19 +132,13 @@ namespace cs::features::cs_editor
 			dmui::ui::Text("- %s", std::vformat(a_format, std::make_format_args(a_args...)).c_str());
 		}
 
-		void Tooltip(const char* a_text)
-		{
-			if (dmui::ui::IsItemHovered())
-				dmui::ui::SetTooltip("%s", a_text);
-		}
-
-		void DisplayBasicInfo(const RE::TESWeather* a_weather, float a_pct, const Theme& a_theme)
+		void DisplayBasicInfo(const RE::TESWeather* a_weather, float a_pct)
 		{
 			if (!a_weather) {
 				dmui::ui::Text("- No Weather Found");
 				return;
 			}
-			dmui::ui::TextColored(WeatherColor(a_weather, a_theme), "- %s", FormatWeather(a_weather).c_str());
+			dmui::ui::TextColored(WeatherColor(a_weather), "- %s", FormatWeather(a_weather).c_str());
 			if (dmui::ui::IsItemHovered()) {
 				const auto editorID = engine::GetEditorID(a_weather);
 				dmui::ui::SetTooltip("Editor ID: %s\nForm ID: 0x%08X\nFlags: %s",
@@ -161,7 +154,7 @@ namespace cs::features::cs_editor
 				dmui::ui::Text("- Particle Density: No precipitation data");
 				return;
 			}
-			// FO4: SPGD keeps Skyrim's 12-entry DATA order, so particle density is entry 11.
+			// FO4: SPGD keeps Skyrim's DATA order; particle density is entry 11.
 			constexpr std::size_t kParticleDensity = 11;
 			const auto& settings = a_weather->precipitationData->data;
 			if (settings.size() > kParticleDensity)
@@ -172,7 +165,7 @@ namespace cs::features::cs_editor
 			const auto end = Raw(*a_weather, Data::kEndPrecip);
 			Bullet("Precip Begin Fade-In: {:.3f} (raw {})", begin / 255.0f, begin);
 			Bullet("Precip End Fade-Out: {:.3f} (raw {})", end / 255.0f, end);
-			Tooltip(
+			ui::Tooltip(
 				"Precipitation fade transition parameters:\n"
 				"Begin Fade-In: Point where precipitation starts appearing\n"
 				"End Fade-Out: Point where precipitation fully disappears\n"
@@ -198,7 +191,7 @@ namespace cs::features::cs_editor
 			}
 			dmui::ui::EndDisabled();
 			Bullet("Thunder Frequency: {}", Raw(*a_weather, Data::kThunderFreq));
-			Tooltip(
+			ui::Tooltip(
 				"Thunder frequency raw value (0-255):\n\n"
 				"Known data points from Creation Kit slider:\n"
 				"- Raw 15 = ~100% frequency (highest thunder)\n"
@@ -220,14 +213,14 @@ namespace cs::features::cs_editor
 			if (!a_weather || (speed == 0 && a_sky.windSpeed <= 0.0f))
 				return;
 			Bullet("Weather Wind Speed: {:.2f} (raw {})", speed / 255.0f, speed);
-			Tooltip("Wind speed from weather definition");
+			ui::Tooltip("Wind speed from weather definition");
 			Bullet("Sky Wind Speed: {:.2f}", a_sky.windSpeed);
-			Tooltip("Current active wind speed from the sky system\nThis affects particle behavior and wind-based effects");
+			ui::Tooltip("Current active wind speed from the sky system\nThis affects particle behavior and wind-based effects");
 			const auto direction = Raw(*a_weather, Data::kWindDir);
 			const auto range = Raw(*a_weather, Data::kWindDirRange);
 			Bullet("Wind Direction: {:.1f}\xc2\xb0 (raw {})", direction * (360.0f / 256.0f), direction);
 			Bullet("Wind Direction Range: {:.1f}\xc2\xb0 (raw {})", range * (180.0f / 256.0f), range);
-			// FO4: upstream's wind-vs-player readout uses a Skyrim-calibrated 30.5 degree offset; only the heading is shown.
+			// FO4: wind-vs-player needs Skyrim's 30.5 degree offset; heading only.
 			if (const auto* player = RE::PlayerCharacter::GetSingleton()) {
 				auto heading = std::fmod(player->data.angle.z * (180.0f / std::numbers::pi_v<float>), 360.0f);
 				if (heading < 0.0f)
@@ -236,9 +229,9 @@ namespace cs::features::cs_editor
 			}
 		}
 
-		void DisplayWeatherInfo(RE::TESWeather* a_weather, float a_pct, const RE::Sky& a_sky, const Theme& a_theme)
+		void DisplayWeatherInfo(RE::TESWeather* a_weather, float a_pct, const RE::Sky& a_sky)
 		{
-			DisplayBasicInfo(a_weather, a_pct, a_theme);
+			DisplayBasicInfo(a_weather, a_pct);
 			DisplayPrecipitationInfo(a_weather);
 			DisplayLightningInfo(a_weather, true);
 			DisplayWindInfo(a_weather, a_sky);
@@ -267,13 +260,13 @@ namespace cs::features::cs_editor
 			else
 				engine::PauseGameTime();
 		}
-		Tooltip("Pause or resume game time progression");
+		ui::Tooltip("Pause or resume game time progression");
 		dmui::ui::SameLine();
 		float gameHour = *hour;
 		constexpr float hourMin = 0.0f, hourMax = kGameHourMax;
 		if (dmui::ui::SliderScalar("Game Time", &gameHour, &hourMin, &hourMax, "%.2f"))
 			engine::SetGameHour(gameHour);
-		Tooltip("Adjust the current game time");
+		ui::Tooltip("Adjust the current game time");
 
 		// Sync slider with actual value.
 		if (paused)
@@ -299,20 +292,17 @@ namespace cs::features::cs_editor
 			dmui::ui::SetTooltip("Adjust how fast time passes (vanilla: %.1fx)", engine::kVanillaTimeScale);
 	}
 
-	void WeatherPanel::DrawStatus(RE::Sky& a_sky, const Theme& a_theme)
+	void WeatherPanel::DrawStatus(RE::Sky& a_sky)
 	{
 		auto* current = a_sky.currentWeather;
 		if (!current) {
-			const dmui::ui::Vec4 warning = a_theme ? a_theme->statusWarning : dmui::ui::Vec4{ 1.0f, 0.8f, 0.3f, 1.0f };
-			dmui::ui::TextColored(warning, "No Active Weather");
+			dmui::ui::TextColored(dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusWarning), "No Active Weather");
 			return;
 		}
 		if (HasCustomSettings(current)) {
-			const dmui::ui::Vec4 success = a_theme ? a_theme->statusSuccess : dmui::ui::Vec4{ 0.4f, 0.8f, 0.4f, 1.0f };
-			dmui::ui::TextColored(success, "Has Custom Settings");
+			dmui::ui::TextColored(dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusSuccess), "Has Custom Settings");
 		} else {
-			const dmui::ui::Vec4 disabled = a_theme ? a_theme->statusDisable : dmui::ui::Vec4{ 0.5f, 0.5f, 0.5f, 1.0f };
-			dmui::ui::TextColored(disabled, "Using Default Settings");
+			dmui::ui::TextColored(dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusDisable), "Using Default Settings");
 		}
 		dmui::ui::Text("Current Weather: %s", engine::DescribeWeather(current).c_str());
 
@@ -347,7 +337,7 @@ namespace cs::features::cs_editor
 		}
 	}
 
-	void WeatherPanel::DrawControls(RE::Sky& a_sky, const Theme& a_theme)
+	void WeatherPanel::DrawControls(RE::Sky& a_sky)
 	{
 		dmui::ui::Text("Filter by Weather Type:");
 		if (dmui::ui::Button("Select All"))
@@ -364,16 +354,14 @@ namespace cs::features::cs_editor
 				dmui::ui::SameLine();
 			const bool unclassified = i == kFilterOrder.size();
 			const auto bit = unclassified ? kUnclassifiedFlag : static_cast<std::uint32_t>(kFilterOrder[i]);
-			const auto color = unclassified ?
-			                       (a_theme ? a_theme->statusWarning : dmui::ui::Vec4{ 1.0f, 0.8f, 0.3f, 1.0f }) :
-			                       FlagColor(kFilterOrder[i], a_theme);
+			const auto color = unclassified ? dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusWarning) : FlagColor(kFilterOrder[i]);
 			bool checked = (_flagFilter & bit) != 0;
 			dmui::ui::PushStyleColor(dmui::ui::Color::kText, color);
 			if (dmui::ui::Checkbox(unclassified ? "None" : Info(kFilterOrder[i]).name, &checked))
 				_flagFilter = checked ? (_flagFilter | bit) : (_flagFilter & ~bit);
 			dmui::ui::PopStyleColor();
 			if (unclassified)
-				Tooltip(
+				ui::Tooltip(
 					"Shows weathers that are not classified under any specific category.\n"
 					"Includes weathers with no flags or only untracked flags.\n"
 					"Categories tracked: Pleasant, Cloudy, Rainy, Dusty, Radstorm, Radstorm Sun");
@@ -387,35 +375,35 @@ namespace cs::features::cs_editor
 		}
 
 		static_cast<void>(dmui::ui::Checkbox("Accelerate Weather Change", &_instantChange));
-		Tooltip("When enabled, weather changes instantly");
+		ui::Tooltip("When enabled, weather changes instantly");
 		if (dmui::ui::Button("Reset Weather")) {
 			engine::ResetWeather();
 			// Update the selection to reflect the reset weather without double-applying.
 			_selected = a_sky.defaultWeather;
 		}
-		Tooltip("Resets weather to default");
+		ui::Tooltip("Resets weather to default");
 
 		dmui::ui::SameLine();
 		const bool locked = engine::GetLockedWeather() != nullptr;
-		if (locked && a_theme)
-			dmui::ui::PushStyleColor(dmui::ui::Color::kButton, a_theme->statusSuccess);
+		if (locked)
+			dmui::ui::PushStyleColor(dmui::ui::Color::kButton, dmui::ui::GetThemeColor(&DMUI_ThemeColors::statusSuccess));
 		if (dmui::ui::Button(locked ? "Unlock Weather" : "Lock Weather")) {
 			if (locked)
 				engine::UnlockWeather();
 			else if (a_sky.currentWeather)
 				engine::LockWeather(a_sky.currentWeather);
 		}
-		if (locked && a_theme)
+		if (locked)
 			dmui::ui::PopStyleColor();
 		if (!engine::AreWeatherLockHooksInstalled())
-			Tooltip("Weather-lock hooks failed to install; the lock still works but weather may briefly flash before correcting");
+			ui::Tooltip("Weather-lock hooks failed to install; the lock still works but weather may briefly flash before correcting");
 		else
-			Tooltip(locked ? "Unlock weather to allow natural changes" : "Lock current weather to prevent changes");
+			ui::Tooltip(locked ? "Unlock weather to allow natural changes" : "Lock current weather to prevent changes");
 
-		DrawWeatherCombo(a_theme);
+		DrawWeatherCombo();
 	}
 
-	void WeatherPanel::DrawWeatherCombo(const Theme& a_theme)
+	void WeatherPanel::DrawWeatherCombo()
 	{
 		const auto preview = _selected ? FormatWeather(_selected) : std::string("Select Weather");
 		if (!dmui::ui::BeginCombo("Weather", preview.c_str())) {
@@ -430,7 +418,7 @@ namespace cs::features::cs_editor
 				!MatchesSearch(std::format("{:08X}", weather->GetFormID()), _search))
 				continue;
 			const bool isSelected = weather == _selected;
-			dmui::ui::PushStyleColor(dmui::ui::Color::kText, WeatherColor(weather, a_theme));
+			dmui::ui::PushStyleColor(dmui::ui::Color::kText, WeatherColor(weather));
 			const bool picked = dmui::ui::Selectable(std::format("{}##{:08X}", label, weather->GetFormID()).c_str(), isSelected);
 			dmui::ui::PopStyleColor();
 			if (picked) {
@@ -450,7 +438,7 @@ namespace cs::features::cs_editor
 		dmui::ui::EndCombo();
 	}
 
-	void WeatherPanel::DrawInformation(RE::Sky& a_sky, const Theme& a_theme)
+	void WeatherPanel::DrawInformation(RE::Sky& a_sky)
 	{
 		// Keep the last weather once the engine clears it.
 		if (a_sky.lastWeather)
@@ -465,11 +453,11 @@ namespace cs::features::cs_editor
 		dmui::ui::TableNextRow();
 		static_cast<void>(dmui::ui::TableNextColumn());
 		dmui::ui::PushID("current");
-		DisplayWeatherInfo(a_sky.currentWeather, a_sky.currentWeatherPct, a_sky, a_theme);
+		DisplayWeatherInfo(a_sky.currentWeather, a_sky.currentWeatherPct, a_sky);
 		dmui::ui::PopID();
 		static_cast<void>(dmui::ui::TableNextColumn());
 		dmui::ui::PushID("last");
-		DisplayWeatherInfo(last, std::abs(a_sky.currentWeatherPct - 1.0f), a_sky, a_theme);
+		DisplayWeatherInfo(last, std::abs(a_sky.currentWeatherPct - 1.0f), a_sky);
 		dmui::ui::PopID();
 		dmui::ui::EndTable();
 	}

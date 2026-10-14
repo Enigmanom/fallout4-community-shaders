@@ -9,7 +9,7 @@ namespace RE
 
 namespace cs::engine
 {
-	// FO4 keeps no editor IDs for most forms; tracked types are cached as they load.
+	// FO4 drops most editor IDs; tracked types are cached as they load.
 	void InstallEditorIDCache();
 
 	// Empty for untracked or unnamed forms.

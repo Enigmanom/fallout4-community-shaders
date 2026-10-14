@@ -1,9 +1,6 @@
 #pragma once
 
-#include <DearModdingUI/API.h>
-
 #include <cstdint>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -20,16 +17,14 @@ namespace cs
 
 namespace cs::features::cs_editor
 {
-	using Theme = std::optional<DMUI_ThemeColors>;
-
 	// Upstream CSEditor's weather picker, status and information panels.
 	class WeatherPanel
 	{
 	public:
 		void DrawTimeControls();
-		void DrawStatus(RE::Sky& a_sky, const Theme& a_theme);
-		void DrawControls(RE::Sky& a_sky, const Theme& a_theme);
-		void DrawInformation(RE::Sky& a_sky, const Theme& a_theme);
+		void DrawStatus(RE::Sky& a_sky);
+		void DrawControls(RE::Sky& a_sky);
+		void DrawInformation(RE::Sky& a_sky);
 		void DrawFeatureAnalysis(const Feature& a_editor);
 
 		// The picked weather, else the current one; overrides edit this weather.
@@ -37,7 +32,7 @@ namespace cs::features::cs_editor
 
 	private:
 		void UpdateFilteredWeathers();
-		void DrawWeatherCombo(const Theme& a_theme);
+		void DrawWeatherCombo();
 
 		std::uint32_t _flagFilter = 0x7F;
 		std::uint32_t _lastFlagFilter = 0;

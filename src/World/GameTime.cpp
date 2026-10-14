@@ -63,9 +63,7 @@ namespace cs::engine
 			L->info("Time resumed (timescale: {})", a_state.savedTimeScale);
 		}
 
-		// Time must keep running while these are up: the engine hangs on fast travel and sleep/wait
-		// never completes when game time cannot advance.
-		// FO4: fast travel launches from the Pip-Boy map rather than a MapMenu.
+		// FO4: Pip-Boy launches fast travel; time must run or these menus hang.
 		constexpr std::array<std::string_view, 3> kTimeSensitiveMenus{
 			RE::LoadingMenu::MENU_NAME, "SleepWaitMenu", RE::PipboyMenu::MENU_NAME
 		};
@@ -91,8 +89,7 @@ namespace cs::engine
 			if (a_needsRunningTime) {
 				if (state.restoredForMenu || timeScale->value != 0.0f)
 					return;
-				// Only re-pause afterwards if the pause is ours; a zero timescale we did not set (stale
-				// save, console, other mod) stays restored so it cannot freeze the game again.
+				// Re-pause only our own pause; a foreign zero timescale stays restored.
 				state.wasPausedBeforeMenu = state.paused;
 				// A non-positive snapshot would restore straight back to frozen time.
 				if (state.savedTimeScale <= 0.0f)
@@ -117,7 +114,7 @@ namespace cs::engine
 				const RE::MenuOpenCloseEvent& a_event,
 				RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override
 			{
-				// Fast travel overlaps these menus, so a close only ends the guard once the whole set is closed.
+				// Menus overlap in fast travel; end the guard once all are closed.
 				if (IsTimeSensitiveMenu(a_event.menuName))
 					SetTimeRunningForMenu(a_event.opening || IsAnyTimeSensitiveMenuOpen());
 				return RE::BSEventNotifyControl::kContinue;
@@ -152,7 +149,7 @@ namespace cs::engine
 	{
 		auto& state = GetState();
 		const std::scoped_lock lock(state.mutex);
-		// An external timescale change (console, other mods, the menu guard) overrides our pause.
+		// An external timescale change overrides our pause.
 		if (const auto* timeScale = TimeScaleGlobal(); state.paused && timeScale && timeScale->value > 0.0f)
 			state.paused = false;
 		return state.paused;
@@ -197,7 +194,7 @@ namespace cs::engine
 		if (!calendar || !calendar->gameHour)
 			return;
 		calendar->gameHour->value = a_hour;
-		// Backward clock edits otherwise look like a midnight wrap and expire the weather override.
+		// Backward edits look like a midnight wrap and expire the override.
 		if (auto* sky = RE::Sky::GetSingleton(); sky && GetLockedWeather())
 			sky->lastWeatherUpdate = a_hour;
 	}

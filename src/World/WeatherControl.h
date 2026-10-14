@@ -7,7 +7,7 @@ namespace RE
 
 namespace cs::engine
 {
-	// Detours Sky::SetWeather and Sky::ForceWeather so a lock outranks every caller.
+	// Detours SetWeather/ForceWeather so a lock outranks every caller.
 	void InstallWeatherLockHooks();
 	bool AreWeatherLockHooksInstalled() noexcept;
 

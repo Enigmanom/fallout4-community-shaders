@@ -272,7 +272,7 @@ namespace
 		CHECK(RenderDocument(a_registry, toml::parse(blocked)) == blocked);
 	}
 
-	// Editor overrides round-trip through the weather open map into a fresh registry.
+	// Editor overrides round-trip through TOML into a fresh registry.
 	void TestWeatherProfiles(const Registry& a_registry, const std::filesystem::path& a_path)
 	{
 		namespace ibl = cs::features::image_based_lighting;
