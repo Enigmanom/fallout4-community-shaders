@@ -5,11 +5,13 @@
 #include "RE/B/BSGeometrySegmentData.h"
 #include "RE/B/BSPrecomputedVisibility.h"
 #include "RE/B/BSSpinLock.h"
+#include "RE/B/BSWaterShaderMaterial.h"
 #include "RE/B/BSWaterShaderProperty.h"
 #include "RE/N/NiUpdateData.h"
 #include "RE/T/TES.h"
 #include "RE/T/TESFileArray.h"
 #include "RE/T/TESObjectCELL.h"
+#include "RE/T/TESWaterForm.h"
 
 #include <algorithm>
 #include <array>
@@ -17,6 +19,7 @@
 #include <cfloat>
 #include <limits>
 #include <mutex>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -86,6 +89,58 @@ namespace cs::engine::water
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
+	}
+
+	namespace
+	{
+		// Vanilla CRC omits normal texture names, so forms could share normals.
+		thread_local std::uint32_t t_textureHash = 0;
+		thread_local bool t_hasTextureHash = false;
+
+		struct AddWaterUpdateMaterial
+		{
+			static void thunk(RE::TESWaterForm* a_form, RE::BSWaterShaderMaterial* a_material)
+			{
+				t_hasTextureHash = false;
+				func(a_form, a_material);
+				std::uint32_t hash = 2166136261u;
+				// FO4: WATR carries three noise textures, Skyrim four.
+				for (const auto* texture : { &a_form->noiseTexture0, &a_form->noiseTexture1, &a_form->noiseTexture2 }) {
+					for (const auto c : std::string_view(texture->textureName.c_str())) {
+						hash ^= static_cast<unsigned char>(c);
+						hash *= 16777619u;
+					}
+				}
+				t_textureHash = hash;
+				t_hasTextureHash = true;
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		struct WaterMaterialCRC
+		{
+			static std::uint32_t thunk(RE::BSWaterShaderMaterial* a_this, std::uint32_t a_srcHash, bool a_arg)
+			{
+				if (t_hasTextureHash) {
+					a_srcHash ^= t_textureHash + (a_srcHash << 6) + (a_srcHash >> 2);
+					t_hasTextureHash = false;
+				}
+				return func(a_this, a_srcHash, a_arg);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+	}
+
+	bool InstallWaterMaterialIdentity()
+	{
+		static REL::Relocation<std::uintptr_t> addWater{ RE::ID::TESWaterSystem::AddWater };
+		const auto site = addWater.address() + (REX::FModule::IsRuntimeOG() ? 0x377 : 0x433);
+		if (*reinterpret_cast<const std::uint8_t*>(site) != 0xE8)
+			return false;
+		stl::write_thunk_call<AddWaterUpdateMaterial>(site);
+		// FO4: ComputeCRC32 is vtable slot 3, Skyrim slot 4.
+		stl::write_vfunc<3, WaterMaterialCRC>(RE::VTABLE::BSWaterShaderMaterial[0]);
+		return true;
 	}
 
 	bool InstallTileWaterOverride()

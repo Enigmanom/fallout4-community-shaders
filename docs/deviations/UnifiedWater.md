@@ -14,6 +14,7 @@ Optical distance blend and distant terrain water tiles are one feature. Evidence
 | Forced | Per-child `SetAppCulled` for loaded cells | FO4 hides loaded cells by masking segments and dereferences segment data unchecked, so visibility is replaced: segmented siblings keep native masking, tiles are culled per cell | `TerrainWater.cpp` `UpdateVisibility` |
 | Forced | Cache workers read plugin records | FO4 safe-file cursors are engine-owned and unsynchronized, so records are read sequentially at DataLoaded; workers only build instructions | `WaterCache.cpp` |
 | Forced | Skyrim sky-cell cleanup and map-menu exception | FO4 clears exterior state in `ReleaseLowResMaxHeightData`; the Pip-Boy map renders no exterior LOD | `UnifiedWater.cpp` |
+| Forced | Material identity: noise texture names folded into `ComputeCRC32` (vtable slot 4) from `SetWaterShaderMaterialParams` in `InitializeWater` | FO4 `ComputeCRC32` is slot 3 and the material is filled by `TESWaterForm::UpdateWaterMaterial` inside `AddWater`; WATR has three noise textures. Vanilla Commonwealth forms never merge; modded forms differing only in textures would | `TerrainWater.cpp` `InstallWaterMaterialIdentity` |
 | Forced | Cubemap reflection flag on tiles | FO4 water has no cubemap technique; tiles keep native reflection flags | `TerrainWater.cpp` `ConfigureTileProperty` |
 
 ## Not supported

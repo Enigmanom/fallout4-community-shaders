@@ -40,6 +40,7 @@ namespace cs::engine::water
 	void RegisterVanillaWater(TerrainChunk* a_chunk);
 	void RegisterTileWater(TerrainChunk* a_chunk, std::span<const TileWater> a_tiles);
 	bool InstallTileWaterOverride();
+	bool InstallWaterMaterialIdentity();
 	std::uint64_t TileWaterOverrides() noexcept;
 	void UnregisterVanillaWater(TerrainChunk* a_chunk);
 	void ConfigureTileProperty(RE::BSGeometry* a_shape);

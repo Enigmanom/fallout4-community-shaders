@@ -69,6 +69,8 @@ namespace cs::features
 		stl::detour_thunk<ReleaseWorld>(RE::ID::TESWorldSpace::ReleaseLowResMaxHeightData);
 		stl::detour_thunk<UpdateDisplacement>(RE::ID::TESWaterSystem::UpdateWaterDisplacementGeometry);
 		stl::detour_thunk<UpdateWaterSystem>(RE::ID::TESWaterSystem::UpdateWaterSystem);
+		if (!engine::water::InstallWaterMaterialIdentity())
+			throw std::runtime_error("Unified Water AddWater material call site did not match.");
 		if (!engine::water::InstallTileWaterOverride())
 			throw std::runtime_error("Unified Water AddLODWater call site did not match.");
 		if (!Attach::func.address() || !Detach::func.address() || !Visibility::func.address() ||
