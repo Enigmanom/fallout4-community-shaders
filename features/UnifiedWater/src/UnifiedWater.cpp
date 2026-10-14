@@ -151,8 +151,10 @@ namespace cs::features
 			return;
 		}
 		const auto node = a_chunk->node;
+		// Keeps the backing runtime cache alive while tiles are built from it
 		const auto result = self._cache.GetInstructions(node->manager->world, node->GetLODLevel(), node->baseCellX, node->baseCellY);
 		const auto parent = a_chunk->water.get();
+		// Empty instruction sets mean this block should stay vanilla
 		if (!result.instructions || result.instructions->empty()) {
 			self.AttachVanilla(a_chunk);
 			return;
@@ -331,6 +333,7 @@ namespace cs::features
 		const auto tes = RE::TES::GetSingleton();
 		const auto player = RE::PlayerCharacter::GetSingleton();
 		const auto cell = player ? player->GetParentCell() : nullptr;
+		// TES::interiorCell can lag behind during load transitions
 		const bool interior = (tes && tes->interiorCell) || (cell && cell->IsInterior());
 		// FO4: the Pip-Boy map has no Skyrim exterior-LOD MapMenu rendering path.
 		if (const auto root = engine::water::GetWaterLOD())

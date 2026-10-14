@@ -273,6 +273,7 @@ target(plugin_name, function()
         "_WINDOWS",
         "_AMD64_",
         "_UNICODE",
+        "UNICODE",
         "COMMONLIB_RUNTIMECOUNT=3"
     )
     if is_mode("release", "releasedbg") then
@@ -312,14 +313,6 @@ target("FeatureConfigTests", function()
         add_includedirs("features/" .. feature .. "/src")
     end
     add_packages("vcpkg::tomlplusplus")
-end)
-
-target("UnifiedWaterTests", function()
-    set_kind("binary")
-    set_default(false)
-    add_files("tests/UnifiedWaterTests.cpp")
-    add_includedirs("features/UnifiedWater/src")
-    add_tests("UnifiedWater")
 end)
 
 target("RenderDocCaptureServiceTests", function()

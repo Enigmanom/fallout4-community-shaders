@@ -132,6 +132,7 @@ the host's neutral linear-color policy in the LinearLighting block.
 
 - [InverseSquareLighting](InverseSquareLighting.md)
 - [WaterEffects](WaterEffects.md)
+- [Unified Water](UnifiedWater.md)
 - [ExponentialHeightFog](ExponentialHeightFog.md)
 - [Performance Overlay](PerformanceOverlay.md)
 - [Terrain Shadows](TerrainShadows.md)

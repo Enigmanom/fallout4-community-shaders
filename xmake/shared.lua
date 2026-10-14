@@ -48,6 +48,7 @@ function main(target)
             "src/Features/PerformanceOverlay/ABTesting/ABTestAggregator.cpp",
             "src/Utils/PerfUtils.h",
             "src/Utils/WinApi.h",
+            "src/Utils/WinApi.cpp",
             "src/Utils/SphericalHarmonics.h",
             "src/Utils/SphericalHarmonics.cpp",
             "src/Utils/VTableHookFallback.h",

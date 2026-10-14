@@ -6,6 +6,7 @@
 #include "Render/PixelShaderSwapBroker.h"
 #include "Utils/ShaderCache/ShaderCache.h"
 #include "Utils/ShaderSamplerBindings.h"
+#include "Utils/WinApi.h"
 
 #include <algorithm>
 #include <atomic>
@@ -239,60 +240,7 @@ namespace cs::engine
 
 		std::size_t DefaultWorkerCount() noexcept
 		{
-			static const auto performanceThreads = [] {
-				const auto fallback =
-					std::max(1U, std::thread::hardware_concurrency());
-				DWORD size = 0;
-				GetLogicalProcessorInformationEx(
-					RelationProcessorCore, nullptr, &size);
-				if (GetLastError() != ERROR_INSUFFICIENT_BUFFER || size == 0) {
-					return fallback;
-				}
-
-				std::vector<std::uint8_t> storage(size);
-				auto* information = reinterpret_cast<
-					PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(
-					storage.data());
-				if (!GetLogicalProcessorInformationEx(
-						RelationProcessorCore,
-						information,
-						&size)) {
-					return fallback;
-				}
-
-				BYTE highestEfficiencyClass = 0;
-				for (DWORD offset = 0; offset < size;) {
-					const auto* entry = reinterpret_cast<
-						const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(
-						storage.data() + offset);
-					highestEfficiencyClass = std::max(
-						highestEfficiencyClass,
-						entry->Processor.EfficiencyClass);
-					offset += entry->Size;
-				}
-
-				std::uint32_t count = 0;
-				for (DWORD offset = 0; offset < size;) {
-					const auto* entry = reinterpret_cast<
-						const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(
-						storage.data() + offset);
-					if (entry->Processor.EfficiencyClass == highestEfficiencyClass) {
-						for (WORD group = 0;
-							group < entry->Processor.GroupCount;
-							++group) {
-							count += static_cast<std::uint32_t>(
-								std::popcount(
-									entry->Processor
-										.GroupMask[group]
-										.Mask));
-						}
-					}
-					offset += entry->Size;
-				}
-				return count > 0 ? count : fallback;
-			}();
-			return std::max<std::size_t>(
-				performanceThreads / 2, 1);
+			return std::max<std::size_t>(Util::GetPerformanceCoreCount() / 2, 1);
 		}
 	}
 

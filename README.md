@@ -66,6 +66,7 @@ Report problems through [Issues](https://github.com/northaxosky/fallout4-communi
 | **Dynamic Cubemaps** | Reflections that respond to the surrounding scene. |
 | **Image Based Lighting** | Ambient light and fog tint from environment and sky cubemaps; requires Dynamic Cubemaps. |
 | **Water Effects** | Sunlight caustics on submerged surfaces. |
+| **Unified Water** | Distant water matches near water; placed water keeps vanilla distance rendering. |
 | **Motion Vector Fixes** | Motion-data corrections for temporal rendering. |
 | **Upscaling** | TAA, FSR 3/4, and DLSS. |
 | **Frame Generation** | FSR 3/4, DLSS, and supported Multi Frame Generation modes. |

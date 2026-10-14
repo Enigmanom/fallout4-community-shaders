@@ -149,6 +149,7 @@ namespace cs::features::unified_water
 				continue;
 			cache->instructions[lodIndex].resize(static_cast<std::size_t>(width) * height);
 		}
+		// Keep old or malformed disk caches from restoring bad water tiles
 		for (auto instruction : a_instructions) {
 			if (!IsValidCellHeight(instruction.waterHeight) || !std::has_single_bit(instruction.lodLevel) || instruction.lodLevel < 4 || instruction.lodLevel > 32)
 				continue;
@@ -253,6 +254,7 @@ namespace cs::features::unified_water
 					if (!engine::water::ReadCellData(world, x, y, formID, water, land))
 						continue;
 					if (IsValidCellHeight(water) && IsValidCellHeight(land) && water > land) {
+						// Use default world water if no water form set
 						if (!formID)
 							formID = world->worldWater->GetFormID();
 					} else {
@@ -307,6 +309,7 @@ namespace cs::features::unified_water
 	void WaterCache::GenerateCaches()
 	{
 		_monitor = std::jthread([this] {
+			// Use P-core logical count on Intel hybrid CPUs
 			const auto hw = Util::GetPerformanceCoreCount();
 			const auto count = std::max(1u, hw > 4 ? hw - 4 : (hw * 3) / 4);
 			std::atomic_size_t next{ 0 };

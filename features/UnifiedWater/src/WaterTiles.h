@@ -97,7 +97,7 @@ namespace cs::features::unified_water
 						std::int32_t size = 1;
 						std::int32_t maxSize = 1;
 						if (lodLevel > 4) {
-							// LOD4 stays per-cell; larger LODs respect chunk/map bounds.
+							// LOD4 stays per-cell so loaded cells can hide it; others fit the chunk.
 							maxSize = std::min({ lodLevel - localX, lodLevel - localY, width - cellX, height - cellY });
 						}
 						const auto matches = [&](std::int32_t x, std::int32_t y) {

@@ -276,6 +276,7 @@ namespace cs::engine::water
 		if (!files || files->empty())
 			return false;
 		std::int32_t index = static_cast<std::int32_t>(files->size()) - 1;
+		// Search files in reverse load order so the winning CELL record is read
 		RE::TESFile* file = nullptr;
 		for (; index >= 0; --index) {
 			file = safe((*files)[index], 0x4000);
@@ -294,6 +295,7 @@ namespace cs::engine::water
 			if (a_form)
 				resolve(a_form, file);
 		}
+		// Continue from that file to the original record, which has the LAND
 		for (; index >= 0; --index) {
 			file = safe((*files)[index], 0x4000);
 			if (file && cell(a_world, file, a_x, a_y) && land(file))

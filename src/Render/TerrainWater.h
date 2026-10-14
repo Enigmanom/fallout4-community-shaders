@@ -71,7 +71,6 @@ namespace cs::engine::water
 	bool DisableVanillaWaterLOD();
 	void Prepare(TerrainChunk* a_chunk);
 	void RegisterVanillaWater(TerrainChunk* a_chunk);
-	// Registers like vanilla, but each listed tile keeps its own WATR and height.
 	void RegisterTileWater(TerrainChunk* a_chunk, std::span<const TileWater> a_tiles);
 	bool InstallTileWaterOverride();
 	std::uint64_t TileWaterOverrides() noexcept;
