@@ -17,7 +17,8 @@ namespace FullscreenDebugOwner
 		TerrainShadows = 3,
 		WaterEffects = 4,
 		Skylighting = 5,
-		DynamicCubemaps = 6;
+		DynamicCubemaps = 6,
+		ExtendedMaterials = 7;
 }
 
 namespace DynamicCubemapsDebugMode
@@ -29,5 +30,15 @@ namespace DynamicCubemapsDebugMode
 #endif
 		DirectionCube = 1,
 		EngineCube = 2;
+}
+
+namespace ExtendedMaterialsDebugMode
+{
+#ifdef __cplusplus
+	inline constexpr std::uint32_t
+#else
+	static const uint
+#endif
+		ParallaxShift = 1;
 }
 #endif

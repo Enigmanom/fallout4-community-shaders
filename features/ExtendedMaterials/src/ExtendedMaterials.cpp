@@ -2,6 +2,7 @@
 
 #include <DearModdingUI/Client.h>
 
+#include <array>
 #include <string>
 
 #include <toml++/toml.hpp>
@@ -36,6 +37,26 @@ namespace cs::features
 	{
 		static ExtendedMaterials instance;
 		return &instance;
+	}
+
+	std::span<const FeatureDebugView> ExtendedMaterials::GetDebugViews() const noexcept
+	{
+		static constexpr std::array<FeatureDebugView, 1> kDebugViews{ { { "parallax_shift",
+			"Parallax UV shift: red objects, green terrain, blue unshifted",
+			FeatureDebugViewKind::kFullscreen } } };
+		return kDebugViews;
+	}
+
+	void ExtendedMaterials::SetDebugView(std::string_view a_view) noexcept
+	{
+		_debugParallaxShift.store(a_view == "parallax_shift", std::memory_order_release);
+	}
+
+	FullscreenDebugData ExtendedMaterials::GetFullscreenDebugData() const noexcept
+	{
+		if (!_debugParallaxShift.load(std::memory_order_acquire) || !_injectionsOperational.load(std::memory_order_acquire))
+			return {};
+		return { .owner = FullscreenDebugOwner::ExtendedMaterials, .mode = ExtendedMaterialsDebugMode::ParallaxShift };
 	}
 
 	bool ExtendedMaterials::Configure(const toml::table& a_config, std::string& a_error)

@@ -638,6 +638,7 @@ struct PS_OUTPUT
 #	endif
 
 #	if defined(EMAT)
+		const float2 geometricUV = uv;
 		// FO4: tangent rows are view space; b12 c12-c14 hold view-to-world.
 		float3x3 viewToWorld = float3x3(ViewToWorld_row0.xyz, ViewToWorld_row1.xyz, ViewToWorld_row2.xyz);
 		float3 cameraPosition = float3(ViewToWorld_row0.w, ViewToWorld_row1.w, ViewToWorld_row2.w);
@@ -1573,6 +1574,22 @@ struct PS_OUTPUT
 #		endif
 
 		output.motionVec = (currNDC - prevNDC) * float2(-0.5, 0.5);
+#	endif
+#	if defined(EMAT)
+		// Debug: red object or green terrain by parallax shift in texels, blue unshifted.
+		[branch] if (FO4SharedData::DebugOwner == FullscreenDebugOwner::ExtendedMaterials && FO4SharedData::DebugMode == ExtendedMaterialsDebugMode::ParallaxShift)
+		{
+			float2 heightDims;
+#		if defined(EMAT_OBJECT)
+			g_tMaterial.GetDimensions(heightDims.x, heightDims.y);
+			const float3 shiftColor = float3(1, 0, 0);
+#		else
+			g_tLandMaterial[0].GetDimensions(heightDims.x, heightDims.y);
+			const float3 shiftColor = float3(0, 1, 0);
+#		endif
+			const float shiftTexels = length((uv - geometricUV) * heightDims);
+			output.albedo.xyz = shiftTexels > 0.5 ? shiftColor * (0.25 + 0.75 * saturate(shiftTexels / 8.0)) : float3(0, 0, 0.5);
+		}
 #	endif
 		return output;
 	}
