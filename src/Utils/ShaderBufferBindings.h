@@ -3,19 +3,21 @@
 #include "Render/SubstrateSlots.h"
 
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <d3d11shader.h>
 #include <d3dcompiler.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <wrl/client.h>
 
 namespace cs::util
 {
-	[[nodiscard]] inline std::string ValidateSubstrateSlots(ID3DBlob* a_blob)
+	[[nodiscard]] inline std::string ValidateSubstrateSlots(std::span<const std::uint8_t> a_bytecode)
 	{
 		Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;
-		if (FAILED(D3DReflect(a_blob->GetBufferPointer(), a_blob->GetBufferSize(), IID_PPV_ARGS(reflection.GetAddressOf()))))
+		if (FAILED(D3DReflect(a_bytecode.data(), a_bytecode.size(), IID_PPV_ARGS(reflection.GetAddressOf()))))
 			return "Substrate slot validation could not reflect shader";
 		D3D11_SHADER_DESC desc{};
 		if (FAILED(reflection->GetDesc(&desc)))
@@ -34,5 +36,10 @@ namespace cs::util
 				return "Constant-buffer slot collision at b" + std::to_string(binding.BindPoint);
 		}
 		return {};
+	}
+
+	[[nodiscard]] inline std::string ValidateSubstrateSlots(ID3DBlob* a_blob)
+	{
+		return ValidateSubstrateSlots(std::span(static_cast<const std::uint8_t*>(a_blob->GetBufferPointer()), a_blob->GetBufferSize()));
 	}
 }
