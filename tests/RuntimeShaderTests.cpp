@@ -1,11 +1,14 @@
 #include "ParallelFor.h"
+#include "ShaderTestCache.h"
 #include "Utils/ShaderCompile.h"
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
+#include <d3dcompiler.h>
 #include <filesystem>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -162,8 +165,17 @@ namespace
 	{
 		std::string error;
 		const auto path = a_root / a_job.shader->file;
-		if (cs::util::CompileShaderToBlob(path.c_str(), a_job.defines, a_job.shader->profile, "main", &error, a_root))
+		const auto recipe = cs::shader_test::CacheRoot() ?
+		                        cs::util::BuildUtilityShaderRecipe(path, a_job.defines, a_job.shader->profile, "main", a_root, cs::util::kUtilityCompileFlags1) :
+		                        std::nullopt;
+		if (recipe) {
+			const auto outcome = cs::shader_test::Compile(*recipe);
+			if (outcome.succeeded)
+				return {};
+			error = outcome.error;
+		} else if (cs::util::CompileShaderToBlob(path.c_str(), a_job.defines, a_job.shader->profile, "main", &error, a_root)) {
 			return {};
+		}
 		return error.substr(0, error.find('\n'));
 	}
 }
@@ -193,6 +205,7 @@ int main(int a_argc, char** a_argv)
 		++failed;
 		std::printf("%s: %s\n", Describe(jobs[i]).c_str(), failures[i].c_str());
 	}
+	cs::shader_test::ReportCache();
 	std::printf("Runtime shaders: %zu passed, %zu failed, %zu uncovered; %.3fs wall time (%u threads)\n",
 		jobs.size() - failed, failed, uncovered.size(), seconds, ParallelThreadCount());
 	return failed == 0 && uncovered.empty() ? 0 : 1;

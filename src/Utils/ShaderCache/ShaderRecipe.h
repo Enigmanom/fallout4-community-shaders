@@ -36,6 +36,8 @@ namespace cs::shader_cache
 	};
 
 	const char* DescribeStage(ShaderCacheStage a_stage) noexcept;
+	// False for profiles the cache does not store (gs, hs, ds).
+	bool TryGetShaderCacheStage(std::string_view a_profile, ShaderCacheStage& a_stage) noexcept;
 	bool IsKnownStage(std::uint8_t a_stage) noexcept;
 
 	// canonical UTF-8 keeps path hashes stable

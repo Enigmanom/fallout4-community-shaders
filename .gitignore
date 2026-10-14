@@ -19,6 +19,7 @@ __pycache__/
 
 # Shader validation scratch + corpus cache
 .shader-cache/
+.shader-test-cache/
 
 # Downloaded SDK archives and the staged proprietary runtime DLLs
 .sdk-cache/

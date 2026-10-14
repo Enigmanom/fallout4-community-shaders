@@ -3,6 +3,7 @@
 #include "Utils/ShaderCache/ByteCodec.h"
 
 #include <algorithm>
+#include <cstring>
 #include <d3dcompiler.h>
 #include <system_error>
 
@@ -17,6 +18,23 @@ namespace cs::shader_cache
 		constexpr std::string_view kRecipeSchema = "FO4CS.shader-recipe";
 		constexpr std::uint32_t kRecipeSchemaVersion = 1;
 		constexpr std::string_view kDependencySchema = "FO4CS.shader-recipe.dependency";
+	}
+
+	bool TryGetShaderCacheStage(std::string_view a_profile, ShaderCacheStage& a_stage) noexcept
+	{
+		const std::pair<std::string_view, ShaderCacheStage> stages[] = {
+			{ "ps_5_0", ShaderCacheStage::kPixel },
+			{ "vs_5_0", ShaderCacheStage::kVertex },
+			{ "cs_5_0", ShaderCacheStage::kCompute },
+			{ "cs_4_0", ShaderCacheStage::kCompute }
+		};
+		for (const auto& [profile, stage] : stages) {
+			if (a_profile.size() == profile.size() && _strnicmp(a_profile.data(), profile.data(), profile.size()) == 0) {
+				a_stage = stage;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	const char* DescribeStage(ShaderCacheStage a_stage) noexcept

@@ -129,8 +129,18 @@ jobs:
       - name: Run unit tests
         run: xmake test -g unit
 
+      # Entries are keyed on recipe and compiler, and revalidated on every hit.
+      - name: Restore shader compile cache
+        uses: actions/cache@v6
+        with:
+          path: .shader-test-cache
+          key: ${{ runner.os }}-shader-tests-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-shader-tests-
+
       # Each suite already compiles on every core; cap concurrent suites at two.
       - name: Compile stock and feature shaders
+        env:
+          FO4CS_SHADER_TEST_CACHE: ${{ github.workspace }}\.shader-test-cache
         run: xmake test -g shaders -j 2
 
       - name: Assemble package

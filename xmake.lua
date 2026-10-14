@@ -391,6 +391,19 @@ local function stage_shader_compiler(target)
     os.cp(source, target:targetdir())
 end
 
+-- The runtime shader cache the shader test binaries compile through.
+local shader_cache_sources = {
+    "src/Utils/CSSha256.cpp",
+    "src/Utils/ShaderCache/CacheRecord.cpp",
+    "src/Utils/ShaderCache/CacheStorage.cpp",
+    "src/Utils/ShaderCache/CompilerIdentity.cpp",
+    "src/Utils/ShaderCache/DependencyTrace.cpp",
+    "src/Utils/ShaderCache/RevalidationContext.cpp",
+    "src/Utils/ShaderCache/ShaderCache.cpp",
+    "src/Utils/ShaderCache/ShaderRecipe.cpp",
+    "src/Utils/ShaderCache/SourceCompile.cpp"
+}
+
 -- One gate binary per compiler: d3dcompiler_47.dll resolves from the executable directory.
 -- A nil compiler selects the pinned Windows SDK copy; otherwise it is a project-relative path.
 local function stock_shader_identity_target(name, compiler, tests)
@@ -407,15 +420,9 @@ local function stock_shader_identity_target(name, compiler, tests)
             "src/Render/ShaderInjectionCompileRequest.cpp",
             "src/Render/ShaderVariantRecipe.cpp",
             "src/Utils/CSSha1.cpp",
-            "src/Utils/CSSha256.cpp",
-            "src/Utils/ShaderCompile.cpp",
-            "src/Utils/ShaderCache/CacheStorage.cpp",
-            "src/Utils/ShaderCache/CompilerIdentity.cpp",
-            "src/Utils/ShaderCache/DependencyTrace.cpp",
-            "src/Utils/ShaderCache/RevalidationContext.cpp",
-            "src/Utils/ShaderCache/ShaderRecipe.cpp",
-            "src/Utils/ShaderCache/SourceCompile.cpp"
+            "src/Utils/ShaderCompile.cpp"
         )
+        add_files(shader_cache_sources)
         add_includedirs("features/ScreenSpaceGI/src", "features/Skylighting/src")
         add_packages("spdlog", "vcpkg::directxmath", "vcpkg::tomlplusplus")
         add_syslinks("bcrypt", "d3dcompiler", "version")
@@ -455,7 +462,8 @@ target("RuntimeShaderTests", function()
     set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/RuntimeShaderTests")
     add_deps("ShaderStage")
     add_files("tests/RuntimeShaderTests.cpp", "src/Utils/ShaderCompile.cpp")
-    add_syslinks("d3dcompiler")
+    add_files(shader_cache_sources)
+    add_syslinks("bcrypt", "d3dcompiler", "version")
     after_build(stage_shader_compiler)
     add_tests("RuntimeShaderCompile", {
         runargs = { path.join(os.projectdir(), "build/ShaderStage/Shaders") },
@@ -470,17 +478,9 @@ target("ShaderCacheTests", function()
     add_files(
         "tests/ShaderCacheTests.cpp",
         "src/Render/ShaderVariantCompilation.cpp",
-        "src/Utils/CSSha256.cpp",
-        "src/Utils/ShaderCompile.cpp",
-        "src/Utils/ShaderCache/CacheRecord.cpp",
-        "src/Utils/ShaderCache/CacheStorage.cpp",
-        "src/Utils/ShaderCache/CompilerIdentity.cpp",
-        "src/Utils/ShaderCache/DependencyTrace.cpp",
-        "src/Utils/ShaderCache/RevalidationContext.cpp",
-        "src/Utils/ShaderCache/ShaderCache.cpp",
-        "src/Utils/ShaderCache/ShaderRecipe.cpp",
-        "src/Utils/ShaderCache/SourceCompile.cpp"
+        "src/Utils/ShaderCompile.cpp"
     )
+    add_files(shader_cache_sources)
     add_headerfiles(
         "src/Utils/CSSha256.h",
         "src/Utils/ShaderCompile.h",

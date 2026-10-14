@@ -127,6 +127,29 @@ namespace cs::util
 		return defines;
 	}
 
+	std::optional<shader_cache::ShaderRecipe> BuildUtilityShaderRecipe(
+		const std::filesystem::path& a_filePath,
+		const std::vector<std::pair<const char*, const char*>>& a_defines,
+		const char* a_programType,
+		const char* a_program,
+		const std::filesystem::path& a_shaderRoot,
+		std::uint32_t a_flags1)
+	{
+		shader_cache::ShaderRecipe recipe;
+		if (!a_programType || !shader_cache::TryGetShaderCacheStage(a_programType, recipe.stage))
+			return std::nullopt;
+		recipe.source = a_filePath;
+		recipe.includeRoots.push_back(a_shaderRoot);
+		recipe.defines.reserve(a_defines.size());
+		for (const auto& [name, value] : a_defines)
+			recipe.defines.emplace_back(name, value);
+		AppendStandardShaderDefines(recipe.defines, a_programType);
+		recipe.entryPoint = a_program;
+		recipe.profile = a_programType;
+		recipe.flags1 = a_flags1;
+		return recipe;
+	}
+
 	Microsoft::WRL::ComPtr<ID3DBlob> CompileShaderToBlob(
 		const wchar_t* a_filePath,
 		const std::vector<std::pair<const char*, const char*>>& a_defines,
@@ -135,14 +158,12 @@ namespace cs::util
 		std::string* a_outError,
 		const std::filesystem::path& a_shaderRoot)
 	{
-		const std::uint32_t flags =
-			D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_OPTIMIZATION_LEVEL3;
 		return CompileShaderToBlob(
 			a_filePath,
 			a_defines,
 			a_programType,
 			a_program,
-			flags,
+			kUtilityCompileFlags1,
 			a_outError,
 			a_shaderRoot);
 	}

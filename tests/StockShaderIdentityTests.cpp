@@ -4,9 +4,9 @@
 #include "Render/ShaderFamilyDescriptor.h"
 #include "Render/ShaderVariantRecipe.h"
 #include "ShaderABIChecks.h"
+#include "ShaderTestCache.h"
 #include "Utils/CSSha1.h"
 #include "Utils/CSSha256.h"
-#include "Utils/ShaderCache/SourceCompile.h"
 
 #include <algorithm>
 #include <chrono>
@@ -223,7 +223,7 @@ namespace
 		variant.stage = a_descriptor.stage;
 		variant.defines.assign(request->defines.begin(), request->defines.end());
 		const auto recipe = cs::engine::BuildShaderVariantRecipe(variant, a_shaderRoot);
-		auto compiled = cs::shader_cache::CompileSourceWithManifest(recipe);
+		auto compiled = cs::shader_test::Compile(recipe);
 		Require(compiled.succeeded, "compile-error: " + FirstErrorLine(compiled.error));
 		return compiled;
 	}
@@ -362,6 +362,7 @@ int main(int a_argc, char** a_argv)
 			std::printf("... %zu additional failures omitted\n", failed - 50);
 		for (const auto& [target, result] : targetResults)
 			std::printf("  %s: %zu passed, %zu failed\n", target.c_str(), result.first, result.second);
+		cs::shader_test::ReportCache();
 		std::printf("%s: %zu passed, %zu failed, %zu unowned, %zu total; %.3fs wall time (%u threads)\n",
 			isolated ? "Isolated feature shader corpus" : featuresOn ? "Feature-on shader corpus" :
 																	   "Stock shader identity",
