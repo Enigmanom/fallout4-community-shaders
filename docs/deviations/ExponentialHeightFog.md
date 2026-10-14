@@ -29,10 +29,11 @@ distance and is sampled at t22 beside the near t19.
 
 ## Upstream PR candidates
 
-- `src/Features/ExponentialHeightFog.cpp:653–668,709–718`: weather-variable reset defaults
-  (`originalFogColorAmount=1`, `fogDensity=0.02`, `disableVanillaFog=false`) disagree with
-  `ExponentialHeightFog.h` Settings defaults (`0`, `0.005`, `true`). Confirm intent upstream.
+- `src/Features/ExponentialHeightFog.cpp` `RegisterWeatherVariables`: weather-variable reset defaults
+  (`originalFogColorAmount=1`, `fogDensity=0.02`, `disableVanillaFog=false`) were left stale by
+  `87d4e6c2`. community-shaders/skyrim-community-shaders#2920; FO4 matches upstream until it merges.
 - `src/Features/ExponentialHeightFog.cpp:457–465`: the slice denominator is zero when
   `volumetricFogDistance = volumetricFogStartDistance + 9.5` above the camera near plane
-  (for example, start 990.5 and distance 1000, both accepted settings). Clamp the far
-  boundary beyond the offset near plane. FO4 retains the formula and rejects nonfinite dispatch data.
+  (for example, start 990.5 and distance 1000, both accepted settings). `VolumetricFogCommon.hlsli`
+  recomputes the distribution independently, so a C++ clamp alone is incomplete; constrain the
+  settings instead. Not filed. FO4 retains the formula and rejects nonfinite dispatch data.

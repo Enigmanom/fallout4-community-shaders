@@ -105,8 +105,9 @@ the host's neutral linear-color policy in the LinearLighting block.
   rather than NaN, so `invRadius` and `fadeZone` become infinite. Zero now takes the NaN fallback in
   community-shaders/skyrim-community-shaders#2915; FO4's `InverseSquareLightingMath.h` matches upstream
   until it merges.
-- `src/Utils/PerfUtils.h:41` and `ABTestAggregator.cpp:91`: implicit `size_t` to float raises C4267
-  under `/W4 /WX`; use an explicit float conversion. FO4 scopes the warning in `src/Shared/PerfUtils.h`.
+- `src/Utils/PerfUtils.h` `Mean` and `ABTestAggregator.cpp`'s duplicate `mean`: implicit `size_t` to
+  float raises C4267 under `/W4 /WX`. community-shaders/skyrim-community-shaders#2922; until it merges
+  FO4 scopes the warning in `src/Shared/PerfUtils.h` and `xmake\shared.lua`.
 - `features/Screen Space GI/Shaders/ScreenSpaceGI/gi.cs.hlsl:232`: the experimental specular
   half-angle calculation has inconsistent angular units. Upstream #2792 (adopted at `bff82b03e`)
   corrects only the blur half-angle; the pinned behavior remains.

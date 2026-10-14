@@ -20,9 +20,7 @@ port of its capture contract, not an upstream-file replacement.
   unchanged; add explicit target binding.
 - `RenderDoc.cpp:664–690`: global capture requests miss the game D3D11 frame when an interop proxy
   presents through D3D12. Expose explicit frame boundaries for the game device.
-- `RenderDoc.cpp:792–798`: `IsCapturing()` reports enabled/API availability, not recording. Use
-  `IsFrameCapturing()` for recording telemetry or rename the availability query.
-- `RenderDoc.cpp:476–537,594–643`: disk usage/inventory/deletion include every regular file, not only
-  `.rdc`. Consider filtering captures; FO4 preserves this policy and warns before confirmed deletion.
-- `RenderDoc.cpp:938–955`: an unavailable first new capture path consumes pending user comments without
-  applying them. Preserve pending comments until a successful submission; FO4 retains the pinned policy.
+- `RenderDoc.cpp`: capture disk usage, inventory and deletion include every regular file, not only
+  `.rdc`; an unavailable first new capture path consumes pending user comments; the unused
+  `IsCapturing()` reports availability, not recording. community-shaders/skyrim-community-shaders#2919;
+  FO4 retains the pinned policy until it merges.

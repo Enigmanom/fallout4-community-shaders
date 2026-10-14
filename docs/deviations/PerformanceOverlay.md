@@ -25,11 +25,13 @@ outlier/statistical rules.
 
 - `src/Features/PerformanceOverlay.cpp:1989–2001`: the measured-FG branch requires
   `!IsFrameGenerationActive()` inside an already-active block, so stable active FG always takes the 2x
-  fallback. Test timing availability/provider capability instead. FO4 preserves and labels the fallback.
-- `src/Utils/Format.cpp:215–226`, `FormatDeltaWithPercent(float,float,float)`: decreasing timings
-  render `(+−N%)` because a literal plus precedes an already signed value. Format the sign once.
-- `src/Profiler.cpp:47–54`, `Initialize`: query-creation HRESULTs are ignored before query pointers are
-  passed to the context. Check creation and release partial allocation before admitting profiling.
-- `src/Features/PerformanceOverlay.cpp:663–666`: the validity badge checks combined frame
-  count/duration without requiring samples from both A and B, so one completed 10-second TEST interval
-  can read valid before USER has samples. Require coverage of both variants.
+  fallback. `e1340ed9` generalized an FSR-only exclusion into this check, and
+  `DX12SwapChain::GetFrameTime` measures between calls rather than generated presents, so dropping the
+  negation would show a misleading value. Needs a real post-FG measurement; not filed. FO4 preserves and
+  labels the fallback.
+- `src/Profiler.cpp` `Initialize`: query-creation HRESULTs are ignored before query pointers are
+  passed to the context. community-shaders/skyrim-community-shaders#2921.
+- `src/Features/PerformanceOverlay.cpp` `DrawABTestStatisticalValidity`: the valid and marginal tiers
+  accept samples from one variant, so a run stopped before the first switch reads valid or marginal
+  with no USER samples. community-shaders/skyrim-community-shaders#2918; FO4 matches upstream until it
+  merges.
