@@ -62,13 +62,13 @@ namespace cs::features
 	void UnifiedWater::OnPostPostLoad()
 	{
 		// FO4: terrain and worldspace cleanup have distinct native signatures.
-		stl::detour_thunk<Attach>(engine::water::id::Attach);
-		stl::detour_thunk<Detach>(engine::water::id::Detach);
-		stl::detour_thunk<Visibility>(engine::water::id::Visibility);
-		stl::detour_thunk<SetWorldSpace>(engine::water::id::SetWorldSpace);
-		stl::detour_thunk<ReleaseWorld>(engine::water::id::ReleaseWorld);
-		stl::detour_thunk<UpdateDisplacement>(engine::water::id::UpdateDisplacement);
-		stl::detour_thunk<UpdateWaterSystem>(engine::water::id::UpdateWaterSystem);
+		stl::detour_thunk<Attach>(RE::ID::BGSTerrainChunk::Attach);
+		stl::detour_thunk<Detach>(RE::ID::BGSTerrainChunk::Detach);
+		stl::detour_thunk<Visibility>(RE::ID::BGSTerrainNode::UpdateWaterVisibility);
+		stl::detour_thunk<SetWorldSpace>(RE::ID::TES::SetWorldSpace);
+		stl::detour_thunk<ReleaseWorld>(RE::ID::TESWorldSpace::ReleaseLowResMaxHeightData);
+		stl::detour_thunk<UpdateDisplacement>(RE::ID::TESWaterSystem::UpdateWaterDisplacementGeometry);
+		stl::detour_thunk<UpdateWaterSystem>(RE::ID::TESWaterSystem::UpdateWaterSystem);
 		if (!engine::water::InstallTileWaterOverride())
 			throw std::runtime_error("Unified Water AddLODWater call site did not match.");
 		if (!Attach::func.address() || !Detach::func.address() || !Visibility::func.address() ||
@@ -319,7 +319,7 @@ namespace cs::features
 		}
 	}
 
-	void UnifiedWater::UpdateWaterSystem::thunk(engine::water::WaterSystem* a_system, void* a_process)
+	void UnifiedWater::UpdateWaterSystem::thunk(engine::water::WaterSystem* a_system, RE::BSCullingProcess* a_process)
 	{
 		// FO4: runs every frame, so live toggles apply with a static camera.
 		GetSingleton()->ApplyEnabledState();

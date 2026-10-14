@@ -1,11 +1,14 @@
 #pragma once
 
+#include "RE/B/BGSTerrainChunk.h"
 #include "RE/B/BGSTerrainManager.h"
+#include "RE/B/BGSTerrainNode.h"
 #include "RE/B/BSMultiBoundNode.h"
 #include "RE/B/BSTArray.h"
 #include "RE/N/NiNode.h"
 #include "RE/T/TESFile.h"
 #include "RE/T/TESWaterForm.h"
+#include "RE/T/TESWaterSystem.h"
 #include "RE/T/TESWorldSpace.h"
 
 #include <cstdint>
@@ -13,45 +16,9 @@
 
 namespace cs::engine::water
 {
-	namespace id
-	{
-		inline constexpr REL::VariantID Attach{ 1118335, 2213538, 2213538 };
-		inline constexpr REL::VariantID Detach{ 824959, 2213540, 2213540 };
-		inline constexpr REL::VariantID Visibility{ 529133, 2213664, 2213664 };
-		inline constexpr REL::VariantID SetWorldSpace{ 1217659, 2192046, 2192046 };
-		inline constexpr REL::VariantID ReleaseWorld{ 1484325, 2202930, 2202930 };
-		inline constexpr REL::VariantID UpdateDisplacement{ 281128, 2213930, 2213930 };
-		inline constexpr REL::VariantID UpdateWaterSystem{ 1496807, 2213929, 2213929 };
-	}
-	struct WaterSystem;
-	// FO4: these native terrain types are absent from the pinned CommonLibF4 API.
-	struct TerrainNode
-	{
-		RE::BGSTerrainManager* manager;
-		std::byte reserved[0x38];
-		std::uint32_t flags;
-		std::uint32_t index;
-		std::int16_t baseCellX;
-		std::int16_t baseCellY;
-
-		std::uint32_t GetLODLevel() const noexcept { return (flags >> 21) & 0x3FC; }
-	};
-	static_assert(offsetof(TerrainNode, flags) == 0x40);
-	static_assert(offsetof(TerrainNode, baseCellX) == 0x48);
-
-	struct TerrainChunk
-	{
-		TerrainNode* node;
-		RE::NiPointer<RE::BSMultiBoundNode> land;
-		RE::NiPointer<RE::BSMultiBoundNode> water;
-		RE::NiPointer<RE::NiNode> chunk;
-		bool loaded;
-		bool attached;
-		bool waterAttached;
-		bool prepared;
-	};
-	static_assert(offsetof(TerrainChunk, water) == 0x10);
-	static_assert(offsetof(TerrainChunk, loaded) == 0x20);
+	using WaterSystem = RE::TESWaterSystem;
+	using TerrainNode = RE::BGSTerrainNode;
+	using TerrainChunk = RE::BGSTerrainChunk;
 
 	struct TileWater
 	{
