@@ -73,30 +73,23 @@ namespace cs::features::unified_water
 		const auto lodMaxX = GetLODCoord(lodLevel, maxX);
 		const auto lodMaxY = GetLODCoord(lodLevel, maxY);
 		std::vector<bool> processed(lodLevel * lodLevel);
-		// Loop over all lod chunks
 		for (auto lodY = lodMinY; lodY <= lodMaxY; ++lodY) {
 			for (auto lodX = lodMinX; lodX <= lodMaxX; ++lodX) {
-				// Chunk base coordinates
 				const auto baseX = lodX * lodLevel - minX;
 				const auto baseY = lodY * lodLevel - minY;
 				std::ranges::fill(processed, false);
-				// Loop over all cells within the chunk
 				for (std::int32_t localY = 0; localY < lodLevel; ++localY) {
 					for (std::int32_t localX = 0; localX < lodLevel; ++localX) {
 						const auto localIndex = static_cast<std::size_t>(localY * lodLevel + localX);
-						// Skip any processed cells
 						if (processed[localIndex])
 							continue;
-						// Array relative cell coordinates
 						const auto cellX = baseX + localX;
 						const auto cellY = baseY + localY;
-						// Skip any cells outside the map
 						if (cellX < 0 || cellX >= width || cellY < 0 || cellY >= height) {
 							processed[localIndex] = true;
 							continue;
 						}
 						const auto& target = cellData[cellY * width + cellX];
-						// Skip any cells without water
 						if (!target.formID) {
 							processed[localIndex] = true;
 							continue;
@@ -104,8 +97,7 @@ namespace cs::features::unified_water
 						std::int32_t size = 1;
 						std::int32_t maxSize = 1;
 						if (lodLevel > 4) {
-							// For LOD 4 we don't want combined meshes, they need to be toggled off as real cells load
-							// For others, size can only grow to what's left in the chunk or the maximum map dimensions
+							// LOD4 stays per-cell; larger LODs respect chunk/map bounds.
 							maxSize = std::min({ lodLevel - localX, lodLevel - localY, width - cellX, height - cellY });
 						}
 						const auto matches = [&](std::int32_t x, std::int32_t y) {
@@ -116,7 +108,6 @@ namespace cs::features::unified_water
 						// Try to grow to the largest square possible starting at localX/localY
 						for (std::int32_t candidateSize = 2; candidateSize <= maxSize; ++candidateSize) {
 							bool failed = false;
-							// Check new top row
 							const auto row = localY + candidateSize - 1;
 							for (std::int32_t dx = 0; dx < candidateSize; ++dx)
 								if (!matches(localX + dx, row)) {
@@ -125,7 +116,7 @@ namespace cs::features::unified_water
 								}
 							if (failed)
 								break;
-							// Check new right column, excluding the corner already checked above
+							// Exclude the corner already checked in the top row.
 							const auto column = localX + candidateSize - 1;
 							for (std::int32_t dy = 0; dy < candidateSize - 1; ++dy)
 								if (!matches(column, localY + dy)) {
@@ -134,22 +125,18 @@ namespace cs::features::unified_water
 								}
 							if (failed)
 								break;
-							// Success for this candidate size
 							size = candidateSize;
 						}
-						// Mark all cells within this group as processed
 						for (auto yy = localY; yy < localY + size; ++yy)
 							for (auto xx = localX; xx < localX + size; ++xx)
 								processed[yy * lodLevel + xx] = true;
 						Instruction instruction;
 						instruction.lodLevel = lodLevel;
 						instruction.form.id = target.formID;
-						// Convert back to game cell coords
 						instruction.x = cellX + minX;
 						instruction.y = cellY + minY;
 						instruction.size = size;
 						instruction.waterHeight = target.water;
-						// Add new instruction to list
 						instructions.push_back(instruction);
 					}
 				}

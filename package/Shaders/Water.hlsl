@@ -316,12 +316,13 @@ float3 unpackNormal(float2 texel)
 	return float3(tangent, sqrt(1.0 - min(dot(tangent, tangent), 1.0)));
 }
 
-// FO4: share the upstream distance blend across surface, underwater, specular and SSLR normals.
+// FO4: share the optical distance blend across all water consumers.
 float WaterDistanceBlendFactor(float distanceFactor)
 {
 	float distanceBlendFactor = distanceFactor;
 #	if defined(UNIFIED_WATER)
-	distanceBlendFactor = 1.0f;
+	if (FO4SharedData::EnabledUnifiedWater != 0)
+		distanceBlendFactor = 1.0f;
 #	endif
 	return distanceBlendFactor;
 }

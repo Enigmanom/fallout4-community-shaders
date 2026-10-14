@@ -1,4 +1,4 @@
-"""Translate the pinned Unified Water tile's stream, preserving geometry and UVs."""
+# Translate the pinned tile stream without changing geometry or UVs.
 
 from pathlib import Path
 import struct
@@ -58,10 +58,10 @@ def convert(source: Path, destination: Path):
         (-2048.0, -2048.0, 0.0), (2048.0, -2048.0, 0.0),
         (2048.0, 2048.0, 0.0), (-2048.0, 2048.0, 0.0),
     ]
-    # FO4: SSE's float positions require the full-precision attribute and a uint32 triangle count.
+    # FO4: float positions need full precision; triangle counts are uint32.
     descriptor |= 0x400 << 44
     blocks[2] = shape[:100] + struct.pack("<QIHI", descriptor, triangles, vertices, 124) + vertex_bytes + triangle_bytes
-    # FO4: no SSE particle-data suffix; stream130 adds a Max Filepath export string.
+    # FO4: replace the particle suffix with stream130's export string.
     exports.append(b"\0")
     result = bytearray(prefix + struct.pack("<IBIII", version, endian, user, count, 130))
     for text in exports:

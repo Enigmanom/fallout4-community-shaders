@@ -59,6 +59,13 @@ namespace cs
 	};
 	static_assert(sizeof(ScreenSpaceGIFeatureData) == 16);
 
+	struct alignas(16) UnifiedWaterFeatureData
+	{
+		std::uint32_t Enabled = 0;
+		std::uint32_t pad0[3]{};
+	};
+	static_assert(sizeof(UnifiedWaterFeatureData) == 16);
+
 	struct alignas(16) FeatureDataCB
 	{
 		TerrainShadowsFeatureData terrainShadowsSettings;
@@ -70,8 +77,9 @@ namespace cs
 		SkylightingFeatureData skylightingSettings;
 		ScreenSpaceGIFeatureData screenSpaceGISettings;
 		render::IBLSettings iblSettings;
+		UnifiedWaterFeatureData unifiedWaterSettings;
 	};
-	static_assert(sizeof(FeatureDataCB) == 608);
+	static_assert(sizeof(FeatureDataCB) == 624);
 	static_assert(sizeof(FeatureDataCB) % 16 == 0);
 	static_assert(offsetof(FeatureDataCB, terrainShadowsSettings) == 0);
 	static_assert(offsetof(TerrainShadowsFeatureData, EnableTerrainShadow) == 0);
@@ -86,6 +94,7 @@ namespace cs
 	static_assert(offsetof(FeatureDataCB, terrainVariationSettings) == 352);
 	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 384);
 	static_assert(offsetof(FeatureDataCB, iblSettings) == 560);
+	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 608);
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 

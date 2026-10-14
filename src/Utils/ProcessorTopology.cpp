@@ -2,11 +2,10 @@
 
 namespace Util
 {
-	// FO4: port only topology; upstream's unrelated version reader assumes a Unicode PCH.
+	// FO4: omit upstream's version reader, which requires a Unicode PCH.
 	uint32_t GetPerformanceCoreCount()
 	{
 		// Cache the result — CPU topology never changes at runtime.
-		// C++11 guarantees thread-safe initialisation of static locals.
 		static const uint32_t cached = []() -> uint32_t {
 			const uint32_t fallback = std::max(1u, std::thread::hardware_concurrency());
 			DWORD size = 0;

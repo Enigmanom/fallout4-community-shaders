@@ -38,8 +38,20 @@ namespace cs::features
 		return &instance;
 	}
 
+	cs::UnifiedWaterFeatureData UnifiedWater::GetCommonBufferData() const
+	{
+		cs::UnifiedWaterFeatureData data{};
+		data.Enabled = _ready.load(std::memory_order_acquire) &&
+		                       _injections.load(std::memory_order_acquire) &&
+		                       IsEnabled() ?
+		                   1u :
+		                   0u;
+		return data;
+	}
+
 	void UnifiedWater::Load()
 	{
+		_appliedEnabled.store(IsEnabled());
 		if (!engine::RegisterFeatureShaderBindings("UnifiedWater", *this)) {
 			FailLoad("Unified Water shader contribution registration failed.");
 			return;
@@ -49,15 +61,17 @@ namespace cs::features
 
 	void UnifiedWater::OnPostPostLoad()
 	{
-		// FO4: native terrain chunks and worldspace cleanup have distinct types and signatures.
+		// FO4: terrain and worldspace cleanup have distinct native signatures.
 		stl::detour_thunk<Attach>(engine::water::id::Attach);
 		stl::detour_thunk<Detach>(engine::water::id::Detach);
 		stl::detour_thunk<Visibility>(engine::water::id::Visibility);
 		stl::detour_thunk<SetWorldSpace>(engine::water::id::SetWorldSpace);
 		stl::detour_thunk<ReleaseWorld>(engine::water::id::ReleaseWorld);
 		stl::detour_thunk<UpdateDisplacement>(engine::water::id::UpdateDisplacement);
+		stl::detour_thunk<UpdateTerrain>(engine::water::id::UpdateTerrain);
 		if (!Attach::func.address() || !Detach::func.address() || !Visibility::func.address() ||
-			!SetWorldSpace::func.address() || !ReleaseWorld::func.address() || !UpdateDisplacement::func.address()) {
+			!SetWorldSpace::func.address() || !ReleaseWorld::func.address() ||
+			!UpdateDisplacement::func.address() || !UpdateTerrain::func.address()) {
 			throw std::runtime_error("Unified Water native hook installation failed.");
 		}
 		_hooks.store(true, std::memory_order_release);
@@ -120,13 +134,20 @@ namespace cs::features
 	void UnifiedWater::Attach::thunk(Chunk* a_chunk)
 	{
 		auto& self = *GetSingleton();
+		const std::scoped_lock lock(self._mutex);
+		self.ApplyEnabledState();
 		if (!self._ready.load(std::memory_order_acquire) || !a_chunk || !a_chunk->loaded || a_chunk->attached ||
 			!a_chunk->chunk || !a_chunk->water || !a_chunk->node || !a_chunk->node->manager) {
 			func(a_chunk);
 			return;
 		}
-		// FO4: Prepare must finish before replacement; native Attach otherwise overwrites tile properties.
+		// FO4: Prepare first so Attach cannot overwrite tile properties.
 		engine::water::Prepare(a_chunk);
+		self._attached.insert(a_chunk);
+		if (!self._appliedEnabled.load(std::memory_order_acquire)) {
+			self.AttachVanilla(a_chunk);
+			return;
+		}
 		const auto node = a_chunk->node;
 		const auto result = self._cache.GetInstructions(node->manager->world, node->GetLODLevel(), node->baseCellX, node->baseCellY);
 		const auto parent = a_chunk->water.get();
@@ -160,7 +181,7 @@ namespace cs::features
 			self.AttachVanilla(a_chunk);
 			return;
 		}
-		// FO4: the validated attach gate also skips unchecked segment getters on ordinary tiles.
+		// FO4: the attach gate bypasses unchecked tile segment getters.
 		func(a_chunk);
 		engine::water::ReserveWaterObjects(static_cast<std::uint32_t>(built.size()));
 		bool initialized = true;
@@ -185,10 +206,7 @@ namespace cs::features
 			self._vanillaFallbacks.fetch_add(1);
 			return;
 		}
-		{
-			const std::scoped_lock lock(self._mutex);
-			self._managed.insert_or_assign(parent, std::move(managed));
-		}
+		self._managed.insert_or_assign(parent, std::move(managed));
 		RE::NiUpdateData update{};
 		parent->Update(update);
 		engine::water::EnableWaterSystem();
@@ -203,11 +221,12 @@ namespace cs::features
 			return;
 		}
 		auto& self = *GetSingleton();
+		const std::scoped_lock lock(self._mutex);
+		self._attached.erase(a_chunk);
 		RE::NiPointer<RE::BSMultiBoundNode> water = a_chunk->water;
 		ManagedWater managed;
 		bool owned = false;
 		{
-			const std::scoped_lock lock(self._mutex);
 			const auto it = self._managed.find(water.get());
 			if (it != self._managed.end()) {
 				managed = std::move(it->second);
@@ -215,14 +234,17 @@ namespace cs::features
 				owned = true;
 			}
 		}
-		if (!owned) {
+		if (!owned && !self._applying) {
 			func(a_chunk);
 			return;
 		}
+		if (!owned)
+			engine::water::UnregisterVanillaWater(a_chunk);
 		// Hide UW-managed water from vanilla detach so it does not delete it
 		a_chunk->water = nullptr;
 		func(a_chunk);
-		self.RestoreOriginal(water.get(), managed);
+		if (owned)
+			self.RestoreOriginal(water.get(), managed);
 		if (const auto root = engine::water::GetWaterLOD())
 			root->DetachChild(water.get());
 		// Park water under the detached chunk so block->water stays valid
@@ -244,7 +266,7 @@ namespace cs::features
 		}
 		const std::scoped_lock lock(self._mutex);
 		const auto it = self._managed.find(a_parent);
-		// FO4: never forward a mixed parent to native's unchecked segment-data traversal.
+		// FO4: mixed parents cannot use unchecked native segment traversal.
 		engine::water::UpdateVisibility(a_node, a_parent, it != self._managed.end() ? std::span<const engine::water::TileCell>{ it->second.tiles } : std::span<const engine::water::TileCell>{});
 		self._visibilityUpdates.fetch_add(1);
 	}
@@ -269,6 +291,36 @@ namespace cs::features
 	{
 		func(a_system);
 		GetSingleton()->UpdateWaterLODCull();
+	}
+
+	void UnifiedWater::ApplyEnabledState()
+	{
+		const std::scoped_lock lock(_mutex);
+		const auto enabled = IsEnabled();
+		if (!_ready.load(std::memory_order_acquire) || _applying ||
+			enabled == _appliedEnabled.load(std::memory_order_acquire))
+			return;
+		// FO4: rebuild at native terrain timing, never on the settings thread.
+		const std::vector<Chunk*> chunks(_attached.begin(), _attached.end());
+		struct ApplyingScope
+		{
+			bool& applying;
+			~ApplyingScope() { applying = false; }
+		} scope{ _applying };
+		_applying = true;
+		_appliedEnabled.store(enabled, std::memory_order_release);
+		for (const auto chunk : chunks) {
+			Detach::thunk(chunk);
+			Attach::thunk(chunk);
+		}
+	}
+
+	void UnifiedWater::UpdateTerrain::thunk(Node* a_node,
+		const RE::NiPoint3& a_position, RE::TESObjectCELL* a_cell,
+		std::uint32_t a_contentMask)
+	{
+		GetSingleton()->ApplyEnabledState();
+		func(a_node, a_position, a_cell, a_contentMask);
 	}
 
 	void UnifiedWater::UpdateWaterLODCull() const
@@ -314,6 +366,7 @@ namespace cs::features
 	{
 		const auto progress = _cache.GetProgress();
 		a_sink.Field("operational", _ready.load() && _injections.load())
+			.Field("applied_enabled", _appliedEnabled.load())
 			.Field("hooks_ready", _hooks.load())
 			.Field("cache_ready", _cache.IsReady())
 			.Field("cache_total", progress.total)

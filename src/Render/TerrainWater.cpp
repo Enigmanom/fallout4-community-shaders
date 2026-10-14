@@ -113,7 +113,7 @@ namespace cs::engine::water
 
 		bool ReadChunk(RE::TESFile* a_file, void* a_data, std::uint32_t a_size)
 		{
-			// FO4: smaller capacities silently produce a NUL-terminated prefix, not a complete record.
+			// FO4: undersized buffers silently return truncated records.
 			return a_file->actualChunkSize == a_size && a_file->GetChunkData(a_data, a_size);
 		}
 	}
@@ -126,7 +126,7 @@ namespace cs::engine::water
 
 	bool DisableVanillaWaterLOD()
 	{
-		// Skip iterating attached meshes and calling TESWaterSystem::AddLODWater, this is handled in Attach now
+		// Attach owns terrain water registration.
 		static REL::Relocation<std::uintptr_t> attach{ REL::VariantID{ 1118335, 2213538, 2213538 } };
 		static REL::Relocation<std::uintptr_t> registration{ REL::VariantID{ 748921, 2213558, 2213558 } };
 		const std::array addresses{ attach.address() + 0x103, registration.address() + (REX::FModule::IsRuntimeOG() ? 0x67 : 0x10B) };
@@ -170,6 +170,27 @@ namespace cs::engine::water
 		root->Update(update);
 	}
 
+	void UnregisterVanillaWater(TerrainChunk* a_chunk)
+	{
+		using Fn = void (*)(void*, RE::NiAVObject*, RE::NiNode*,
+			RE::BSMultiBoundNode*);
+		static REL::Relocation<Fn> fn{
+			REL::VariantID{ 1357255, 2213948, 2213948 }
+		};
+		const auto root = GetWaterLOD();
+		if (!a_chunk->water || !System())
+			return;
+		EnableWaterSystem();
+		for (const auto& child : a_chunk->water->children) {
+			if (!child)
+				continue;
+			if (root)
+				fn(System(), child.get(), root, a_chunk->water.get());
+			else
+				RemoveWater(child.get());
+		}
+	}
+
 	void ReserveWaterObjects(std::uint32_t a_count)
 	{
 		const auto system = System();
@@ -188,7 +209,6 @@ namespace cs::engine::water
 		const std::scoped_lock guard(Member<RE::BSSpinLock>(system, 0x118));
 		if (!AddWater(system, a_shape, a_form, a_height))
 			return false;
-		// Remove from WaterSystem, will manage it ourselves
 		auto& objects = Member<Objects>(system, 0x18);
 		if (objects.empty() || objects.back()->geometry.get() != a_shape) {
 			EnableWaterSystem();
@@ -206,7 +226,7 @@ namespace cs::engine::water
 	void ConfigureTileProperty(RE::BSGeometry* a_shape)
 	{
 		if (const auto property = a_shape->properties[1].get()) {
-			// FO4: retain the native reflection path; its stock archive has no CUBEMAP techniques.
+			// FO4: preserve native reflections; no CUBEMAP technique exists.
 			auto& flags = Member<std::uint32_t>(property, 0x70);
 			flags = (flags & ~0x2u) | 0xC4u;
 		}

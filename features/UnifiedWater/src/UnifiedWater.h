@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Feature.h"
+#include "FeatureBuffer.h"
 #include "RE/B/BSTriShape.h"
 #include "Render/TerrainWater.h"
 #include "ShaderDefines.h"
@@ -9,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace cs::features
 {
@@ -24,6 +26,7 @@ namespace cs::features
 			return "Replaces distant terrain water tiles with close water and unifies their optical distance response. Placed water retains its vanilla distance rendering.";
 		}
 		void Load() override;
+		cs::UnifiedWaterFeatureData GetCommonBufferData() const;
 		void OnPostPostLoad() override;
 		void OnDataLoaded() override;
 		void DrawSettings() override;
@@ -71,14 +74,24 @@ namespace cs::features
 			static void thunk(engine::water::WaterSystem* a_system);
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
+		struct UpdateTerrain
+		{
+			static void thunk(Node* a_node, const RE::NiPoint3& a_position,
+				RE::TESObjectCELL* a_cell, std::uint32_t a_contentMask);
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+		void ApplyEnabledState();
 		void UpdateWaterLODCull() const;
 		void RestoreOriginal(RE::BSMultiBoundNode* a_parent, ManagedWater& a_water);
 		void AttachVanilla(Chunk* a_chunk, bool a_alreadyAttached = false);
 
 		RE::NiPointer<RE::BSTriShape> _mesh;
 		unified_water::WaterCache _cache;
-		std::mutex _mutex;
+		std::recursive_mutex _mutex;
 		std::unordered_map<RE::NiNode*, ManagedWater> _managed;
+		std::unordered_set<Chunk*> _attached;
+		std::atomic_bool _appliedEnabled{ true };
+		bool _applying = false;
 		std::atomic_bool _ready{ false };
 		std::atomic_bool _registrations{ false };
 		std::atomic_bool _hooks{ false };

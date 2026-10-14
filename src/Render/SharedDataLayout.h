@@ -99,7 +99,8 @@ namespace cs::render
 		std::uint32_t EnabledWaterParallax = 0;
 		std::uint32_t EnabledTerrainVariation = 0;
 		std::uint32_t EnabledSkylighting = 0, EnabledScreenSpaceGI = 0;
-		std::uint32_t pad0[2]{};
+		std::uint32_t EnabledUnifiedWater = 0;
+		std::uint32_t pad0 = 0;
 	};
 	static_assert(sizeof(FO4SharedDataCB) == 64);
 	static_assert(offsetof(FO4SharedDataCB, DebugOwner) == 0);
@@ -113,6 +114,8 @@ namespace cs::render
 	static_assert(offsetof(FO4SharedDataCB, EnabledTerrainVariation) == 44);
 	static_assert(offsetof(FO4SharedDataCB, EnabledSkylighting) == 48);
 	static_assert(offsetof(FO4SharedDataCB, EnabledScreenSpaceGI) == 52);
+	static_assert(offsetof(FO4SharedDataCB, EnabledUnifiedWater) == 56);
+	static_assert(offsetof(FO4SharedDataCB, pad0) == 60);
 
 	[[nodiscard]] inline FrameDataCB PackFrameData(
 		const engine::WorldCameraRecord& a_camera, DirectX::XMFLOAT2 a_ratio,

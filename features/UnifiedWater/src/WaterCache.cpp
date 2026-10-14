@@ -30,10 +30,7 @@ namespace cs::features::unified_water
 			return a_id ? RE::TESForm::GetFormByID<RE::TESWaterForm>(a_id) : nullptr;
 		}
 
-		// Permissive sharing so a lingering handle on UWLoadOrder.hash never blocks a
-		// later attempt with ERROR_SHARING_VIOLATION - reproduced directly: writes to
-		// Data/ root failed while the game was running. The retry only helps a
-		// transient locker (AV/indexer), not a persistent one.
+		// Permissive sharing and retries tolerate transient hash-file locks.
 		constexpr int kShareRetries = 3;
 		constexpr DWORD kShareRetryDelayMs = 50;
 
@@ -97,7 +94,7 @@ namespace cs::features::unified_water
 			}
 		};
 		const auto handler = RE::TESDataHandler::GetSingleton();
-		// FO4: the compiled-file collection includes normal and light plugins in load order.
+		// FO4: compiled files include normal and light plugins in load order.
 		for (const auto file : handler->compiledFileCollection.files)
 			if (file)
 				add(file->GetFilename());
@@ -143,7 +140,6 @@ namespace cs::features::unified_water
 	{
 		auto cache = std::make_shared<RuntimeCache>();
 		cache->bounds = a_header.bounds;
-		// For LOD4, 8, 16 and 32
 		cache->instructions.resize(4);
 		for (std::uint32_t lodIndex = 0; lodIndex < 4; ++lodIndex) {
 			const auto level = 1 << (lodIndex + 2);
@@ -231,7 +227,7 @@ namespace cs::features::unified_water
 
 	void WaterCache::ReadSnapshots()
 	{
-		// FO4: native cursors are not synchronized with vanilla; snapshot them at DataLoaded, never on cache workers.
+		// FO4: snapshot unsynchronized native cursors before terrain streaming.
 		for (const auto world : GetValidWorldSpaces()) {
 			if (!world->editorID.c_str() || !*world->editorID.c_str())
 				continue;
@@ -258,7 +254,7 @@ namespace cs::features::unified_water
 						continue;
 					if (IsValidCellHeight(water) && IsValidCellHeight(land) && water > land) {
 						if (!formID)
-							formID = world->worldWater->GetFormID();  // Use default world water if no water form set
+							formID = world->worldWater->GetFormID();
 					} else {
 						// Discard invalid tiles before they can generate floating water planes
 						formID = 0;
@@ -327,7 +323,7 @@ namespace cs::features::unified_water
 						auto header = snapshot.header;
 						header.dataCount = static_cast<std::int32_t>(instructions.size());
 						if (WriteCache(snapshot.name, header, instructions)) {
-							// FO4: workers use the immutable DataLoaded WATR census, never engine form lookup.
+							// FO4: workers use immutable WATR snapshots, not engine lookup.
 							auto cache = BuildRuntimeCache(header, std::move(instructions), &_forms);
 							const std::scoped_lock lock(publication);
 							caches->emplace(snapshot.name, std::move(cache));

@@ -8,6 +8,7 @@
 #include "Skylighting.h"
 #include "TerrainShadows.h"
 #include "TerrainVariation.h"
+#include "UnifiedWater.h"
 #include "WaterEffects.h"
 
 namespace cs
@@ -52,7 +53,10 @@ namespace cs
 					features::ScreenSpaceGI::GetSingleton()),
 			.iblSettings =
 				CollectFeatureData<render::IBLSettings>(
-					features::ImageBasedLighting::GetSingleton())
+					features::ImageBasedLighting::GetSingleton()),
+			.unifiedWaterSettings =
+				CollectFeatureData<UnifiedWaterFeatureData>(
+					features::UnifiedWater::GetSingleton())
 		};
 	}
 }
