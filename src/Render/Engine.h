@@ -5,6 +5,7 @@
 #include "RE/I/ImageSpaceEffect.h"
 #include "RE/I/ImageSpaceManager.h"
 #include "RE/I/Interface3D.h"
+#include "RE/N/NiTexture.h"
 #include "RE/S/SceneGraph.h"
 #include "Render/FrameBuffer.h"
 #include "Render/RendererContext.h"
@@ -521,6 +522,15 @@ namespace cs::engine
 	{
 		auto* target = ResolveRenderTarget(a_renderTarget);
 		return target ? reinterpret_cast<ID3D11UnorderedAccessView*>(target->uaView) : nullptr;
+	}
+
+	// BSGraphics::Texture embeds its TextureHeader at +0x28 on OG, NG and AE.
+	[[nodiscard]] inline DXGI_FORMAT GetTextureFormat(const RE::NiTexture* a_texture) noexcept
+	{
+		const auto* texture = a_texture ? reinterpret_cast<const std::byte*>(a_texture->rendererTexture) : nullptr;
+		return texture ?
+		           static_cast<DXGI_FORMAT>(reinterpret_cast<const RE::BSGraphics::TextureHeader*>(texture + 0x28)->format) :
+		           DXGI_FORMAT_UNKNOWN;
 	}
 
 	[[nodiscard]] inline ID3D11Texture2D* GetRenderTargetTexture(RenderTarget a_renderTarget)

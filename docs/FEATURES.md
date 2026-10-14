@@ -84,8 +84,8 @@ are FO4-only rule-4 core features.
   textures carry no height, but FO4 parallax texture packs store it in the `_s` (specular/smoothness) alpha,
   which `DFPrepass` already binds at t2 (landscape t8+). Reading it is a relocated upstream datum, so the
   slice is core. No draw identifies a parallax material: the engine drops the BGSM parallax flag and no
-  prepass bit or constant carries one, so objects march ungated on the flat-alpha convention until a host
-  classifier recovers that flag. Terrain shares Terrain Variation's UV offsets.
+  prepass bit or constant carries one, so the host admits objects whose `_s` format stores alpha until the
+  BGSM flag is recovered. Terrain shares Terrain Variation's UV offsets.
 - **Subsurface Scattering.** Replace FO4's fixed second-composite blur with upstream separable/Burley on
   native class-5 eligibility; never stack both.
 - **Cloud Shadows.** Prior art on branch `cloud-shadows` (`3314d567`) maps material pointers to layers;

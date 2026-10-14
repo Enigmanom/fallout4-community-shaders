@@ -659,10 +659,9 @@ struct PS_OUTPUT
 		displacementParams[0].FlattenAmount = 0;
 #		else
 		float mipLevel = 0;
-		// FO4: packs author alpha 255 as the surface; -0.5 makes it the zero plane.
 		DisplacementParams displacementParams;
 		displacementParams.DisplacementScale = 1.f;
-		displacementParams.DisplacementOffset = -0.5f;
+		displacementParams.DisplacementOffset = 0.f;
 		displacementParams.HeightScale = 1;
 		displacementParams.FlattenAmount = 0;
 #		endif
@@ -701,7 +700,7 @@ struct PS_OUTPUT
 #	endif
 
 #	if defined(EMAT_OBJECT)
-		// FO4: no parallax flag exists; cb2_pad.z marks non-LOD meshes.
+		// FO4: cb2_pad.z marks non-LOD meshes whose _s format stores alpha.
 		if (SharedData::extendedMaterialSettings.EnableParallax && cb2_pad.z != 0.0) {
 			mipLevel = ExtendedMaterials::GetMipLevel(uv, g_tMaterial);
 			uv = ExtendedMaterials::GetParallaxCoords(viewPosition.z, uv, mipLevel, viewDirection, tbnTr, screenNoise, g_tMaterial, g_sMaterial, 3, displacementParams, applyMeshTV, meshOffset, pixelOffset);

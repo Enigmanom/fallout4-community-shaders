@@ -10,6 +10,7 @@
 #include "Log.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
+#include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/ObjectLOD.h"
 #include "Render/ShaderInjection.h"
@@ -18,7 +19,10 @@
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 
+#include "RE/B/BSLightingShaderMaterialBase.h"
+#include "RE/B/BSLightingShaderProperty.h"
 #include "RE/B/BSRenderPass.h"
+#include "RE/N/NiRTTI.h"
 
 namespace cs::features
 {
@@ -26,10 +30,34 @@ namespace cs::features
 	{
 		auto* L = cs::log::Get("cs.feature.extendedmaterials");
 
-		// FO4: no parallax flag exists; only object LOD is kept out, as upstream.
+		// Height lives in the _s alpha, so only formats that store alpha can carry it.
+		[[nodiscard]] bool HasAlphaChannel(DXGI_FORMAT a_format) noexcept
+		{
+			switch (a_format) {
+			case DXGI_FORMAT_BC2_UNORM:
+			case DXGI_FORMAT_BC2_UNORM_SRGB:
+			case DXGI_FORMAT_BC3_UNORM:
+			case DXGI_FORMAT_BC3_UNORM_SRGB:
+			case DXGI_FORMAT_BC7_UNORM:
+			case DXGI_FORMAT_BC7_UNORM_SRGB:
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+			case DXGI_FORMAT_B8G8R8A8_UNORM:
+			case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+				return true;
+			default:
+				return false;
+			}
+		}
+
+		// FO4: no parallax flag exists, so the _s format stands in; object LOD stays out, as upstream.
 		bool IsParallaxEligible(RE::BSRenderPass* a_pass, cs::engine::PrepassBakePath) noexcept
 		{
-			return !cs::engine::IsObjectLODShape(a_pass);
+			if (cs::engine::IsObjectLODShape(a_pass))
+				return false;
+			const auto* property = netimmerse_cast<RE::BSLightingShaderProperty*>(a_pass->GetShaderProperty());
+			const auto* material = property ? static_cast<const RE::BSLightingShaderMaterialBase*>(property->material) : nullptr;
+			return material && HasAlphaChannel(cs::engine::GetTextureFormat(material->smoothnessSpecMaskTexture.get()));
 		}
 	}
 
