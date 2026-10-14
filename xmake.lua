@@ -426,7 +426,7 @@ local function stock_shader_identity_target(name, compiler, tests)
                 runargs = {
                     path.join(os.projectdir(), "build/ShaderStage/Shaders"),
                     path.join(os.projectdir(), "tests/data", spec.file),
-                    spec.features and "--features-on" or nil
+                    spec.mode
                 },
                 run_timeout = 600000
             })
@@ -436,9 +436,10 @@ end
 
 stock_shader_identity_target("StockShaderIdentityTests", nil, {
     StockShaderIdentity = { file = "stock-shader-identity.tsv" },
-    FeatureShaderCompile = { file = "stock-shader-identity.tsv", features = true },
+    FeatureShaderCompile = { file = "stock-shader-identity.tsv", mode = "--features-on" },
+    FeatureShaderIsolated = { file = "stock-shader-identity.tsv", mode = "--features-isolated" },
     -- OG recipes compile at runtime with the system compiler, so feature coverage uses it too.
-    FeatureShaderCompileOG = { file = "stock-shader-identity-OG-1.10.163.tsv", features = true }
+    FeatureShaderCompileOG = { file = "stock-shader-identity-OG-1.10.163.tsv", mode = "--features-on" }
 })
 
 -- The compiler OG 1.10.163 shipped with; staged by scripts\fetch-sdks.ps1, never packaged.

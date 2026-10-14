@@ -199,15 +199,20 @@ namespace
 		return std::string(a_error.substr(0, std::min(a_error.find_first_of("\r\n"), std::size_t{ 300 })));
 	}
 
-	auto CompileStage(const cs::engine::ShaderFamilyDescriptor& a_descriptor, const std::filesystem::path& a_shaderRoot, bool a_featuresOn,
-		cs::engine::GameRuntime a_runtime)
+	using Contributions = std::span<const cs::engine::ShaderReplacementRegistration>;
+
+	Contributions AllContributions(bool a_featuresOn)
+	{
+		return a_featuresOn ? Contributions(cs::engine::GetFeatureShaderContributions()) : Contributions{};
+	}
+
+	auto CompileStage(const cs::engine::ShaderFamilyDescriptor& a_descriptor, const std::filesystem::path& a_shaderRoot,
+		Contributions a_contributions, cs::engine::GameRuntime a_runtime)
 	{
 		const auto family = cs::engine::BuildShaderFamilyCompilationDescriptor(a_descriptor);
 		Require(family.has_value(), "unresolved");
 		std::string error;
-		const auto contributions = a_featuresOn ?
-		                               std::span<const cs::engine::ShaderReplacementRegistration>(cs::engine::GetFeatureShaderContributions()) :
-		                               std::span<const cs::engine::ShaderReplacementRegistration>{};
+		const auto contributions = a_contributions;
 		const auto request = cs::engine::BuildEffectiveShaderCompileRequest(
 			*cs::engine::GetShaderInjectionTarget(a_descriptor.target), a_descriptor.stage, *family, contributions, a_runtime, &error);
 		Require(request.has_value(), "invalid-compile-request: " + error);
@@ -243,7 +248,7 @@ namespace
 
 	std::string Compile(const Row& a_row, const std::filesystem::path& a_shaderRoot, bool a_featuresOn, cs::engine::GameRuntime a_runtime)
 	{
-		const auto compiled = CompileStage(a_row.family, a_shaderRoot, a_featuresOn, a_runtime);
+		const auto compiled = CompileStage(a_row.family, a_shaderRoot, AllContributions(a_featuresOn), a_runtime);
 		if (a_featuresOn) {
 			if (a_row.family.stage != cs::engine::ShaderStage::kCompute &&
 				std::ranges::any_of(cs::engine::GetFeatureShaderContributions(), [&](const auto& contribution) {
@@ -255,7 +260,7 @@ namespace
 				// Tessellated prepass variants use the native domain stage.
 				if (cs::engine::BuildShaderFamilyCompilationDescriptor(a_row.family)->defines.contains("TESSELLATE_DISP_HEIGHT"))
 					return {};
-				const auto pairedCompiled = CompileStage(paired, a_shaderRoot, true, a_runtime);
+				const auto pairedCompiled = CompileStage(paired, a_shaderRoot, AllContributions(true), a_runtime);
 				const auto outputs = ReflectSignature(isVertex ? compiled.bytecode : pairedCompiled.bytecode, false);
 				for (const auto& input : ReflectSignature(isVertex ? pairedCompiled.bytecode : compiled.bytecode, true)) {
 					Require(std::ranges::find(outputs, input) != outputs.end(),
@@ -271,13 +276,31 @@ namespace
 			return "strip-error";
 		return cs::sha1::Sha1ToHex(cs::sha1::Sha1Compute(stripped->GetBufferPointer(), stripped->GetBufferSize()));
 	}
+
+	// Features load alone, so each must compile without others' includes.
+	std::string CompileIsolated(const Row& a_row, const std::filesystem::path& a_shaderRoot, cs::engine::GameRuntime a_runtime)
+	{
+		for (const auto& contribution : cs::engine::GetFeatureShaderContributions()) {
+			if (contribution.targetId != a_row.family.target ||
+				(contribution.stages & cs::engine::ShaderStageBit(a_row.family.stage)) == 0)
+				continue;
+			try {
+				CompileStage(a_row.family, a_shaderRoot, Contributions(&contribution, 1), a_runtime);
+			} catch (const std::exception& error) {
+				return contribution.contributor + ": " + FirstErrorLine(error.what());
+			}
+		}
+		return {};
+	}
 }
 
 int main(int a_argc, char** a_argv)
 {
 	try {
-		Require(a_argc == 3 || (a_argc == 4 && std::string_view(a_argv[3]) == "--features-on"),
-			"Usage: StockShaderIdentityTests <shader-root> <identity-table> [--features-on]");
+		const std::string_view mode = a_argc == 4 ? a_argv[3] : "";
+		Require(a_argc == 3 || (a_argc == 4 && (mode == "--features-on" || mode == "--features-isolated")),
+			"Usage: StockShaderIdentityTests <shader-root> <identity-table> [--features-on|--features-isolated]");
+		const bool isolated = mode == "--features-isolated";
 		const bool featuresOn = a_argc == 4;
 		cs::sha1::Sha1InitOnce();
 		cs::sha256::Sha256InitOnce();
@@ -298,7 +321,8 @@ int main(int a_argc, char** a_argv)
 			if (!rows[index].owned || (featuresOn && !rows[index].contributed))
 				return;
 			try {
-				rows[index].actual = Compile(rows[index], shaderRoot, featuresOn, table.runtime);
+				rows[index].actual = isolated ? CompileIsolated(rows[index], shaderRoot, table.runtime) :
+				                                Compile(rows[index], shaderRoot, featuresOn, table.runtime);
 			} catch (const std::exception& error) {
 				rows[index].actual = "error: " + FirstErrorLine(error.what());
 			}
@@ -339,7 +363,8 @@ int main(int a_argc, char** a_argv)
 		for (const auto& [target, result] : targetResults)
 			std::printf("  %s: %zu passed, %zu failed\n", target.c_str(), result.first, result.second);
 		std::printf("%s: %zu passed, %zu failed, %zu unowned, %zu total; %.3fs wall time (%u threads)\n",
-			featuresOn ? "Feature-on shader corpus" : "Stock shader identity",
+			isolated ? "Isolated feature shader corpus" : featuresOn ? "Feature-on shader corpus" :
+																	   "Stock shader identity",
 			total - failed - unowned, failed, unowned, total, seconds, ParallelThreadCount());
 		return failed == 0 ? 0 : 1;
 	} catch (const std::exception& error) {
