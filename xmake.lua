@@ -301,6 +301,7 @@ add_includedirs(
 target("FeatureConfigTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("unit")
     add_files(
         "tests/FeatureConfigTests.cpp",
         "features/InverseSquareLighting/src/LightAuthoring.cpp",
@@ -319,6 +320,7 @@ end)
 target("RenderDocCaptureServiceTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("unit")
     add_files(
         "tests/RenderDocCaptureServiceTests.cpp",
         "features/RenderDoc/src/CaptureService.cpp"
@@ -332,6 +334,7 @@ end)
 target("FrameDispatcherTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("unit")
     add_files(
         "tests/FrameDispatcherTests.cpp",
         "src/Render/FrameDispatcher.cpp"
@@ -342,6 +345,7 @@ end)
 target("SettingsJsonTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("unit")
     add_files(
         "tests/SettingsJsonTests.cpp",
         "src/Settings/SettingsJson.cpp",
@@ -355,6 +359,7 @@ end)
 target("FrameGenerationRetirementGpuTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("unit")
     add_files(
         "tests/FrameGenerationRetirementGpuTests.cpp",
         "features/Upscaling/src/AgilityBootstrap.cpp"
@@ -392,6 +397,7 @@ local function stock_shader_identity_target(name, compiler, tests)
     target(name, function()
         set_kind("binary")
         set_default(false)
+        set_group("shaders")
         set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/" .. name)
         add_deps("ShaderStage")
         add_files(
@@ -445,6 +451,7 @@ stock_shader_identity_target("StockShaderIdentityOGTests", "build/tools/d3dcompi
 target("RuntimeShaderTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("shaders")
     set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/RuntimeShaderTests")
     add_deps("ShaderStage")
     add_files("tests/RuntimeShaderTests.cpp", "src/Utils/ShaderCompile.cpp")
@@ -459,6 +466,7 @@ end)
 target("ShaderCacheTests", function()
     set_kind("binary")
     set_default(false)
+    set_group("unit")
     add_files(
         "tests/ShaderCacheTests.cpp",
         "src/Render/ShaderVariantCompilation.cpp",

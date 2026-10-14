@@ -126,8 +126,12 @@ jobs:
       - name: Build
         run: xmake -y FO4CommunityShaders
 
-      - name: Run tests
-        run: xmake test
+      - name: Run unit tests
+        run: xmake test -g unit
+
+      # Each suite already compiles on every core, so run them one at a time.
+      - name: Compile stock and feature shaders
+        run: xmake test -g shaders -j 1
 
       - name: Assemble package
         if: steps.release-info.outputs.publish == 'true'
