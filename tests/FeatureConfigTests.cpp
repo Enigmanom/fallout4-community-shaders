@@ -16,6 +16,7 @@
 #include "Settings/SettingsRegistry.h"
 #include "SkylightingSettings.h"
 #include "TerrainVariationSettings.h"
+#include "World/WeatherVariableRegistry.h"
 
 #include <filesystem>
 #include <fstream>
@@ -92,12 +93,13 @@ namespace
 			std::pair{ "FrameGeneration", MakeSchemaView(frame_generation::kSchema) },
 			std::pair{ "PerformanceOverlay", MakeSchemaView(performance_overlay::kSchema) },
 			std::pair{ "RenderDoc", MakeSchemaView(renderdoc_settings::kSchema) },
-			std::pair{ "RemoteControl", SchemaView{} }
+			std::pair{ "RemoteControl", SchemaView{} },
+			std::pair{ "CSEditor", SchemaView{} }
 		};
 		CHECK(features.size() == kAllFeatureKeys.size());
 		// Mirrors Feature::SupportsEnableToggle and DefaultEnabled.
 		const auto enabledDefault = [](std::string_view a_key) -> std::optional<bool> {
-			for (const auto optOut : { "InverseSquareLighting", "Upscaling", "FrameGeneration", "PerformanceOverlay", "RenderDoc" }) {
+			for (const auto optOut : { "InverseSquareLighting", "Upscaling", "FrameGeneration", "PerformanceOverlay", "RenderDoc", "CSEditor" }) {
 				if (a_key == optOut)
 					return std::nullopt;
 			}
@@ -270,6 +272,40 @@ namespace
 		CHECK(RenderDocument(a_registry, toml::parse(blocked)) == blocked);
 	}
 
+	// Editor overrides round-trip through the weather open map into a fresh registry.
+	void TestWeatherProfiles(const Registry& a_registry, const std::filesystem::path& a_path)
+	{
+		namespace ibl = cs::features::image_based_lighting;
+		using Profiles = cs::weather::VariableRegistry<std::remove_cv_t<decltype(ibl::kWeatherSchema)>>;
+		WriteFile(a_path, "[features.ImageBasedLighting.weather]\n\"0x1~Fallout4.esm\" = { __enabled = true, SkyIBLScale = 2.0 }\n");
+		CHECK(InitializeAt(a_path, a_registry).error.empty());
+		std::string error;
+		Profiles edited{ ibl::kWeatherSchema, ibl::kWeatherVariables };
+		CHECK(edited.Configure(LoadFile(a_path).table["features"]["ImageBasedLighting"]["weather"].node(), error));
+		CHECK(edited.IsActive("0x1~fallout4.esm"));
+
+		const auto profile = toml::parse("__enabled = true\nEnvIBLScale = 0.5\n");
+		CHECK(edited.Set("0x2A~DLCCoast.esm", &profile, error));
+		const auto invalid = toml::parse("DALCMode = 1\n");
+		CHECK(!edited.Set("0x2a~dlccoast.esm", &invalid, error));
+		const auto disabled = toml::parse("__enabled = false\nSkyIBLScale = 3.0\n");
+		CHECK(edited.Set("0x1~fallout4.esm", &disabled, error));
+		CHECK(!edited.IsActive("0x1~fallout4.esm"));
+
+		constexpr std::array path{
+			std::string_view("features"), std::string_view("ImageBasedLighting"), std::string_view("weather")
+		};
+		CHECK(UpdateOwnedSettingsAt(a_path, path, edited.Serialize()));
+		Profiles reloaded{ ibl::kWeatherSchema, ibl::kWeatherVariables };
+		CHECK(reloaded.Configure(LoadFile(a_path).table["features"]["ImageBasedLighting"]["weather"].node(), error));
+		CHECK(reloaded.Serialize() == edited.Serialize());
+		const auto evaluated = reloaded.Evaluate(ibl::Settings{}, "", "0x2a~dlccoast.esm", 1.0f);
+		CHECK(evaluated.EnvIBLScale == 0.5f && evaluated.SkyIBLScale == 1.0f);
+
+		CHECK(reloaded.Set("0x2a~dlccoast.esm", nullptr, error));
+		CHECK(!reloaded.Get("0x2a~dlccoast.esm"));
+	}
+
 	void TestInvalidDocument(const Registry& a_registry, const std::filesystem::path& a_path)
 	{
 		const std::string invalid = "[features.ScreenSpaceShadows\nload = true\n";
@@ -387,6 +423,7 @@ int main()
 		TestRegistry(registry);
 		TestDocument(registry, directory / "settings.toml");
 		TestInvalidDocument(registry, directory / "invalid.toml");
+		TestWeatherProfiles(registry, directory / "weather.toml");
 		TestLiveSettings();
 		TestLightAuthoring();
 	} catch (const std::exception& error) {

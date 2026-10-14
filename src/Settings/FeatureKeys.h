@@ -6,7 +6,7 @@
 
 namespace cs::feature_config
 {
-	inline constexpr std::array<std::string_view, 18> kAllFeatureKeys{
+	inline constexpr std::array<std::string_view, 19> kAllFeatureKeys{
 		"ScreenSpaceGI",
 		"Skylighting",
 		"InverseSquareLighting",
@@ -24,7 +24,8 @@ namespace cs::feature_config
 		"FrameGeneration",
 		"PerformanceOverlay",
 		"RenderDoc",
-		"RemoteControl"
+		"RemoteControl",
+		"CSEditor"
 	};
 
 	// Activation follows this order, and IBL fails to load before Dynamic Cubemaps.

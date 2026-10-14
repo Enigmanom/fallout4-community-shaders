@@ -1,0 +1,157 @@
+#include "World/WeatherControl.h"
+
+#include "Log.h"
+#include "World/Weather.h"
+
+#include "RE/S/Sky.h"
+#include "RE/T/TESWeather.h"
+
+#include <atomic>
+
+namespace cs::engine
+{
+	namespace
+	{
+		auto* L = log::Get("cs.weather");
+
+		std::atomic<RE::TESWeather*> g_lockedWeather{ nullptr };
+		std::atomic_bool g_hooksInstalled{ false };
+
+		struct SetWeather_Hook
+		{
+			static void thunk(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override, bool a_accelerate);
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		struct ForceWeather_Hook
+		{
+			static void thunk(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override);
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		// Our own calls bypass the lock thunks once they are installed.
+		void SetWeatherOriginal(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override, bool a_accelerate)
+		{
+			if (g_hooksInstalled.load(std::memory_order_acquire))
+				SetWeather_Hook::func(a_sky, a_weather, a_override, a_accelerate);
+			else
+				a_sky->SetWeather(a_weather, a_override, a_accelerate);
+		}
+
+		void ForceWeatherOriginal(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override)
+		{
+			if (g_hooksInstalled.load(std::memory_order_acquire))
+				ForceWeather_Hook::func(a_sky, a_weather, a_override);
+			else
+				a_sky->ForceWeather(a_weather, a_override);
+		}
+
+		// Forces the sky onto the locked weather, claiming the override slot so nothing lerps away from it.
+		void ReapplyLock(RE::Sky* a_sky, RE::TESWeather* a_weather)
+		{
+			if (a_sky && a_weather)
+				ForceWeatherOriginal(a_sky, a_weather, true);
+		}
+
+		void SetWeather_Hook::thunk(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override, bool a_accelerate)
+		{
+			if (!a_sky)
+				return;
+			auto* locked = GetLockedWeather();
+			if (!locked)
+				func(a_sky, a_weather, a_override, a_accelerate);
+			else if (a_weather == locked)
+				func(a_sky, locked, true, a_accelerate);
+			else if (a_sky->currentWeather != locked || a_sky->overrideWeather != locked)
+				ReapplyLock(a_sky, locked);
+		}
+
+		void ForceWeather_Hook::thunk(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override)
+		{
+			if (!a_sky)
+				return;
+			if (auto* locked = GetLockedWeather())
+				ReapplyLock(a_sky, locked);
+			else
+				func(a_sky, a_weather, a_override);
+		}
+	}
+
+	void InstallWeatherLockHooks()
+	{
+		stl::detour_thunk<SetWeather_Hook>(RE::ID::Sky::SetWeather);
+		stl::detour_thunk<ForceWeather_Hook>(RE::ID::Sky::ForceWeather);
+		if (SetWeather_Hook::func.address() == 0 || ForceWeather_Hook::func.address() == 0) {
+			// MaintainWeatherLock still re-applies the lock every frame without the detours.
+			L->warn("Weather lock detours failed; the lock may briefly flash before correcting");
+			return;
+		}
+		g_hooksInstalled.store(true, std::memory_order_release);
+	}
+
+	bool AreWeatherLockHooksInstalled() noexcept
+	{
+		return g_hooksInstalled.load(std::memory_order_acquire);
+	}
+
+	void ApplyWeather(RE::TESWeather* a_weather, bool a_instant)
+	{
+		auto* sky = RE::Sky::GetSingleton();
+		if (!sky || !a_weather)
+			return;
+		if (a_instant)
+			ForceWeatherOriginal(sky, a_weather, false);
+		else
+			SetWeatherOriginal(sky, a_weather, true, false);
+		// Retarget the lock so the per-frame upkeep enforces the new choice instead of reverting it.
+		if (GetLockedWeather())
+			LockWeather(a_weather);
+		L->info("Changed weather to {}", DescribeWeather(a_weather));
+	}
+
+	void ResetWeather()
+	{
+		if (auto* sky = RE::Sky::GetSingleton()) {
+			sky->ResetWeather();
+			L->info("Reset weather to default");
+		}
+	}
+
+	void LockWeather(RE::TESWeather* a_weather)
+	{
+		if (!a_weather)
+			return;
+		g_lockedWeather.store(a_weather, std::memory_order_release);
+		MaintainWeatherLock();
+		L->info("Weather locked: {}", DescribeWeather(a_weather));
+	}
+
+	void UnlockWeather()
+	{
+		auto* locked = g_lockedWeather.exchange(nullptr, std::memory_order_acq_rel);
+		if (!locked)
+			return;
+		if (auto* sky = RE::Sky::GetSingleton())
+			sky->ReleaseWeatherOverride();
+		L->info("Weather unlocked: {}", DescribeWeather(locked));
+	}
+
+	RE::TESWeather* GetLockedWeather() noexcept
+	{
+		return g_lockedWeather.load(std::memory_order_acquire);
+	}
+
+	void MaintainWeatherLock()
+	{
+		auto* locked = GetLockedWeather();
+		auto* sky = RE::Sky::GetSingleton();
+		if (!locked || !sky)
+			return;
+		// The engine applies the release on its next sky update, so clear the flag before it lands.
+		const bool releasePending = sky->flags.any(RE::Sky::Flags::kReleaseWeatherOverride);
+		if (!releasePending && sky->currentWeather == locked && sky->overrideWeather == locked)
+			return;
+		sky->flags.reset(RE::Sky::Flags::kReleaseWeatherOverride);
+		ReapplyLock(sky, locked);
+	}
+}

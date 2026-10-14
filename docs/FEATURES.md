@@ -34,7 +34,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 
 | Feature | Verdict | Core slices | Extension / N/A slices | Status | Payoff | Effort | Conf. |
 |---|---|---|---|---|---|---|---|
-| CS Editor | Core | Weather/template/imagespace editor, godray record editor, light editor, shell | N/A: Skyrim VL noise fields | NS | H | L | High |
+| [CS Editor](deviations/CSEditor.md) | Core | Weather picker, lock, time controls, weather panels and per-weather feature overrides; template/imagespace/godray editors, light editor and shell pending | N/A: Skyrim VL noise fields | Pt | H | L | High |
 | Cloud Shadows | Core | Layer-cube producer, directional receivers, Effect/Water/Particle receivers, EHF attenuation | N/A: legacy VL consumer | NS | H | L | Med |
 | [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |

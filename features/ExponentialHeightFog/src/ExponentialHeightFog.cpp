@@ -141,7 +141,7 @@ namespace cs::features
 	{
 		auto candidate = _settings;
 		if (!settings::Parse(ehf::kSchema, a_config, candidate, a_error) ||
-			!_weather.Configure(ehf::kSchema, ehf::kWeatherVariables, a_config.get("weather"), a_error))
+			!_weather.Configure(a_config.get("weather"), a_error))
 			return false;
 		_settings = candidate;
 		_liveSettings = settings::BindLiveSettings(ehf::kSchema, _settings, [this] { PublishSettings(); });
@@ -227,7 +227,7 @@ namespace cs::features
 			const std::lock_guard lock(_settingsMutex);
 			settings = _published;
 		}
-		_frameSettings = _weather.EvaluateCurrentWeather(ehf::kSchema, settings);
+		_frameSettings = _weather.EvaluateCurrentWeather(settings);
 		_frameSettings.enabled = IsEnabled() ? 1u : 0u;
 		_fogActive.store(_frameSettings.enabled != 0, std::memory_order_relaxed);
 		auto* graphics = engine::GetGraphicsState();
@@ -385,39 +385,12 @@ namespace cs::features
 				const auto label = std::string(field.description);
 				using T = typename std::remove_cvref_t<decltype(field)>::ValueType;
 				if constexpr (std::same_as<T, settings::Float3> || std::same_as<T, settings::Color4>) {
-					// The forwarding ABI exposes scalar inputs but no vector or color editor.
-					constexpr const char* components[]{ "R", "G", "B", "A" };
-					constexpr const char* axes[]{ "X", "Y", "Z" };
-					dmui::ui::Text("%s", label.c_str());
-					for (std::size_t i = 0; i < value.size(); ++i) {
-						const char* name = std::same_as<T, settings::Float3> ? axes[i] : components[i];
-						const std::string component = std::string(name) + "##" + std::string(field.key);
-						float candidate = value[i];
-						const bool edited = dmui::ui::InputScalar(component.c_str(), &candidate);
-						if (edited && !std::isfinite(candidate)) {
-							L->warn("Rejected non-finite {} component {}", field.key, name);
-						} else {
-							if (edited)
-								value[i] = candidate;
-							changed |= edit.Continuous(edited);
-						}
-					}
+					changed |= edit.Apply(ui::EditSetting(label.c_str(), field.key, value, settings::Range<T>{}));
 				} else {
-					if constexpr (std::same_as<T, std::uint32_t>) {
-						if (field.edit.max == 1) {
-							bool enabled = value != 0;
-							const bool toggled = dmui::ui::Checkbox(label.c_str(), &enabled);
-							if (toggled)
-								value = enabled ? 1u : 0u;
-							changed |= edit.Discrete(toggled);
-							Tooltip(field.key);
-							return;
-						}
-					}
-					const char* format = "%u";
+					const char* format = nullptr;
 					if constexpr (std::floating_point<T>)
 						format = FloatFormat(field.key);
-					changed |= edit.Continuous(dmui::ui::SliderScalar(label.c_str(), &value, &field.edit.min, &field.edit.max,
+					changed |= edit.Apply(ui::EditSetting(label.c_str(), field.key, value, field.edit,
 						format, debug ? dmui::ui::SliderFlags::kAlwaysClamp : dmui::ui::SliderFlags::kNone));
 					Tooltip(field.key);
 				}

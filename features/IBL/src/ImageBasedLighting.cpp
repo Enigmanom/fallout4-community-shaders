@@ -54,7 +54,7 @@ namespace cs::features
 	{
 		auto candidate = _settings;
 		if (!settings::Parse(ibl::kSchema, a_config, candidate, a_error) ||
-			!_weather.Configure(ibl::kWeatherSchema, ibl::kWeatherVariables, a_config.get("weather"), a_error))
+			!_weather.Configure(a_config.get("weather"), a_error))
 			return false;
 		_settings = candidate;
 		_liveSettings = settings::BindLiveSettings(ibl::kSchema, _settings, [this] { PublishSettings(); });
@@ -191,7 +191,7 @@ namespace cs::features
 			const std::lock_guard lock(_settingsMutex);
 			published = _published;
 		}
-		_frame.settings = _weather.EvaluateCurrentWeather(ibl::kWeatherSchema, published);
+		_frame.settings = _weather.EvaluateCurrentWeather(published);
 		_frame.sceneDisabled = IsSceneDisabled(_frame.settings);
 		_frame.active = IsEnabled() && _frame.settings.EnableIBL && !_frame.sceneDisabled;
 		_frame.frame = frame;

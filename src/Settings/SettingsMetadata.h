@@ -31,6 +31,9 @@ namespace cs::settings
 		Value defaultValue;
 		std::optional<Value> minimum;
 		std::optional<Value> maximum;
+		// Slider bounds; may be narrower than the accepted range.
+		std::optional<Value> editMinimum;
+		std::optional<Value> editMaximum;
 		ApplyTiming timing = ApplyTiming::kImmediate;
 		std::function<std::optional<Value>(const toml::node&)> read;
 	};

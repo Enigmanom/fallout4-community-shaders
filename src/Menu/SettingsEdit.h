@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Feature.h"
+#include "Menu/SettingWidgets.h"
 
 #include <DearModdingUI/UI.h>
 
@@ -20,6 +21,11 @@ namespace cs::settings
 		bool Discrete(bool a_changed) noexcept
 		{
 			return Record(a_changed, a_changed);
+		}
+
+		bool Apply(ui::EditResult a_result) noexcept
+		{
+			return Record(a_result.changed, a_result.completed);
 		}
 
 	private:

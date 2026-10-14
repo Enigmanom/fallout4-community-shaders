@@ -28,7 +28,8 @@ local features = {
     "IBL",
     "WaterEffects",
     "RemoteControl",
-    "UnifiedWater"
+    "UnifiedWater",
+    "CSEditor"
 }
 
 set_project(plugin_name)

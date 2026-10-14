@@ -69,9 +69,9 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f
 
 	cs::log::AttachToDefaultLogger();
 	auto registry = cs::settings::BuildCoreRegistry();
-	for (const auto* feature : cs::FeatureManager::Get().GetRegisteredFeatures())
+	for (auto* feature : cs::FeatureManager::Get().GetRegisteredFeatures())
 		cs::settings::AddFeatureSections(
-			registry, feature->GetConfigKey(), feature->GetSettingsSchema(), feature->HasWeatherProfiles(),
+			registry, feature->GetConfigKey(), feature->GetSettingsSchema(), feature->GetWeatherProfiles() != nullptr,
 			feature->SupportsEnableToggle() ? std::optional{ feature->DefaultEnabled() } : std::nullopt);
 	const auto config = cs::feature_config::Initialize(std::move(registry));
 	if (!config.error.empty())

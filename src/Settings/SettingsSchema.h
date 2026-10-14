@@ -336,6 +336,8 @@ namespace cs::settings
 				if constexpr (requires { field.accepted.min; }) {
 					view.minimum = EncodeValue(field.accepted.min);
 					view.maximum = EncodeValue(field.accepted.max);
+					view.editMinimum = EncodeValue(field.edit.min);
+					view.editMaximum = EncodeValue(field.edit.max);
 				}
 				result.push_back(std::move(view));
 			};

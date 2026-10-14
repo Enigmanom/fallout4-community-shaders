@@ -148,5 +148,6 @@ the host's neutral linear-color policy in the LinearLighting block.
 - [Screen Space GI](ScreenSpaceGI.md)
 - [Screen Space Shadows](ScreenSpaceShadows.md)
 - [Skylighting](Skylighting.md)
+- [CS Editor](CSEditor.md)
 
 [upstream]: https://github.com/community-shaders/skyrim-community-shaders

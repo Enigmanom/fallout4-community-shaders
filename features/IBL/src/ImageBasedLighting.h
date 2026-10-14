@@ -52,7 +52,7 @@ namespace cs::features
 		void RestoreDefaultSettings() override;
 
 		bool DefaultEnabled() const override { return false; }
-		bool HasWeatherProfiles() const override { return true; }
+		weather::Profiles* GetWeatherProfiles() override { return &_weather; }
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(telemetry::Sink& a_sink) const override;
 
@@ -88,7 +88,9 @@ namespace cs::features
 		Settings _settings;
 		Settings _published;
 		mutable std::mutex _settingsMutex;
-		weather::VariableRegistry<std::remove_cv_t<decltype(image_based_lighting::kWeatherSchema)>> _weather;
+		weather::VariableRegistry<std::remove_cv_t<decltype(image_based_lighting::kWeatherSchema)>> _weather{
+			image_based_lighting::kWeatherSchema, image_based_lighting::kWeatherVariables
+		};
 		FrameState _frame;
 
 		// Two 3x1 R16G16B16A16_FLOAT textures: the SH coefficients of R, G and B.
