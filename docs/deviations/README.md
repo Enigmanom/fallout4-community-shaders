@@ -30,8 +30,7 @@ FO4 consumes unchanged files through `xmake\shared.lua`; shared include paths ca
 | Fix | `features/IBL/Shaders/IBL/IBL.hlsli` | `c766bc3d` | `GetIBLColorOccluded` read the environment SH in every `DALCMode`, though modes 2 and 3 never project it; it now delegates to `GetDiffuseIBLOccluded` with the vanilla DALC at the ray | community-shaders/skyrim-community-shaders#2882 |
 | Forced | `features/Dynamic Cubemaps/Shaders/DynamicCubemaps/CaptureCommon.hlsli` | `83efe1ad9` | Optional prepared position/color/UV inputs, geometry/sky tags and capture origin isolate FO4's +Z, partitioned depth, infinite far plane and diffuse reconstruction; Skyrim defaults unchanged | In the shared fork; PR candidate, not filed |
 | Forced | `features/Dynamic Cubemaps/Shaders/DynamicCubemaps/DynamicCubemaps.hlsli` | `83efe1ad9` | Optional cube registers/custom-consumer guard and extracted explicit-sampler normalization let native FO4 deferred slots/samplers call shared arithmetic; Skyrim defaults unchanged | In the shared fork; PR candidate, not filed |
-| Fix | `features/Screen Space GI/Shaders/ScreenSpaceGI/{upsample,radianceDisocc}.cs.hlsl` | `54a2705b9` | Specular reads/writes gated by `GI_SPECULAR`; see [Screen Space GI](ScreenSpaceGI.md) | PR pending |
-| Fix | `features/Screen Space Shadows/Shaders/ScreenSpaceShadows/ScreenSpaceShadows.hlsli` | `6f81ebc25` | Samples the pixel-centered `SV_POSITION` directly instead of adding 0.5 before integer conversion; see [Screen Space Shadows](ScreenSpaceShadows.md) | PR candidate, not filed |
+| Fix | `features/Screen Space GI/Shaders/ScreenSpaceGI/upsample.cs.hlsl` | `36477ed` | Specular reads/writes gated by `GI_SPECULAR`; see [Screen Space GI](ScreenSpaceGI.md) | community-shaders/skyrim-community-shaders#2913 |
 
 ## Shader replacement
 
@@ -102,10 +101,10 @@ the host's neutral linear-color policy in the LinearLighting block.
 
 ## Upstream PR candidates
 
-- `src/Features/InverseSquareLighting.cpp:76–95`: balanced intensity/cutoff/size
-  (`intensity=1`, `cutoff=0.5`, `size=2`) gives radius zero rather than NaN, so `ProcessLight` divides
-  by zero for `invRadius`/`fadeZone` and gameplay smoothstep has a zero denominator. Clamp the radius
-  to a documented positive minimum. FO4 retains the zero-radius behavior.
+- `src/Features/LightLimitFix.cpp` `CalculateRadius`: balanced intensity/cutoff/size gives radius zero
+  rather than NaN, so `invRadius` and `fadeZone` become infinite. Zero now takes the NaN fallback in
+  community-shaders/skyrim-community-shaders#2915; FO4's `InverseSquareLightingMath.h` matches upstream
+  until it merges.
 - `src/Utils/PerfUtils.h:41` and `ABTestAggregator.cpp:91`: implicit `size_t` to float raises C4267
   under `/W4 /WX`; use an explicit float conversion. FO4 scopes the warning in `src/Shared/PerfUtils.h`.
 - `features/Screen Space GI/Shaders/ScreenSpaceGI/gi.cs.hlsl:232`: the experimental specular
@@ -121,12 +120,9 @@ the host's neutral linear-color policy in the LinearLighting block.
   after adding 64 cells; `modf` returns a negative fraction west/south of -262144 units, and at an exact
   cell border `round` can select adjacent tiles by ties-to-even. Use `floor(absolutePosition / 4096)`
   minus `floor(CameraPosAdjust.xy / 4096)` plus 2.
-- `src/Features/TerrainShadows.cpp:332–336,365–380`: readiness compares the child worldspace editor ID,
-  but loading resolves inherited land to the parent. Resolve the same land identity in both paths. FO4
-  applies the parent-readiness correction; no upstream PR recorded.
-- `Lighting.hlsl` declares `sharedOffset` only under `EMAT`, so `LANDSCAPE` with `TERRAIN_VARIATION` and
-  without `EMAT` does not compile. FO4 consumers declare their own offsets; not patched locally, the fork
-  PR is tracked separately.
+- `src/Features/TerrainShadows.cpp` `IsHeightMapReady`: readiness compares the child worldspace editor
+  ID, but loading resolves inherited land to the parent. FO4 applies the parent-readiness correction;
+  community-shaders/skyrim-community-shaders#2914.
 
 ## Features
 
