@@ -14,6 +14,7 @@ per-feature weather-analysis seam from the pinned `src/Features/CSEditor.{h,cpp}
 | Tweak | `Util::ForceWeather` resets the aurora root/model and cloud render passes | Plain `Sky::ForceWeather` | Skyrim workaround; FO4 `fw` shows no stale sky | `World/WeatherControl.cpp` |
 | Tweak | Time-sensitive menus: Loading, SleepWait, Map | Loading, SleepWait, Pipboy | FO4 fast travel starts from the Pip-Boy map | `World/GameTime.cpp` |
 | Pending | Game-hour scrubbing calls `Util::RequestTimeJumpTransition` | Not ported | Skyrim lighting/shadow refresh; FO4 need unverified | `WeatherPanel.cpp` |
+| Forced | Type filters and colors Pleasant, Cloudy, Rainy, Snow, Aurora, Aurora Sun | Same flag bits labelled Pleasant, Cloudy, Rainy, Dusty, Radstorm, Radstorm Sun; radstorm outranks dust for color | Vanilla FO4 sets the Snow bit only on Glowing Sea haze, dust and radstorms, and the aurora bits only on radstorms | `WeatherPanel.cpp` |
 | Tweak | Lightning color edited with `ColorEdit3` | Three 0–255 sliders | The forwarding UI has no color editor | `WeatherPanel.cpp` |
 | Tweak | Wind panel shows effective wind and wind-vs-player using a 30.5° offset | Player heading only | The offset is Skyrim-calibrated | `WeatherPanel.cpp` |
 | Divergence | Weather overrides edited in the Weather Widget, stored as per-weather JSON | Edited on the CS Editor page, stored in each feature's `[features.<key>.weather]` TOML map | Existing typed weather profiles | `WeatherOverrideEditor.cpp`, `World/WeatherProfiles.h` |

@@ -46,11 +46,12 @@ namespace cs::features::cs_editor
 		};
 
 		// Priority order for weather classification colors, highest first.
+		// FO4: vanilla sets the Snow bit on Glowing Sea haze, dust and radstorms, and the aurora bits only on radstorms.
 		constexpr std::array<FlagInfo, 6> kFlags{
 			FlagInfo{ Flag::kRainy, "Rainy", { 0.4f, 0.7f, 1.0f, 1.0f } },
-			FlagInfo{ Flag::kSnow, "Snow", { 0.9f, 0.9f, 1.0f, 1.0f } },
-			FlagInfo{ Flag::kPermAurora, "Aurora", { 0.8f, 0.4f, 1.0f, 1.0f } },
-			FlagInfo{ Flag::kAuroraFollowsSun, "Aurora Sun", { 0.9f, 0.6f, 1.0f, 1.0f } },
+			FlagInfo{ Flag::kPermAurora, "Radstorm", { 0.5f, 1.0f, 0.3f, 1.0f } },
+			FlagInfo{ Flag::kAuroraFollowsSun, "Radstorm Sun", { 0.7f, 1.0f, 0.5f, 1.0f } },
+			FlagInfo{ Flag::kSnow, "Dusty", { 0.85f, 0.7f, 0.45f, 1.0f } },
 			FlagInfo{ Flag::kCloudy, "Cloudy", { 0.7f, 0.7f, 0.7f, 1.0f } },
 			FlagInfo{ Flag::kPleasant, "Pleasant", {} }
 		};
@@ -375,7 +376,7 @@ namespace cs::features::cs_editor
 				Tooltip(
 					"Shows weathers that are not classified under any specific category.\n"
 					"Includes weathers with no flags or only untracked flags.\n"
-					"Categories tracked: Pleasant, Cloudy, Rainy, Snow, Aurora, Aurora Sun");
+					"Categories tracked: Pleasant, Cloudy, Rainy, Dusty, Radstorm, Radstorm Sun");
 		}
 
 		// Update filtered weathers when the filter or the weather list changes.
