@@ -100,6 +100,7 @@ namespace cs::features
 		std::atomic<const char*> _resetReason{ "first_frame" };
 		std::atomic_uint32_t _resetCount{ 0 }, _binds{ 0 }, _repeats{ 0 };
 		UINT _width{}, _height{}, _generation{}, _lastFrame{};
+		UINT _lastWorkingSize[2]{};
 		UINT _lastAO{}, _lastGI{}, _lastAccum{}, _outputAO{}, _outputGI{};
 		bool _hasFrame = false;
 	};
