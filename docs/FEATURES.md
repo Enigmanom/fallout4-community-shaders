@@ -68,7 +68,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | TruePBR | Mixed | Surface POM (EM marcher under `TRUE_PBR`+`HasDisplacement`; same slice as Extended Materials POM) | Ext: PBR material loader + RMAOS lighting, coat/fuzz/SSS/hair, landscape/grass PBR, glints | NS | H | M | Med |
 | [Unified Water](deviations/UnifiedWater.md) | Core | Optical distance blend, distant terrain tile generation/lifetime, cache UI, material identity fix | FO4-specific requirement: preserve vanilla placed-water distance rendering. N/A: Skyrim world flowmap | Pt | M | S/M | Med |
 | [Upscaling](deviations/Upscaling.md) | Core | SR/native AA, DR/RCAS/reflection/depth consumers, canonical SDK depth, masks, underwater chain, FG/UI/Reflex | — | Pt | H | L | High |
-| Volumetric Lighting | Mixed | Native GFSDK enable/quality controls | Ext: full raymarched renderer. N/A: Skyrim dispatch optimization | NS | L | S | Med |
+| Volumetric Lighting | Extension | Native GFSDK enable/quality controls | Ext (planned): godray resolution fix (in-game godrays are pixelated), night-time (moon) godrays; full raymarched renderer. N/A: Skyrim dispatch optimization | NS | H | M | Med |
 | Volumetric Shadows | Core | VSM producer, DFLight soft sun, Effect/Water short rays, Particle receiver | — | NS | H | L | Med |
 | [Water Effects](deviations/WaterEffects.md) | Core | Exterior/secondary caustics, interior heights*, debug, water parallax (height from water-normal alpha) | N/A: FLOWMAP parallax (no FO4 flowmap path) | Pt | H | M | High |
 | Wetness Effects | — | removed; not ported | — | NS | — | — | — |
@@ -113,12 +113,14 @@ Ordered by user value over effort, respecting dependencies.
 6. **RE-gated:** Interior Sun; Extended Translucency alpha models.
 7. **Providers:** LLF 3D light grid + light-limit visualization before EHF local-light scattering;
    then provider adapters in DC/SSGI/EHF.
-8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; VL controls; CS Editor; Screenshot (then Remote Control screenshot capture); Remote Control NvPerf; HDR Display (L).
+8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; CS Editor; Screenshot (then Remote Control screenshot capture); Remote Control NvPerf; HDR Display (L).
 
 ## Extension slices
 
-Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
+Planned: Volumetric Lighting as an FO4 extension over native GFSDK godrays: enable/quality controls,
+a resolution fix for pixelated godrays and night-time (moon) godrays; RE first (GFSDK grid/quality/upsample
+parameters, night gating). Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
 full materials; Extended Materials complex materials (envmask-alpha height, RGB metal/colour); Grass Optimizations renderer;
 Terrain Blending lit transition; Terrain
 Helper ESP; Skin RFAOS; SSS profiles; Hair Kajiya-Kay and blended hair; LLF capacity/shadow
-redesign; full Volumetric Lighting renderer; Extended Translucency world coverage.
+redesign; full raymarched Volumetric Lighting renderer; Extended Translucency world coverage.
