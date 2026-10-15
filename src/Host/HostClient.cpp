@@ -6,7 +6,6 @@
 #include "Menu/Menu.h"
 #include "Menu/SettingsEdit.h"
 #include "Plugin.h"
-#include "Render/FrameDispatcher.h"
 #include "Settings/FeatureConfig.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/Hotkey.h"
@@ -747,9 +746,6 @@ namespace cs::host
 			}
 
 			RetrySwapChain();
-			// Same thread as the settings pages, so posted work never races a page edit.
-			for (const auto& failure : render::GetFrameDispatcher().Drain())
-				L->error("Frame task failed: {}", failure);
 			Menu::Get().ObserveHostFrame(_client);
 
 			auto* performance = features::PerformanceOverlay::GetSingleton();
@@ -780,24 +776,6 @@ namespace cs::host
 				}
 			}
 			auto* renderDoc = features::RenderDoc::GetSingleton();
-			if (FeatureManager::Get().PrepareRuntimeCallback(
-					*renderDoc, "DearModdingUI::TickHostFrame")) {
-				try {
-					renderDoc->TickHostFrame();
-				} catch (const std::exception& error) {
-					FeatureManager::Get().QuarantineRuntimeCallback(
-						*renderDoc,
-						"DearModdingUI::TickHostFrame",
-						error.what());
-					FeatureManager::Get().FinishRuntimeCallbackPass();
-				} catch (...) {
-					FeatureManager::Get().QuarantineRuntimeCallback(
-						*renderDoc,
-						"DearModdingUI::TickHostFrame",
-						"non-standard exception");
-					FeatureManager::Get().FinishRuntimeCallbackPass();
-				}
-			}
 
 			SetHotkeyEnabled(
 				"performance overlay",

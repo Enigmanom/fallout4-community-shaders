@@ -71,7 +71,7 @@ namespace cs::features
 		void RestoreDefaultSettings() override;
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
-		void TickHostFrame();
+		void OnFrameBoundary();
 		void BindD3D11CaptureTarget(ID3D11Device* a_device, HWND a_window);
 		void BindD3D12CaptureTarget(ID3D12Device* a_device, HWND a_window);
 		void UnbindD3D12CaptureTarget(ID3D12Device* a_device);

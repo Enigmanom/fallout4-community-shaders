@@ -22,6 +22,7 @@
 #include "REX/CONVERT.h"
 #include "REX/W32/OLE32.h"
 #include "REX/W32/SHELL32.h"
+#include "Render/FrameBoundary.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 
@@ -220,6 +221,12 @@ namespace cs::features
 		std::string error;
 		if (!TryLoadRuntime(error))
 			FailLoad(std::move(error));
+
+		if (!render::RegisterPostSwap([this] {
+				FeatureManager::Get().RunRuntimeCallback(
+					*this, "FrameBoundary::OnFrameBoundary", [this] { OnFrameBoundary(); });
+			}))
+			L->error("RenderDoc frame boundary registration failed; captures unavailable");
 	}
 
 	bool RenderDoc::SaveSettings()
@@ -621,10 +628,10 @@ namespace cs::features
 		ApplyPendingComments();
 	}
 
-	void RenderDoc::TickHostFrame()
+	void RenderDoc::OnFrameBoundary()
 	{
 		ApplyPendingComments();
-		// Without the temporal proxy, the host frame is the only game-frame boundary.
+		// Behind the temporal proxy, its present is the game-frame boundary.
 		if (!_d3d12TargetAvailable.load(std::memory_order_acquire))
 			OnGameFramePresented();
 		PollCaptureCompletion();

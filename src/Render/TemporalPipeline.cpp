@@ -16,6 +16,7 @@
 #include "PresentationProviders.h"
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
+#include "Render/FrameBoundary.h"
 #include "Render/FrameBuffer.h"
 #include "Render/RendererContext.h"
 #include "Render/TemporalPipelineAnchors.h"
@@ -83,16 +84,6 @@ namespace cs::render
 				pipeline.BeginMainLoopFrame();
 				func(a_main);
 				pipeline.BeginSimulation();
-			}
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
-		struct OnIdle_Swap
-		{
-			static void thunk(RE::Main* a_main)
-			{
-				TemporalPipeline::Get().EndSimulationAndBeginRenderSubmit();
-				func(a_main);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -356,17 +347,15 @@ namespace cs::render
 		}
 		try {
 			const auto messageLoop = engine::ResolveCallSite(kMainLoopMessageLoopCall);
-			const auto swap = engine::ResolveCallSite(kOnIdleSwapCall);
-			if (!messageLoop || !swap) {
+			if (!messageLoop || !FrameBoundaryInstalled()) {
 				PostFailure(temporal::FailureDomain::kEngine,
 					std::format(
 						"Reflex latency markers are unavailable: {}",
-						!messageLoop ? messageLoop.error() : swap.error()));
+						!messageLoop ? messageLoop.error() : "frame boundary hook is not installed"));
 				return false;
 			}
 
 			stl::write_thunk_call<MainLoop_WindowsMessageLoop>(*messageLoop);
-			stl::write_thunk_call<OnIdle_Swap>(*swap);
 			_impl->latencyHooksInstalled.store(true, std::memory_order_release);
 			L->info("Installed validated normal-loop latency hooks");
 			return true;
@@ -388,6 +377,11 @@ namespace cs::render
 				std::memory_order_acq_rel)) {
 			return;
 		}
+
+		RegisterPreSwap([this] {
+			if (_impl->latencyHooksInstalled.load(std::memory_order_acquire))
+				EndSimulationAndBeginRenderSubmit();
+		});
 
 		const bool preRegistered = RegisterPreCreateDeviceAndSwapChain(
 			[this](DXGI_SWAP_CHAIN_DESC* a_desc) {

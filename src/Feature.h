@@ -8,6 +8,7 @@
 #include "Settings/SettingsMetadata.h"
 
 #include <atomic>
+#include <exception>
 #include <optional>
 #include <span>
 #include <string>
@@ -255,6 +256,23 @@ namespace cs
 			std::string_view a_phase,
 			std::string_view a_reason) noexcept;
 		void FinishRuntimeCallbackPass() noexcept;
+
+		// Health-gates a_fn and quarantines the feature if it throws.
+		template <class Fn>
+		void RunRuntimeCallback(Feature& a_feature, std::string_view a_phase, Fn&& a_fn) noexcept
+		{
+			if (!PrepareRuntimeCallback(a_feature, a_phase))
+				return;
+			try {
+				a_fn();
+			} catch (const std::exception& e) {
+				QuarantineRuntimeCallback(a_feature, a_phase, e.what());
+				FinishRuntimeCallbackPass();
+			} catch (...) {
+				QuarantineRuntimeCallback(a_feature, a_phase, "non-standard exception");
+				FinishRuntimeCallbackPass();
+			}
+		}
 
 		std::optional<settings::PreparedLiveSettings> PrepareLiveSettings(
 			Feature& a_feature,
