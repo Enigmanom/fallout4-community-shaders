@@ -4,6 +4,7 @@
 #include "LogThrottle.h"
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
+#include "Render/EngineCallSite.h"
 #include "Render/FrameBuffer.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
@@ -57,6 +58,42 @@ namespace cs::engine
 			"SkyReflectionCube::Face+Y", "SkyReflectionCube::Face-Y",
 			"SkyReflectionCube::Face+Z", "SkyReflectionCube::Face-Z"
 		};
+
+		// Upstream size; depth 7 stays 512 because Interface3D shares it.
+		constexpr std::uint32_t kCubeSize = 256;
+
+		// The only cube creation, inside BSShaderRenderTargets::Create.
+		constexpr CallSiteAnchor kCubeTargetCreate{
+			.name = "BSShaderRenderTargets::Create -> RenderTargetManager::CreateCubeMapRenderTarget",
+			.function = RE::ID::BSShaderRenderTargets::Create,
+			.offset = { 0xDCB, 0xE21, 0xE21 },
+			.target = RE::ID::BSGraphics::RenderTargetManager::CreateCubeMapRenderTarget
+		};
+
+		struct CreateCubeMapRenderTarget_Hook
+		{
+			static void thunk(
+				RE::BSGraphics::RenderTargetManager* a_this,
+				std::uint32_t a_logicalID,
+				RE::BSGraphics::CubeMapRenderTargetProperties* a_properties,
+				bool a_forceAll)
+			{
+				a_properties->width = kCubeSize;
+				a_properties->height = kCubeSize;
+				func(a_this, a_logicalID, a_properties, a_forceAll);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		void InstallCubeSizeHook()
+		{
+			const auto site = ResolveCallSite(kCubeTargetCreate);
+			if (!site) {
+				L->warn("Engine cube stays 512x512: {}", site.error());
+				return;
+			}
+			stl::write_thunk_call<CreateCubeMapRenderTarget_Hook>(*site);
+		}
 
 		struct Consumer
 		{
@@ -581,6 +618,7 @@ namespace cs::engine
 				Disable("the water-update render hook could not be installed");
 				return false;
 			}
+			InstallCubeSizeHook();
 			g_hookInstalled.store(true, std::memory_order_release);
 		}
 		g_consumers.push_back({ std::string(a_name), std::move(a_wantsCube) });

@@ -11,6 +11,7 @@
 | Forced | LOD land and objects drawn with their forward Lighting shaders | LOD draws with the base forward Lighting technique, an approximation of Skyrim's LOD shading | FO4 ships no forward Lighting permutation for LOD bases, and pre-culling skips per-face rejection |
 | Forced | Water blends the dynamic cube with `CubeMapTex` | Water blends with its sky-gradient reflection color | FO4 water reflection permutations shade a sky gradient |
 | Forced | Sentinel materials sample the dynamic cube | Native envmap pixels use the live cube, luminance-normalized to the authored cube; LOD is `(1 - gloss) * 8`; `material_reflections` (default 1) blends authored to dynamic, scaled by `1 -` rain | The native composite multiplies this pattern by surface light, and the G-buffer stores gloss, not roughness |
+| Divergence | `CreateCubemapRenderTarget_Reflections` and `CreateDepthStencil_Reflections` shrink the engine cube and its depth to 256 | Only the cube color target is 256; depth 7 stays 512 | Depth 7 is shared with Interface3D container and workbench |
 | Divergence | `activeReflections` from Skyrim's reflections prepass | Exterior water always uses the reflections variant | Fixed exterior-water policy |
 | Divergence | Loaded DC defines `ENABLESSR` for water | Live `enabled_ssr` gates all SSLR while DC is enabled | Avoids recompilation; SSLR feeds surfaces and water |
 | N/A | Forward `Lighting.hlsl` sentinel path | | FO4 world and first-person emit no forward BSLighting passes |
