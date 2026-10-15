@@ -749,32 +749,17 @@ namespace cs::host
 			Menu::Get().ObserveHostFrame(_client);
 
 			auto* performance = features::PerformanceOverlay::GetSingleton();
-			if (FeatureManager::Get().PrepareRuntimeCallback(
-					*performance, "DearModdingUI::TickHostFrame")) {
-				try {
-					const auto videoMemory = _client.QueryVideoMemory();
-					if (videoMemory) {
-						_videoMemoryFailure.reset();
-					} else {
-						LogFailureOnce("video-memory query", _videoMemoryFailure);
-					}
-					performance->TickHostFrame(
-						videoMemory ? videoMemory->used : 0,
-						videoMemory ? videoMemory->budget : 0);
-				} catch (const std::exception& error) {
-					FeatureManager::Get().QuarantineRuntimeCallback(
-						*performance,
-						"DearModdingUI::TickHostFrame",
-						error.what());
-					FeatureManager::Get().FinishRuntimeCallbackPass();
-				} catch (...) {
-					FeatureManager::Get().QuarantineRuntimeCallback(
-						*performance,
-						"DearModdingUI::TickHostFrame",
-						"non-standard exception");
-					FeatureManager::Get().FinishRuntimeCallbackPass();
+			FeatureManager::Get().RunRuntimeCallback(*performance, "DearModdingUI::TickHostFrame", [&] {
+				const auto videoMemory = _client.QueryVideoMemory();
+				if (videoMemory) {
+					_videoMemoryFailure.reset();
+				} else {
+					LogFailureOnce("video-memory query", _videoMemoryFailure);
 				}
-			}
+				performance->TickHostFrame(
+					videoMemory ? videoMemory->used : 0,
+					videoMemory ? videoMemory->budget : 0);
+			});
 			auto* renderDoc = features::RenderDoc::GetSingleton();
 
 			SetHotkeyEnabled(
