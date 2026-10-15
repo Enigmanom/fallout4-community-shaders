@@ -2,6 +2,7 @@
 #include "RemoteControlTools.h"
 
 #include "Feature.h"
+#include "Menu/Menu.h"
 #include "Plugin.h"
 #include "Settings/LiveSettings.h"
 #include "Settings/SettingsJson.h"
@@ -9,11 +10,21 @@
 #include <algorithm>
 #include <exception>
 #include <span>
+#include <string>
+#include <vector>
 
 namespace cs::features::remote_control
 {
 	namespace
 	{
+		std::vector<std::string> DebugViewIds(const Feature& a_feature)
+		{
+			std::vector<std::string> ids;
+			for (const auto& view : a_feature.GetDebugViews())
+				ids.emplace_back(view.id);
+			return ids;
+		}
+
 		Json FeatureEntry(const Feature& a_feature)
 		{
 			Json entry{
@@ -37,6 +48,8 @@ namespace cs::features::remote_control
 			}
 			if (!restartFields.empty())
 				entry["restartFields"] = std::move(restartFields);
+			if (const auto views = DebugViewIds(a_feature); !views.empty())
+				entry["debugViews"] = views;
 			return entry;
 		}
 
@@ -145,14 +158,26 @@ namespace cs::features::remote_control
 			return { { "action", "toggle" }, { "shortName", a_shortName }, { "enabled", enabled } };
 		}
 
+		Json DebugView(const std::string& a_shortName, const std::string& a_view)
+		{
+			auto* feature = FindFeature(a_shortName, true);
+			if (!feature)
+				return Error("feature not found or not loaded", { { "shortName", a_shortName } });
+			const auto ids = DebugViewIds(*feature);
+			if (!a_view.empty() && std::ranges::find(ids, a_view) == ids.end())
+				return Error("unknown debug view", { { "shortName", a_shortName }, { "view", a_view }, { "validViews", ids } });
+			Menu::Get().SelectDebugView(*feature, a_view);
+			return { { "action", "debugView" }, { "shortName", a_shortName }, { "view", a_view } };
+		}
+
 		Json Handle(const Json& a_args)
 		{
 			const auto action = a_args.value("action", std::string("list"));
 			if (action == "list")
 				return OnFrame([] { return List(); });
 
-			if (action != "get" && action != "set" && action != "reset" && action != "toggle")
-				return Error("unknown action (list|get|set|reset|toggle)", { { "action", action } });
+			if (action != "get" && action != "set" && action != "reset" && action != "toggle" && action != "debugView")
+				return Error("unknown action (list|get|set|reset|toggle|debugView)", { { "action", action } });
 			const auto shortName = a_args.value("shortName", std::string{});
 			if (shortName.empty())
 				return Error("missing required parameter 'shortName'", { { "action", action } });
@@ -161,6 +186,12 @@ namespace cs::features::remote_control
 				return OnFrame([shortName] { return Get(shortName); });
 			if (action == "reset")
 				return OnFrame([shortName] { return Reset(shortName); });
+			if (action == "debugView") {
+				const auto view = a_args.value("view", Json());
+				if (!view.is_null() && !view.is_string())
+					return Error("'view' must be a string");
+				return OnFrame([shortName, view = view.is_string() ? view.get<std::string>() : std::string{}] { return DebugView(shortName, view); });
+			}
 			if (action == "toggle") {
 				const auto enabled = a_args.value("enabled", Json());
 				if (!enabled.is_null() && !enabled.is_boolean())
@@ -175,7 +206,7 @@ namespace cs::features::remote_control
 
 	const Tool kFeatureTool{
 		"communityshaders.feature",
-		R"({"description":"Community Shaders feature operations. Action-dispatched. list (default): every registered feature as {name,shortName,loaded,enabled,toggleable,version,category,inMenu}; features with next-launch settings add restartFields:[{key,label,pending}]. get: params shortName; returns the live settings and the framework 'enabled' switch of a loaded feature as an object (settings that apply only at restart are omitted). set: params shortName, settings (object); applies live to a loaded feature and does NOT persist (use communityshaders.settings save); unknown keys and restart-only keys are refused with restartOnly/unknown lists and nothing is applied. reset: params shortName; the framework restore-defaults including 'enabled', which also saves. toggle: params shortName, enabled (boolean, optional; omit to flip); flips the framework 'enabled' switch of a loaded feature that supports it, live and not persisted; emits communityshaders.feature.changed.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["list","get","set","reset","toggle"]},"shortName":{"type":"string"},"settings":{"type":"object"},"enabled":{"type":"boolean"}}}})",
+		R"({"description":"Community Shaders feature operations. Action-dispatched. list (default): every registered feature as {name,shortName,loaded,enabled,toggleable,version,category,inMenu}; features with next-launch settings add restartFields:[{key,label,pending}]; features with debug views add debugViews:[id]. get: params shortName; returns the live settings and the framework 'enabled' switch of a loaded feature as an object (settings that apply only at restart are omitted). set: params shortName, settings (object); applies live to a loaded feature and does NOT persist (use communityshaders.settings save); unknown keys and restart-only keys are refused with restartOnly/unknown lists and nothing is applied. reset: params shortName; the framework restore-defaults including 'enabled', which also saves. toggle: params shortName, enabled (boolean, optional; omit to flip); flips the framework 'enabled' switch of a loaded feature that supports it, live and not persisted; emits communityshaders.feature.changed. debugView: params shortName, view (string, optional; empty or omitted clears); selects one of the debug view ids that list reports as debugViews for a loaded feature, live and not persisted; a fullscreen view replaces any other feature's fullscreen view; unknown ids are refused with validViews.","inputSchema":{"type":"object","properties":{"action":{"type":"string","enum":["list","get","set","reset","toggle","debugView"]},"shortName":{"type":"string"},"view":{"type":"string"},"settings":{"type":"object"},"enabled":{"type":"boolean"}}}})",
 		&Handle
 	};
 }

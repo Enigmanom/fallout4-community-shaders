@@ -23,6 +23,7 @@ namespace cs
 		void Load();
 		bool Save();
 		void ApplyDebugViewSelections();
+		void SelectDebugView(const Feature& a_feature, std::string_view a_view);
 		void DrawDebugViewSelector(const Feature& a_feature);
 
 		void DrawHome(dmui::Client& a_client);

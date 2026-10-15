@@ -229,6 +229,12 @@ namespace cs
 
 	void Menu::SetDebugViewSelection(const Feature& a_feature, std::string_view a_view)
 	{
+		SelectDebugView(a_feature, a_view);
+		(void)Save();
+	}
+
+	void Menu::SelectDebugView(const Feature& a_feature, std::string_view a_view)
+	{
 		_debugImages.erase(std::string(a_feature.GetName()));
 		if (a_view.empty()) {
 			_debugViews.ClearFeature(a_feature.GetName());
@@ -243,7 +249,6 @@ namespace cs
 				selected->kind);
 		}
 		ApplyDebugViewSelections();
-		(void)Save();
 	}
 
 	void Menu::DrawDebugViewSelector(const Feature& a_feature)

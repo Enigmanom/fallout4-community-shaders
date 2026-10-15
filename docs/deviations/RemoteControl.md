@@ -8,5 +8,6 @@
 | Divergence | `feature set` ignores unknown keys | Unknown and restart-only keys are refused (`unknown`/`restartOnly`) and nothing is applied | Restart-only settings cannot change live |
 | Divergence | `feature reset`, `settings load`, `settings reset` act in memory over every feature | Act on loaded features only, apply live fields only, and save | Unloaded features have no engine state to republish |
 | Divergence | `inspect shadercache` reports the compile set and `currentFailedCount`; `shaderRecompiled` fires when the set ends | Reports the running runtime compile batch and disk-cache counters, no `currentFailedCount`; the event fires per batch | FO4 compiles variants on demand |
+| Divergence | No debug-view selection | `feature debugView` selects a feature debug view live, not persisted | Validation switches views without a restart |
 | N/A | `capture screenshot` | Returns `screenshot feature not available` | FO4 has no Screenshot feature |
 | Pending | `communityshaders.nvperf` tool and `nvperf.completed` event | Not ported | |
