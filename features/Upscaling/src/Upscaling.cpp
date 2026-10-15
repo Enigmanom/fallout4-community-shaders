@@ -108,11 +108,15 @@ namespace cs::features
 		if (!cs::engine::RegisterFeatureShaderBindings("UpscalingSamplerBias", _samplerBiasDefines)) {
 			FailLoad("Upscaling could not register its sampler bias shader define");
 		}
+		if (!cs::engine::RegisterFeatureShaderBindings("UpscalingImageSpaceUv", _imageSpaceUvDefines)) {
+			FailLoad("Upscaling could not register its imagespace UV shader define");
+		}
 	}
 
 	bool Upscaling::ValidateShaderInjections(std::string& a_error)
 	{
-		return cs::engine::ValidateShaderInjectionRoutes("UpscalingSamplerBias", a_error);
+		return cs::engine::ValidateShaderInjectionRoutes("UpscalingSamplerBias", a_error) &&
+		       cs::engine::ValidateShaderInjectionRoutes("UpscalingImageSpaceUv", a_error);
 	}
 
 	bool Upscaling::StageFromPreset(

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Render/ShaderInjectionTargets.h"
+#include "Render/ShaderStage.h"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +22,10 @@ namespace cs::engine
 		virtual std::string_view GetShaderDefineName() const { return {}; }
 		virtual ShaderDefineOptions GetShaderDefineOptions(ShaderInjectionTarget = ShaderInjectionTarget::kCount) const { return {}; }
 		virtual bool HasShaderDefine(ShaderInjectionTarget) const { return false; }
+		virtual ShaderStageMask GetShaderDefineStages(ShaderInjectionTarget a_target) const
+		{
+			return ShaderStageBit(a_target == ShaderInjectionTarget::kDfTiledLighting ? ShaderStage::kCompute : ShaderStage::kPixel);
+		}
 		virtual bool IsLoaded() const { return true; }
 		virtual bool RequiresShaderGraphicsPair(ShaderInjectionTarget) const { return false; }
 
@@ -58,6 +63,7 @@ namespace cs::engine
 		std::string_view GetShaderDefineName() const override { return _declaration.GetShaderDefineName(); }
 		ShaderDefineOptions GetShaderDefineOptions(ShaderInjectionTarget a_target = ShaderInjectionTarget::kCount) const override { return _declaration.GetShaderDefineOptions(a_target); }
 		bool HasShaderDefine(ShaderInjectionTarget a_target) const override { return _declaration.HasShaderDefine(a_target); }
+		ShaderStageMask GetShaderDefineStages(ShaderInjectionTarget a_target) const override { return _declaration.GetShaderDefineStages(a_target); }
 		bool IsLoaded() const override { return _owner.IsLoaded(); }
 		bool RequiresShaderGraphicsPair(ShaderInjectionTarget a_target) const override { return _declaration.RequiresShaderGraphicsPair(a_target); }
 
@@ -71,8 +77,9 @@ namespace cs::engine
 		ShaderDefineDeclaration(std::string_view a_name,
 			std::initializer_list<ShaderInjectionTarget> a_targets,
 			std::string_view a_debug = {},
-			ShaderInjectionTarget a_pair = ShaderInjectionTarget::kCount) :
-			name(a_name), targets(a_targets), debug(a_debug), pair(a_pair)
+			ShaderInjectionTarget a_pair = ShaderInjectionTarget::kCount,
+			ShaderStageMask a_stages = 0) :
+			name(a_name), targets(a_targets), debug(a_debug), pair(a_pair), stages(a_stages)
 		{}
 
 		std::string_view GetShaderDefineName() const override { return name; }
@@ -94,10 +101,16 @@ namespace cs::engine
 			return std::ranges::find(targets, a_target) != targets.end();
 		}
 		bool RequiresShaderGraphicsPair(ShaderInjectionTarget a_target) const override { return pair == a_target; }
+		// A zero mask keeps the target's default stage.
+		ShaderStageMask GetShaderDefineStages(ShaderInjectionTarget a_target) const override
+		{
+			return stages != 0 ? stages : ShaderDefineProvider::GetShaderDefineStages(a_target);
+		}
 
 		std::string_view name;
 		std::vector<ShaderInjectionTarget> targets;
 		std::string_view debug;
 		ShaderInjectionTarget pair;
+		ShaderStageMask stages;
 	};
 }

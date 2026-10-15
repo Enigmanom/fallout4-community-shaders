@@ -13,7 +13,7 @@ namespace cs::engine
 				continue;
 			ShaderReplacementRegistration registration{
 				.targetId = target.id,
-				.stages = ShaderStageBit(target.id == ShaderInjectionTarget::kDfTiledLighting ? ShaderStage::kCompute : ShaderStage::kPixel),
+				.stages = a_feature.GetShaderDefineStages(target.id),
 				.contributor = std::string(a_name),
 				.feature = &a_feature
 			};

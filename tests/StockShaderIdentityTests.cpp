@@ -165,7 +165,7 @@ namespace
 			row.family.nativeName = row.nativeName;
 			row.family.nativeClassName = row.nativeClassName;
 			row.family.nativeSourceGroup = row.nativeSourceGroup;
-			row.owned = IsShaderSourceAvailable(a_shaderRoot, row.family.nativeName);
+			row.owned = IsShaderSourceAvailable(a_shaderRoot, ResolveShaderSourceName(row.family));
 			row.contributed = row.owned && std::ranges::any_of(GetFeatureShaderContributions(), [&](const auto& contribution) {
 				return contribution.targetId == row.family.target;
 			});

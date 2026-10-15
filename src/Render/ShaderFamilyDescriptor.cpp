@@ -1,6 +1,7 @@
 #include "Render/ShaderFamilyDescriptor.h"
 
 #include "Log.h"
+#include "Render/ImageSpacePassthroughVertex.h"
 
 #include <algorithm>
 #include <array>
@@ -660,6 +661,13 @@ namespace cs::engine
 			}
 		}
 
+		bool IsPassthroughVertex(const ShaderFamilyDescriptor& a_descriptor) noexcept
+		{
+			return a_descriptor.target == ShaderInjectionTarget::kImageSpace &&
+			       a_descriptor.stage == ShaderStage::kVertex &&
+			       IsImageSpacePassthroughVertex(a_descriptor.nativeName);
+		}
+
 		void AddStageSourceDefine(
 			ShaderInjectionDefines& a_defines,
 			const ShaderFamilyDescriptor& a_descriptor)
@@ -721,17 +729,26 @@ namespace cs::engine
 		}
 	}
 
-	std::filesystem::path GetShaderPath(std::string_view a_nativeName)
+	std::filesystem::path GetShaderPath(std::string_view a_sourceName)
 	{
-		return std::filesystem::path(a_nativeName).concat(".hlsl");
+		return std::filesystem::path(a_sourceName).concat(".hlsl");
 	}
 
 	bool IsShaderSourceAvailable(
-		const std::filesystem::path& a_shaderRoot, std::string_view a_nativeName)
+		const std::filesystem::path& a_shaderRoot, std::string_view a_sourceName)
 	{
 		std::error_code error;
-		return !a_nativeName.empty() &&
-		       std::filesystem::is_regular_file(a_shaderRoot / GetShaderPath(a_nativeName), error);
+		return !a_sourceName.empty() &&
+		       std::filesystem::is_regular_file(a_shaderRoot / GetShaderPath(a_sourceName), error);
+	}
+
+	std::string_view ResolveShaderSourceName(
+		const ShaderFamilyDescriptor& a_descriptor) noexcept
+	{
+		// One source reconstructs every stock passthrough VS route.
+		if (IsPassthroughVertex(a_descriptor))
+			return "ISFullscreenPassthroughVS";
+		return a_descriptor.nativeName;
 	}
 
 	std::optional<ShaderVariantCompilationDescriptor>
@@ -744,7 +761,7 @@ namespace cs::engine
 			return std::nullopt;
 
 		ShaderVariantCompilationDescriptor result;
-		result.sourcePath = GetShaderPath(a_descriptor.nativeName).wstring();
+		result.sourcePath = GetShaderPath(ResolveShaderSourceName(a_descriptor)).wstring();
 		result.entryPoint = "main";
 		result.profile = ProfileForStage(a_descriptor.stage);
 		if (result.profile.empty())
@@ -763,6 +780,9 @@ namespace cs::engine
 			return std::nullopt;
 		}
 		AddStageSourceDefine(result.defines, a_descriptor);
+		if (IsPassthroughVertex(a_descriptor) &&
+			a_descriptor.nativeName == kImageSpacePassthroughTexCoord1Name)
+			Define(result.defines, "IMAGESPACE_PASSTHROUGH_TEXCOORD1");
 		return result;
 	}
 }

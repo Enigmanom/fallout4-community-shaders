@@ -839,16 +839,18 @@ namespace cs::engine
 			const auto shaderRoot = ResolveShaderRoot(
 				service.runtime[ToIndex(a_key.target)].developerOverride,
 				a_plan.developerSourceRoot);
+			const auto descriptor = DescribeNativeVariant(a_key);
 			std::shared_ptr<NativeVariant> candidate;
 			{
 				std::scoped_lock lock(service.nativeVariantMutex);
 				const auto entry = service.nativeVariants.find(a_key);
 				if (entry != service.nativeVariants.end())
 					return entry->second;
+				const std::string sourceName(ResolveShaderSourceName(descriptor));
 				const auto [source, inserted] = service.shaderSourceAvailability.try_emplace(
-					std::make_pair(shaderRoot, a_key.nativeName), false);
+					std::make_pair(shaderRoot, sourceName), false);
 				if (inserted)
-					source->second = IsShaderSourceAvailable(shaderRoot, a_key.nativeName);
+					source->second = IsShaderSourceAvailable(shaderRoot, sourceName);
 				if (!source->second)
 					return nullptr;
 				candidate = std::make_shared<NativeVariant>();
@@ -862,7 +864,6 @@ namespace cs::engine
 				~SettleOnExit() { variant.settled.store(true, std::memory_order_release); }
 			} settle{ *candidate };
 
-			const auto descriptor = DescribeNativeVariant(a_key);
 			auto family = BuildShaderFamilyCompilationDescriptor(descriptor);
 			if (!family) {
 				bool reportUnsupported = false;

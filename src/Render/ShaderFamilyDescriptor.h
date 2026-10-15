@@ -10,9 +10,9 @@
 namespace cs::engine
 {
 	[[nodiscard]] std::string ProfileForStage(ShaderStage a_stage);
-	[[nodiscard]] std::filesystem::path GetShaderPath(std::string_view a_nativeName);
+	[[nodiscard]] std::filesystem::path GetShaderPath(std::string_view a_sourceName);
 	[[nodiscard]] bool IsShaderSourceAvailable(
-		const std::filesystem::path& a_shaderRoot, std::string_view a_nativeName);
+		const std::filesystem::path& a_shaderRoot, std::string_view a_sourceName);
 
 	struct ShaderFamilyDescriptor
 	{
@@ -26,6 +26,10 @@ namespace cs::engine
 		bool forceEarlyDepthStencil = false;
 		ShaderInjectionDefines nativeMacros;
 	};
+
+	// Source file that reconstructs a native shader; usually its own name.
+	[[nodiscard]] std::string_view ResolveShaderSourceName(
+		const ShaderFamilyDescriptor& a_descriptor) noexcept;
 
 	[[nodiscard]] std::optional<ShaderVariantCompilationDescriptor>
 	BuildShaderFamilyCompilationDescriptor(
