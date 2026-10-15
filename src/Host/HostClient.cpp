@@ -957,23 +957,9 @@ namespace cs::host
 		HWND a_window) noexcept
 	{
 		auto* renderDoc = features::RenderDoc::GetSingleton();
-		if (renderDoc->IsHealthy()) {
-			try {
-				renderDoc->BindD3D11CaptureTarget(a_device, a_window);
-			} catch (const std::exception& error) {
-				FeatureManager::Get().QuarantineRuntimeCallback(
-					*renderDoc,
-					"DearModdingUI::BindD3D11CaptureTarget",
-					error.what());
-				FeatureManager::Get().FinishRuntimeCallbackPass();
-			} catch (...) {
-				FeatureManager::Get().QuarantineRuntimeCallback(
-					*renderDoc,
-					"DearModdingUI::BindD3D11CaptureTarget",
-					"non-standard exception");
-				FeatureManager::Get().FinishRuntimeCallbackPass();
-			}
-		}
+		FeatureManager::Get().RunRuntimeCallback(*renderDoc, "DearModdingUI::BindD3D11CaptureTarget", [&] {
+			renderDoc->BindD3D11CaptureTarget(a_device, a_window);
+		});
 		Menu::Get().OnHostDeviceReady();
 		if (!_client.IsConnected())
 			return;
