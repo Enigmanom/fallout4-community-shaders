@@ -15,6 +15,7 @@
 #include "Render/FeatureShaderBindings.h"
 #include "Render/FrameBindings.h"
 #include "Render/ObjectLOD.h"
+#include "Render/OverlayShape.h"
 #include "Render/RenderHooks.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassHooks.h"
@@ -53,10 +54,10 @@ namespace cs::features
 			}
 		}
 
-		// FO4: the _s format stands in for the missing parallax flag; no object LOD.
+		// FO4: the _s format stands in for the parallax flag; no LOD or overlays.
 		bool IsParallaxEligible(RE::BSRenderPass* a_pass, cs::engine::PrepassBakePath) noexcept
 		{
-			if (cs::engine::IsObjectLODShape(a_pass))
+			if (cs::engine::IsObjectLODShape(a_pass) || cs::engine::IsOverlayShape(a_pass))
 				return false;
 			const auto* property = netimmerse_cast<RE::BSLightingShaderProperty*>(a_pass->GetShaderProperty());
 			const auto* material = property ? static_cast<const RE::BSLightingShaderMaterialBase*>(property->material) : nullptr;

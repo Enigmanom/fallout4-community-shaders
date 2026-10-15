@@ -22,6 +22,7 @@
 #include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/ObjectLOD.h"
+#include "Render/OverlayShape.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassHooks.h"
 #include "Render/SharedData.h"
@@ -33,7 +34,6 @@
 #include "RE/B/BSLightingShaderMaterialBase.h"
 #include "RE/B/BSLightingShaderProperty.h"
 #include "RE/B/BSRenderPass.h"
-#include "RE/N/NiAlphaProperty.h"
 #include "RE/N/NiRTTI.h"
 #include "RE/N/NiTexture.h"
 
@@ -48,7 +48,6 @@ namespace cs::features
 			"landscape/rocks/", "landscape/dlc06rocks/", "landscape/ground/", "landscape/trees/", "landscape/dirtcliffs/"
 		};
 		constexpr std::string_view kAtlasStem = "rockriverstones";
-		constexpr std::uint16_t kAlphaTestFlag = 0x200;
 
 		std::string CanonicaliseTexturePath(std::string_view a_path)
 		{
@@ -115,18 +114,12 @@ namespace cs::features
 		{
 			auto* geometry = a_pass->GetGeometry();
 			auto* lightProperty = netimmerse_cast<RE::BSLightingShaderProperty*>(a_pass->GetShaderProperty());
-			if (!geometry || !lightProperty || cs::engine::IsObjectLODShape(a_pass)) {
-				return false;
-			}
-
-			// Alpha tested draws are foliage cards and decals, where shifting UVs would be destructive
-			const auto* alphaProperty = netimmerse_cast<RE::NiAlphaProperty*>(geometry->properties[0].get());
-			if (alphaProperty && (alphaProperty->flags.flags & kAlphaTestFlag) != 0) {
+			if (!geometry || !lightProperty || cs::engine::IsObjectLODShape(a_pass) || cs::engine::IsOverlayShape(a_pass)) {
 				return false;
 			}
 
 			using enum RE::BSShaderProperty::EShaderPropertyFlag;
-			if (lightProperty->flags.any(kMultiTextureLandscape, kLODLandscape, kDecal, kDynamicDecal)) {
+			if (lightProperty->flags.any(kMultiTextureLandscape, kLODLandscape)) {
 				return false;
 			}
 

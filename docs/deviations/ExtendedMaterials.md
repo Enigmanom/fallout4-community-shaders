@@ -4,7 +4,7 @@
 |---|---|---|---|
 | Forced | Consumers in `Lighting.hlsl` (`PARALLAX`, `LANDSCAPE`) | Marcher runs in the `DFPrepass` pixel stage and offsets albedo, normal and `_s` for textured objects and non-instanced terrain; object LOD, tessellated variants and OG blends excluded | FO4's world frame is deferred |
 | Forced | Height in the `_p` slot (objects) and diffuse alpha (terrain) | Height read from the `_s` alpha; objects compile without `PARALLAX`, so the march samples one mip coarser | FO4 parallax packs store height in the `_s` alpha |
-| Forced | `PARALLAX` technique marks parallax materials | Objects admitted when the `_s` format stores alpha (BC2, BC3, BC7, RGBA8, BGRA8); a map whose last mip averages alpha 1 gets `HeightScale` 0, per object and per landscape layer | The engine never reads the BGSM parallax fields, and FO4 landscapes mix height maps with BC1/BC5 layers |
+| Forced | `PARALLAX` technique marks parallax materials | Objects admitted when the `_s` format stores alpha (BC2, BC3, BC7, RGBA8, BGRA8), except decals and alpha-tested overlays; a map whose last mip averages alpha 1 gets `HeightScale` 0, per object and per landscape layer | The engine never reads the BGSM parallax fields, and FO4 landscapes mix height maps with BC1/BC5 layers |
 | Forced | Six landscape layers | Four normalized weights, layers 5-6 at zero | FO4 landscape has four layers |
 | Forced | Terrain Helper displacement layers | Descriptor is 0; terrain parallax follows `EnableTerrain` alone | FO4 has no Terrain Helper |
 | Divergence | Relief depth of 0.1 UV (`maxHeight`) | Every admitted height map gets `HeightScale` 0.5; objects take the same factor | FO4 landscape spans twice Skyrim's world units per UV |
