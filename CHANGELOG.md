@@ -8,7 +8,7 @@
 - Image Based Lighting: ported Skyrim CS's spherical-harmonics ambient, specular and fog tint from the environment and sky cubemaps, with weather profiles; requires Dynamic Cubemaps, off until `EnableIBL` is set; static IBL is not included.
 - Terrain Variation: ported Skyrim CS's stochastic terrain sampling, LOD terrain tiling fix and landscape-textured mesh support, with a live enable toggle; mesh support covers natural landscape textures only, and Extended Materials and TruePBR height and RMAOS consumers are pending.
 - Performance Overlay: starts hidden each session; press F10 (rebindable) to show it, as in Skyrim CS. The frametime graph now scales with resolution.
-- Exponential Height Fog: removed; native fog is restored. It returns once Skyrim CS releases it.
+- Exponential Height Fog: removed until Skyrim CS releases it.
 
 ## 0.3.1
 

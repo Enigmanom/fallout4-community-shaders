@@ -38,7 +38,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Cloud Shadows | Mixed | Layer-cube producer, DFLight directional receivers, Water sun specular | Ext: Effect/particle sun term (FO4 Effect lighting has none). N/A: legacy VL consumer, BSParticleShader (never drawn) | NS | H | L | Med |
 | [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |
-| Exponential Height Fog | — | not planned; upstream marks it unreleased | — | — | — | — | — |
+| Exponential Height Fog | Core | Deferred until upstream releases it | — | NS | — | — | — |
 | [Extended Materials](deviations/ExtendedMaterials.md) | Mixed | Object POM + contact refinement, warping fix, terrain POM/height blend (height from `_s` alpha); parallax material gate pending | Ext: complex envmask material; sun parallax soft shadows (done). N/A: point-light parallax shadows | Pt | H | M | Med |
 | Extended Translucency | Mixed | Alpha models on an existing alpha route* | Ext: per-mesh NIF metadata, world translucent coverage | NS | M | S | Low |
 | Grass Collision | Core | Contact field, blade deformation/motion, optimized-grass consumer | — | NS | H | M | Med |

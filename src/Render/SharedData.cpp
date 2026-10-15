@@ -241,7 +241,7 @@ namespace cs::render
 				data.fo4 = state.fo4;
 				PackFeatures(data, GetFeatureBufferData());
 				if (current) {
-					// Terrain prepares after material draws; refresh b6/b7 without advancing camera history twice.
+					// Terrain prepares after material draws; refresh b6/b7, not camera history.
 					if (!WriteSubstrate(context, data, kFeatureDataSlot - kFrameDataSlot))
 						CS_LOG_EVERY_MS(L, 2000, spdlog::level::err, "Shared feature constant-buffer map failed.");
 					return;

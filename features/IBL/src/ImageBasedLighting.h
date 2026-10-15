@@ -93,8 +93,6 @@ namespace cs::features
 		std::unique_ptr<buffer::Texture2D> _envSH, _skySH;
 		winrt::com_ptr<ID3D11ComputeShader> _projectCompute;
 		winrt::com_ptr<ID3D11SamplerState> _linearSampler;
-		// Render thread only: every source the mode needs was projected.
-
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _resourcesReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
