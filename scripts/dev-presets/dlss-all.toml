@@ -1,4 +1,4 @@
-# Every feature; deploy-dev.ps1 also forces the dev tools (RenderDoc, RemoteControl, CSEditor) on.
+# Every feature; deploy-dev.ps1 forces the dev tools on.
 
 [logging]
 telemetry = true

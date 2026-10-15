@@ -50,7 +50,7 @@ if ($PSCmdlet.ShouldProcess($modPath, "build, install and deploy with $Toml")) {
 	robocopy $install $modPath /MIR /NJH /NJS /NP /NDL /XF FO4CommunityShaders.toml meta.ini /XD ShaderCache Presets | Out-Null
 	if ($LASTEXITCODE -ge 8) { throw "robocopy failed (exit $LASTEXITCODE)." }
 	New-Item -ItemType Directory -Force (Join-Path $modPath $plugin) | Out-Null
-	# Dev tools stay loaded whatever the chosen TOML says, so every deployed build can be inspected.
+	# Force the dev tools on so every deployed build can be inspected.
 	$settings = Get-Content -LiteralPath $Toml -Raw
 	foreach ($tool in 'RenderDoc', 'RemoteControl', 'CSEditor') {
 		$section = "(?ms)^\[features\.$tool\][ \t]*\r?\n(?:(?!^\[).)*?^[ \t]*#?[ \t]*load[ \t]*=[ \t]*\w+[^\r\n]*"

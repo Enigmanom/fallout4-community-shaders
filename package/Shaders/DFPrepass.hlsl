@@ -404,10 +404,10 @@ SamplerState g_sLandNormalNoise : register(s15);
 #	if defined(EMAT)
 #		include "Common/Random.hlsli"
 
-// FO4: landscape spans 2x Skyrim's world units per UV (uv/48 vs uv/96 LOD), so halve the UV depth.
+// FO4: landscape spans 2x Skyrim's units per UV (uv/48 vs /96), so halve depth.
 static const float FO4DepthScale = 0.5;
 
-// FO4: no material marks height, so an _s alpha averaging 1 (absent or flat) carries none.
+// FO4: no material marks height; an _s alpha averaging 1 carries none.
 float HeightScaleOf(Texture2D<float4> a_texture, SamplerState a_sampler)
 {
 	uint width, height, mips;
@@ -556,7 +556,7 @@ struct PS_OUTPUT
 	float2 motionVec: SV_Target5;
 #	endif
 #	if defined(EXTENDED_MATERIALS)
-	// FO4: upstream shades parallax shadows in its forward pass; DFLight reads them from here.
+	// FO4: upstream shades parallax shadows forward; DFLight reads them from here.
 	float4 parallaxShadow: SV_Target6;
 #	endif
 };
@@ -795,7 +795,7 @@ struct PS_OUTPUT
 				viewPosition.z < ExtendedMaterials::ParallaxCheapDistance &&
 				ExtendedMaterials::TerrainHasAnyDisplacement() &&
 				ExtendedMaterials::TerrainMaxWeightedHeightScale(landInput, displacementParams) > 0.01;
-			// FO4: the G-buffer normal is not built yet, so the geometric normal gates the sun angle.
+			// FO4: no G-buffer normal yet, so the geometric normal gates the sun angle.
 			const bool sunFacing = dot(tbnTr[2], SharedData::DirLightDirection.xyz) > 0.0;
 			[branch] if ((doTerrainPom || hasTerrainParallaxShadow) && sunFacing && SharedData::extendedMaterialSettings.EnableShadows && terrainDirectionalShadowQuality > 0.0)
 			{
