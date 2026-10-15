@@ -7,6 +7,9 @@
 #if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
 #	include "FO4/TerrainShadowsConsumer.hlsli"
 #endif
+#if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+#	include "FO4/ExtendedMaterialsConsumer.hlsli"
+#endif
 #ifdef EXPONENTIAL_HEIGHT_FOG
 #	include "FO4/ExponentialHeightFogConsumer.hlsli"
 #endif
@@ -2384,6 +2387,9 @@ float2 goboUV = float2(omniUV.x,
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
 		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, CameraPosAdjust));
 #	endif
+#	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
+#	endif
 #	if defined(DIRECTIONAL) && defined(WATER_EFFECTS)
 		float3 causticsMult = WaterEffects::GetCausticsMultFromViewPosition(
 			posView,
@@ -3153,6 +3159,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, CameraPosAdjust));
+#	endif
+#	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
 #	endif
 #	if defined(DIRECTIONAL) && defined(WATER_EFFECTS)
 			float3 causticsMult = WaterEffects::GetCausticsMultFromViewPosition(
@@ -4131,6 +4140,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, CameraPosAdjust));
+#	endif
+#	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
 #	endif
 #	if defined(DIRECTIONAL) && defined(WATER_EFFECTS)
 			float3 causticsMult = WaterEffects::GetCausticsMultFromViewPosition(
@@ -5251,6 +5263,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row2,
 				CameraPosAdjust);
 #	endif
+#	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+			result *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
+#	endif
 #	if defined(WATER_EFFECTS) || defined(EXPONENTIAL_HEIGHT_FOG)
 			float shadowAlpha = result.z;
 #	endif
@@ -5528,6 +5543,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row2,
 				CameraPosAdjust);
 #		endif
+#		if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+			result *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
+#		endif
 #		if defined(WATER_EFFECTS) || defined(EXPONENTIAL_HEIGHT_FOG)
 			float shadowAlpha = result.z;
 #		endif
@@ -5571,6 +5589,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		ViewToWorld_row1,
 		ViewToWorld_row2,
 		CameraPosAdjust);
+#		endif
+#		if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+	splitShadow *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
 #		endif
 #		if defined(DIRECTIONAL) && defined(WATER_EFFECTS)
 	splitShadow *= WaterEffects::GetCausticsMultFromViewPosition(
@@ -6284,6 +6305,12 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			finalDiffuse *= terrainShadowMult;
 			FO4_SOFT_LOBE_SCALE(softDiffuse, terrainShadowMult);
 			brdfSpecular *= terrainShadowMult;
+#	endif
+#	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
+			float parallaxShadowMult = ExtendedMaterials::GetParallaxShadow(input.position.xy);
+			finalDiffuse *= parallaxShadowMult;
+			FO4_SOFT_LOBE_SCALE(softDiffuse, parallaxShadowMult);
+			brdfSpecular *= parallaxShadowMult;
 #	endif
 #	if defined(DIRECTIONAL) && defined(WATER_EFFECTS)
 			float3 causticsMult = WaterEffects::GetCausticsMultFromViewPosition(

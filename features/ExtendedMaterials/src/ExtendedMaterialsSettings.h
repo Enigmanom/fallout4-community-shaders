@@ -4,12 +4,13 @@
 
 namespace cs::features::extended_materials
 {
-	// FO4: Complex Material and Shadows are unported, so they have no key.
+	// FO4: Complex Material is unported, so it has no key.
 	struct Settings
 	{
 		bool EnableParallax = true;
 		bool EnableTerrain = false;
 		bool EnableHeightBlending = true;
+		bool EnableShadows = true;
 		bool EnableParallaxWarpingFix = true;
 	};
 
@@ -18,6 +19,7 @@ namespace cs::features::extended_materials
 			settings::Field{ "EnableParallax", "Enable Parallax", &Settings::EnableParallax },
 			settings::Field{ "EnableTerrain", "Enable Legacy Terrain", &Settings::EnableTerrain },
 			settings::Field{ "EnableHeightBlending", "Enable Terrain Height Blending", &Settings::EnableHeightBlending },
+			settings::Field{ "EnableShadows", "Enable Shadows", &Settings::EnableShadows },
 			settings::Field{ "EnableParallaxWarpingFix", "Enable Parallax Warping Fix", &Settings::EnableParallaxWarpingFix } }
 	};
 }

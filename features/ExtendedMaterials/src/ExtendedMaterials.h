@@ -5,8 +5,11 @@
 #include "FeatureBuffer.h"
 #include "FeatureCategories.h"
 #include "ShaderDefines.h"
+#include "Utils/CSBuffer.h"
 
 #include <atomic>
+#include <cstdint>
+#include <memory>
 #include <string>
 
 namespace cs::features
@@ -28,6 +31,7 @@ namespace cs::features
 		void RestoreDefaultSettings() override;
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
+		void Prepass() override;
 
 		cs::ExtendedMaterialsFeatureData GetCommonBufferData() const;
 
@@ -37,10 +41,19 @@ namespace cs::features
 		ExtendedMaterials() = default;
 
 		bool SaveSettings() override;
+		[[nodiscard]] bool ShadowsActive() const noexcept;
+		void BindShadowTarget(ID3D11DeviceContext* a_context) const;
+		void PublishShadows(ID3D11DeviceContext* a_context) const;
+
+		static constexpr std::uint32_t kParallaxShadowRTVSlot = 6;
+		static constexpr std::uint32_t kParallaxShadowPSSlot = 66;
 		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(extended_materials::kSchema, _settings); }
 
 		Settings _settings;
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
+		// Render thread only: written by the prepass, read by DFLight's sun.
+		std::unique_ptr<cs::buffer::Texture2D> _shadowTexture;
+		bool _shadowFrameReady = false;
 	};
 }

@@ -416,13 +416,10 @@ float HeightScaleOf(Texture2D<float4> a_texture, SamplerState a_sampler)
 }
 #	endif
 #	if defined(EMAT_OBJECT)
-// FO4: the _s alpha is a full-resolution height map like Skyrim's _p.
-#		define PARALLAX
 // FO4: LANDSCAPE is always defined as 0/1; the kernel tests defined().
 #		undef LANDSCAPE
 #		include "ExtendedMaterials/ExtendedMaterials.hlsli"
 #		define LANDSCAPE 0
-#		undef PARALLAX
 #	elif defined(EMAT_LANDSCAPE)
 // FO4: four layers, height in each _s alpha; layers 5-6 weigh zero.
 struct EMLandscapeInput
@@ -558,6 +555,10 @@ struct PS_OUTPUT
 #	if PREPASS_MOTION_VECTOR
 	float2 motionVec: SV_Target5;
 #	endif
+#	if defined(EXTENDED_MATERIALS)
+	// FO4: upstream shades parallax shadows in its forward pass; DFLight reads them from here.
+	float4 parallaxShadow: SV_Target6;
+#	endif
 };
 
 #	if EARLYDEPTH && !TREE_ANIM && !DISMEMBERMENT_MEATCUFF
@@ -565,6 +566,9 @@ struct PS_OUTPUT
 #	endif
 	PS_OUTPUT main(PS_INPUT input) {
 		PS_OUTPUT output;
+#	if defined(EXTENDED_MATERIALS)
+		float parallaxShadow = 1.0;
+#	endif
 #	if defined(TERRAIN_VARIATION_LOD) || defined(EMAT)
 		float screenNoise = Random::InterleavedGradientNoise(input.position.xy, SharedData::FrameCount);
 #	endif
@@ -717,6 +721,19 @@ struct PS_OUTPUT
 			{
 				mipLevel = ExtendedMaterials::GetMipLevel(uv, g_tMaterial);
 				uv = ExtendedMaterials::GetParallaxCoords(viewPosition.z, uv, mipLevel, viewDirection, tbnTr, screenNoise, g_tMaterial, g_sMaterial, 3, displacementParams, applyMeshTV, meshOffset, pixelOffset);
+				const float parallaxShadowQuality = viewPosition.z < ExtendedMaterials::ParallaxCheapDistance ? ExtendedMaterials::ParallaxNearShadowQuality : ExtendedMaterials::ParallaxFarShadowQuality;
+				[branch] if (SharedData::extendedMaterialSettings.EnableShadows && parallaxShadowQuality > 0.0)
+				{
+					float sh0;
+#		if defined(TERRAIN_VARIATION_MESH)
+					[branch] if (applyMeshTV) sh0 = StochasticHeightChannel(g_tMaterial, g_sMaterial, uv, mipLevel, 3, meshOffset);
+					else sh0 = g_tMaterial.SampleLevel(g_sMaterial, uv, mipLevel).a;
+#		else
+					sh0 = g_tMaterial.SampleLevel(g_sMaterial, uv, mipLevel).a;
+#		endif
+					const float3 dirLightDirectionTS = mul(tbnTr, SharedData::DirLightDirection.xyz);
+					parallaxShadow = ExtendedMaterials::GetParallaxSoftShadowMultiplier(uv, mipLevel, dirLightDirectionTS, sh0, g_tMaterial, g_sMaterial, 3, parallaxShadowQuality, screenNoise, displacementParams, applyMeshTV, meshOffset);
+				}
 			}
 		}
 #	endif
@@ -768,8 +785,29 @@ struct PS_OUTPUT
 				unusedHeight = ExtendedMaterials::GetTerrainHeight(screenNoise, landInput, uv, mipLevels, displacementParams, 1.0, landInput.LandBlendWeights1, landInput.LandBlendWeights2.xy, sharedOffset, weights);
 			}
 
-			if (SharedData::extendedMaterialSettings.EnableHeightBlending)
+			if (SharedData::extendedMaterialSettings.EnableHeightBlending) {
 				input.layerWeights = float4(weights[0], weights[1], weights[2], weights[3]);
+				landInput.LandBlendWeights1 = input.layerWeights;
+			}
+
+			const float terrainDirectionalShadowQuality = viewPosition.z < ExtendedMaterials::ParallaxCheapDistance ? ExtendedMaterials::ParallaxNearShadowQuality : ExtendedMaterials::ParallaxFarShadowQuality;
+			const bool hasTerrainParallaxShadow =
+				viewPosition.z < ExtendedMaterials::ParallaxCheapDistance &&
+				ExtendedMaterials::TerrainHasAnyDisplacement() &&
+				ExtendedMaterials::TerrainMaxWeightedHeightScale(landInput, displacementParams) > 0.01;
+			// FO4: the G-buffer normal is not built yet, so the geometric normal gates the sun angle.
+			const bool sunFacing = dot(tbnTr[2], SharedData::DirLightDirection.xyz) > 0.0;
+			[branch] if ((doTerrainPom || hasTerrainParallaxShadow) && sunFacing && SharedData::extendedMaterialSettings.EnableShadows && terrainDirectionalShadowQuality > 0.0)
+			{
+				float terrainShadowMipLevels[6];
+				[unroll] for (uint terrainMipIndex = 0; terrainMipIndex < 6; terrainMipIndex++)
+					terrainShadowMipLevels[terrainMipIndex] = min(mipLevels[terrainMipIndex], ExtendedMaterials::TerrainParallaxShadowMaxMipLevel);
+				float sh0;
+				if (ExtendedMaterials::ComputeTerrainParallaxShadowBaseHeight(landInput, uv, terrainShadowMipLevels, terrainDirectionalShadowQuality, screenNoise, displacementParams, sharedOffset, sh0)) {
+					const float3 dirLightDirectionTS = mul(tbnTr, SharedData::DirLightDirection.xyz);
+					parallaxShadow = ExtendedMaterials::EvaluateTerrainDirectionalParallaxShadowMultiplier(landInput, uv, terrainShadowMipLevels, dirLightDirectionTS, terrainDirectionalShadowQuality, screenNoise, displacementParams, sharedOffset, sh0);
+				}
+			}
 		}
 #		endif
 #		if defined(TERRAIN_VARIATION) && !INSTANCED
@@ -1590,6 +1628,14 @@ struct PS_OUTPUT
 #		endif
 
 		output.motionVec = (currNDC - prevNDC) * float2(-0.5, 0.5);
+#	endif
+#	if defined(EXTENDED_MATERIALS)
+	// Every draw writes, so surfaces drawn over parallax never keep its shadow.
+#		if BLEND
+		output.parallaxShadow = float4(parallaxShadow, 0, 0, output.albedo.w);
+#		else
+		output.parallaxShadow = float4(parallaxShadow, 0, 0, 1);
+#		endif
 #	endif
 		return output;
 	}
