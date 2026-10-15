@@ -431,13 +431,11 @@ namespace cs::features
 		const UINT internalHeight = height >> _settings.resolutionMode;
 		if (!internalWidth || !internalHeight)
 			return;
-		// FO4: dynamic resolution keeps targets at allocation size, so history layout changes.
-		const UINT workingSize[2]{ internalWidth, internalHeight };
-		if (workingSize[0] != _lastWorkingSize[0] || workingSize[1] != _lastWorkingSize[1]) {
-			_lastWorkingSize[0] = workingSize[0];
-			_lastWorkingSize[1] = workingSize[1];
+		// FO4: dynamic resolution keeps allocation size, so history layout shifts.
+		if (_lastWorkingSize[0] && (internalWidth != _lastWorkingSize[0] || internalHeight != _lastWorkingSize[1]))
 			QueueReset("render_size_change");
-		}
+		_lastWorkingSize[0] = internalWidth;
+		_lastWorkingSize[1] = internalHeight;
 
 		try {
 			cs::engine::ComputeOMScope scope(context, 8, 2, 6, 2);
@@ -449,8 +447,6 @@ namespace cs::features
 				const float clear[4]{};
 				for (auto& texture : _textures.accumulation)
 					context->ClearUnorderedAccessViewFloat(texture->uav.get(), clear);
-				// FO4: stale geometry would pass the history depth test after a layout change.
-				context->ClearUnorderedAccessViewFloat(_textures.previousGeometry->uav.get(), clear);
 				++_resetCount;
 			}
 			UpdateConstants(*camera, width, height, state->frameCount);
