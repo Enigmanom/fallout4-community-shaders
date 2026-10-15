@@ -35,7 +35,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Feature | Verdict | Core slices | Extension / N/A slices | Status | Payoff | Effort | Conf. |
 |---|---|---|---|---|---|---|---|
 | [CS Editor](deviations/CSEditor.md) | Core | Weather picker, lock, time controls, weather panels and per-weather feature overrides; template/imagespace/godray editors, light editor and shell pending | N/A: Skyrim VL noise fields | Pt | H | L | High |
-| Cloud Shadows | Core | Layer-cube producer, directional receivers, Effect/Water/Particle receivers, EHF attenuation | N/A: legacy VL consumer | NS | H | L | Med |
+| Cloud Shadows | Mixed | Layer-cube producer, DFLight directional receivers, Water sun specular, EHF attenuation | Ext: Effect/particle sun term (FO4 Effect lighting has none). N/A: legacy VL consumer, BSParticleShader (never drawn) | NS | H | L | Med |
 | [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |
 | [Exponential Height Fog](deviations/ExponentialHeightFog.md) | Core | Analytic/froxel fog; shadow/environment/weather/secondary consumers; local-light scattering (needs LLF light grid) | N/A: ENB | Pt | H | L | High |
@@ -69,7 +69,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | [Unified Water](deviations/UnifiedWater.md) | Core | Optical distance blend, distant terrain tile generation/lifetime, cache UI, material identity fix | FO4-specific requirement: preserve vanilla placed-water distance rendering. N/A: Skyrim world flowmap | Pt | M | S/M | Med |
 | [Upscaling](deviations/Upscaling.md) | Core | SR/native AA, DR/RCAS/reflection/depth consumers, canonical SDK depth, masks, underwater chain, FG/UI/Reflex | — | Pt | H | L | High |
 | Volumetric Lighting | Extension | Native GFSDK enable/quality controls | Ext (planned): godray resolution fix (in-game godrays are pixelated), night-time (moon) godrays; full raymarched renderer. N/A: Skyrim dispatch optimization | NS | H | M | Med |
-| Volumetric Shadows | Core | VSM producer, DFLight soft sun, Effect/Water short rays, Particle receiver | — | NS | H | L | Med |
+| Volumetric Shadows | Mixed | VSM producer, DFLight soft sun, Water sun specular | Ext: Effect/particle short rays (need an FO4 sun term). N/A: water refraction short rays (no FO4 refraction sun term), BSParticleShader (never drawn) | NS | H | M | Med |
 | [Water Effects](deviations/WaterEffects.md) | Core | Exterior/secondary caustics, interior heights*, debug, water parallax (height from water-normal alpha) | N/A: FLOWMAP parallax (no FO4 flowmap path) | Pt | H | M | High |
 | Wetness Effects | — | removed; not ported | — | NS | — | — | — |
 
@@ -97,6 +97,10 @@ are FO4-only rule-4 core features.
   visualization (tiles at 127, per-tile count) ships with it.
 - **Grass.** Grass wind/collision/placement is already reconstructed in `DFPrepass.hlsl`; remaining stock
   grass variants are port work.
+- **Shadow receivers** (fallout4-re `docs/cloud-volumetric-shadows-contract.md`). FO4 Effect LIGHTING carries
+  the weather Effect Lighting colour, not sun light, and its PS has no world position; FO4 water has no
+  refraction sun term; particles draw through Effect PARTICLES routes. Upstream's Effect/particle shadow
+  consumers therefore need an FO4 sun term (extension); water takes shadows on its sun specular only.
 - **Effects11.** Replaces ENB's enbeffect role natively; no ENB preset/binary compatibility is kept. Attach at
   FO4's HDR-to-LDR tonemap inside the identified imagespace range (RE); ColorCorrection can ship first.
 
