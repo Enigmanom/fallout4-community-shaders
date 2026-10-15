@@ -53,7 +53,7 @@ namespace cs::features
 			}
 		}
 
-		// FO4: no parallax flag exists, so the _s format stands in; object LOD stays out, as upstream.
+		// FO4: the _s format stands in for the missing parallax flag; no object LOD.
 		bool IsParallaxEligible(RE::BSRenderPass* a_pass, cs::engine::PrepassBakePath) noexcept
 		{
 			if (cs::engine::IsObjectLODShape(a_pass))
@@ -98,7 +98,7 @@ namespace cs::features
 		auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
 		if (!context)
 			return;
-		// The prepass renders into this target, so DFLight's view of it must be unbound first.
+		// Unbind DFLight's SRV before the prepass renders into the target.
 		ID3D11ShaderResourceView* none = nullptr;
 		cs::engine::BindFrameShaderResources(context, cs::engine::ShaderStage::kPixel, kParallaxShadowPSSlot, 1, &none);
 		const auto* graphics = cs::engine::GetGraphicsState();
@@ -136,15 +136,19 @@ namespace cs::features
 	{
 		if (!_shadowFrameReady)
 			return;
-		// FO4: SV_Target6 follows the prepass's six G-buffer targets, which stay as the engine bound them.
+		// FO4: SV_Target6 follows the engine's six G-buffer targets, left as bound.
 		std::array<ID3D11RenderTargetView*, kParallaxShadowRTVSlot + 1> targets{};
 		winrt::com_ptr<ID3D11DepthStencilView> depth;
-		a_context->OMGetRenderTargets(kParallaxShadowRTVSlot, targets.data(), depth.put());
-		targets[kParallaxShadowRTVSlot] = _shadowTexture->rtv.get();
-		a_context->OMSetRenderTargets(static_cast<UINT>(targets.size()), targets.data(), depth.get());
-		for (std::size_t slot = 0; slot < kParallaxShadowRTVSlot; ++slot) {
-			if (targets[slot])
-				targets[slot]->Release();
+		a_context->OMGetRenderTargets(static_cast<UINT>(targets.size()), targets.data(), depth.put());
+		auto* const bound = targets[kParallaxShadowRTVSlot];
+		if (bound != _shadowTexture->rtv.get()) {
+			targets[kParallaxShadowRTVSlot] = _shadowTexture->rtv.get();
+			a_context->OMSetRenderTargets(static_cast<UINT>(targets.size()), targets.data(), depth.get());
+		}
+		targets[kParallaxShadowRTVSlot] = bound;
+		for (auto* target : targets) {
+			if (target)
+				target->Release();
 		}
 	}
 
@@ -234,25 +238,17 @@ namespace cs::features
 	void ExtendedMaterials::DrawSettings()
 	{
 		settings::SettingsEdit edit{ *this };
-		const auto toggle = [&](const auto& field, const char* a_tooltip) {
-			const std::string label = std::string(field.description) + "##" + std::string(field.key);
-			edit.Discrete(dmui::ui::Checkbox(label.c_str(), &(_settings.*field.member)));
-			if (const dmui::TooltipScope tooltip{ dmui::ui::HoveredFlags::kNone };
-				tooltip.Visible()) {
-				dmui::ui::Text("%s", a_tooltip);
-			}
-		};
 		const auto& [parallax, terrain, heightBlending, shadows, warpingFix] = extended_materials::kSchema.fields;
 		if (const ui::Section section{ "extended-materials-parallax", "Parallax" }; section) {
-			toggle(parallax, "Enables parallax on standard meshes made for parallax.");
-			toggle(terrain,
+			edit.Toggle(parallax, _settings, "Enables parallax on standard meshes made for parallax.");
+			edit.Toggle(terrain, _settings,
 				"Enables terrain parallax using the alpha channel of each landscape specular (_s) texture. "
 				"Therefore, all landscape textures must support parallax for this effect to work properly. ");
-			toggle(heightBlending, "Enables landscape texture blending based on parallax. ");
-			toggle(warpingFix, "Enables a fix reducing parallax scale on curved and smooth normal triangles.");
+			edit.Toggle(heightBlending, _settings, "Enables landscape texture blending based on parallax. ");
+			edit.Toggle(warpingFix, _settings, "Enables a fix reducing parallax scale on curved and smooth normal triangles.");
 		}
 		if (const ui::Section section{ "extended-materials-shadows", "Approximate Soft Shadows" }; section) {
-			toggle(shadows, "Enables cheap soft shadows when using parallax. This applies to sunlight.");
+			edit.Toggle(shadows, _settings, "Enables cheap soft shadows when using parallax. This applies to sunlight.");
 		}
 	}
 
