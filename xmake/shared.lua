@@ -20,7 +20,6 @@ function main(target)
             "package/Shaders/LICENSE",
             "package/Shaders/Common/Spherical Harmonics/LICENSE",
             "features/Dynamic Cubemaps/Shaders/DynamicCubemaps",
-            "features/Exponential Height Fog/Shaders/ExponentialHeightFog",
             "features/Extended Materials/Shaders/ExtendedMaterials",
             "features/IBL/Shaders/IBL/DiffuseIBLCS.hlsl",
             "features/IBL/Shaders/IBL/IBL.hlsli",

@@ -1,5 +1,4 @@
 #include "DynamicCubemapsSettings.h"
-#include "ExponentialHeightFogSettings.h"
 #include "ExtendedMaterialsSettings.h"
 #include "FrameGenerationSettings.h"
 #include "ImageBasedLightingSettings.h"
@@ -80,7 +79,6 @@ namespace
 			std::pair{ "ScreenSpaceGI", MakeSchemaView(ssgi_settings::kSchema) },
 			std::pair{ "Skylighting", MakeSchemaView(skylighting::kSchema) },
 			std::pair{ "InverseSquareLighting", MakeSchemaView(inverse_square_lighting::kSchema) },
-			std::pair{ "ExponentialHeightFog", MakeSchemaView(exponential_height_fog::kSchema) },
 			std::pair{ "DynamicCubemaps", MakeSchemaView(dynamic_cubemaps::kSchema) },
 			std::pair{ "ImageBasedLighting", MakeSchemaView(image_based_lighting::kSchema) },
 			std::pair{ "WaterEffects", SchemaView{} },
@@ -105,12 +103,12 @@ namespace
 				if (a_key == optOut)
 					return std::nullopt;
 			}
-			return a_key != "ExponentialHeightFog" && a_key != "ImageBasedLighting";
+			return a_key != "ImageBasedLighting";
 		};
 		for (const auto& [key, schema] : features) {
 			AddFeatureSections(
 				registry, key, schema,
-				std::string_view(key) == "ExponentialHeightFog" || std::string_view(key) == "ImageBasedLighting",
+				std::string_view(key) == "ImageBasedLighting",
 				enabledDefault(key));
 		}
 		return registry;
@@ -263,11 +261,11 @@ namespace
 		CHECK(!activation["features"]["Upscaling"].as_table()->contains("enabled"));
 
 		// Open-map weather tables are the one unowned section that must survive.
-		WriteFile(a_path, "[features.ExponentialHeightFog.weather]\nClear = { density = 2.0 }\nFoggy = { density = 5.0 }\n");
+		WriteFile(a_path, "[features.ImageBasedLighting.weather]\nClear = { SkyIBLScale = 2.0 }\nFoggy = { SkyIBLScale = 5.0 }\n");
 		CHECK(InitializeAt(a_path, a_registry).error.empty());
 		const auto rewritten = LoadFile(a_path).table;
-		const auto weather = rewritten["features"]["ExponentialHeightFog"]["weather"];
-		CHECK(weather["Clear"]["density"].value<double>() == 2.0 && weather["Foggy"]["density"].value<double>() == 5.0);
+		const auto weather = rewritten["features"]["ImageBasedLighting"]["weather"];
+		CHECK(weather["Clear"]["SkyIBLScale"].value<double>() == 2.0 && weather["Foggy"]["SkyIBLScale"].value<double>() == 5.0);
 
 		// A value where an owned table belongs must still render a parseable document.
 		const auto blocked = RenderDocument(a_registry, toml::parse("[features.ScreenSpaceShadows]\nsettings = false\n"));

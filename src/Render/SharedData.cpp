@@ -158,7 +158,6 @@ namespace cs::render
 				.otherEffectMult = 1.0f
 			};
 			auto& fo4 = a_data.fo4;
-			a_data.feature.exponentialHeightFogSettings = a_features.exponentialHeightFogSettings;
 			fo4.EnabledSSR = a_features.dynamicCubemapsSettings.EnabledSSR;
 			fo4.EnabledDynamicCubemaps = a_features.dynamicCubemapsSettings.Enabled;
 			fo4.DynamicMaterialReflections = a_features.dynamicCubemapsSettings.MaterialReflections;
@@ -242,7 +241,7 @@ namespace cs::render
 				data.fo4 = state.fo4;
 				PackFeatures(data, GetFeatureBufferData());
 				if (current) {
-					// Fog and terrain prepare after material draws; refresh b6/b7 without advancing camera history twice.
+					// Terrain prepares after material draws; refresh b6/b7 without advancing camera history twice.
 					if (!WriteSubstrate(context, data, kFeatureDataSlot - kFrameDataSlot))
 						CS_LOG_EVERY_MS(L, 2000, spdlog::level::err, "Shared feature constant-buffer map failed.");
 					return;

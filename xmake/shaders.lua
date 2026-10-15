@@ -4,7 +4,6 @@ local shader_directories = {
     "features/TerrainShadows/Shaders",
     "features/Upscaling/Shaders",
     "features/FrameGeneration/Shaders",
-    "features/ExponentialHeightFog/Shaders",
     "features/DynamicCubemaps/Shaders",
     "features/WaterEffects/Shaders",
     "features/Skylighting/Shaders"

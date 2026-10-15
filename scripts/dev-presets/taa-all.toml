@@ -12,9 +12,6 @@ load = true
 [features.InverseSquareLighting]
 load = true
 
-[features.ExponentialHeightFog]
-load = true
-
 [features.DynamicCubemaps]
 load = true
 

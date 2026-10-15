@@ -348,17 +348,6 @@ namespace
 			return error;
 		if (bindPoint(projection.Get(), "EnvTexture") != 0 || bindPoint(projection.Get(), "IBLTexture") != 0 || bindPoint(projection.Get(), "LinearSampler") != 0)
 			return "DiffuseIBLCS: ABI slot mismatch";
-		// Fog scattering shares the pixel consumers' t76/t77 SH contract.
-		for (const auto* terrain : { "", "TERRAIN_SHADOWS" }) {
-			std::vector<std::pair<const char*, const char*>> defines{ { "FO4CS_SUBSTRATE", "1" } };
-			if (*terrain)
-				defines.emplace_back(terrain, "1");
-			const auto scattering = reflect("ExponentialHeightFog/VolumetricFogLightScatteringCS.hlsl", defines);
-			if (!scattering)
-				return error;
-			if (bindPoint(scattering.Get(), "EnvIBLTexture") != 76 || bindPoint(scattering.Get(), "SkyIBLTexture") != 77)
-				return "VolumetricFogLightScatteringCS " + std::string(terrain) + ": IBL SH slot mismatch";
-		}
 		return {};
 	}
 #undef ABI

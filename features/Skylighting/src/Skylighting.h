@@ -63,9 +63,6 @@ namespace cs::features
 		// Packs b6; repeated packs within a frame must not advance the grid again.
 		cs::SkylightingFeatureData GetCommonBufferData();
 
-		// Null unless enabled and healthy with probes, so consumers fail neutral.
-		ID3D11ShaderResourceView* GetProbeArraySRV() const noexcept;
-
 	private:
 		Skylighting() = default;
 

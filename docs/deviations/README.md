@@ -27,14 +27,13 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 | Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; menu and Interface3D effects are not separated | FO4 `BSEffect` PS has no world position or per-draw flags |
 | Forced | Skyrim point-light term in `Effect.hlsl` | FO4's four-light term stays | FO4 `PerGeometry` layout |
 | Pending | Effect-lighting `EffectRadius` shadow filter, `VOLUMETRIC_SHADOWS`, `CLOUD_SHADOWS`, `LIGHT_LIMIT_FIX`, Interior Sun | Compiled out | Features not ported |
-| Divergence | Stock shader families | Effect and DistantTree are replaced for fog and terrain-shadow consumers; Utility, Sky, Particle, BloodSplatter and Lighting stay stock | No current feature consumes the stock ones |
+| Divergence | Stock shader families | Effect and DistantTree are replaced for feature consumers; Utility, Sky, Particle, BloodSplatter and Lighting stay stock | No current feature consumes the stock ones |
 
 ## Features
 
 - [InverseSquareLighting](InverseSquareLighting.md)
 - [WaterEffects](WaterEffects.md)
 - [Unified Water](UnifiedWater.md)
-- [ExponentialHeightFog](ExponentialHeightFog.md)
 - [Performance Overlay](PerformanceOverlay.md)
 - [Terrain Shadows](TerrainShadows.md)
 - [LOD Blending](LODBlending.md)

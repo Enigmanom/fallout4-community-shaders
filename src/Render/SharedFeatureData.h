@@ -151,6 +151,7 @@ namespace cs::render
 	{
 		std::uint32_t Enabled, _padding[3];
 	};
+	// Shared SharedData.hlsli still declares this block; it is always zero-filled.
 	struct ExponentialHeightFogSettings
 	{
 		std::uint32_t enabled, useDynamicCubemaps;

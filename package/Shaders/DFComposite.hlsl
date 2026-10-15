@@ -8,7 +8,7 @@
 #endif
 #include "Common/DeferredContracts.hlsli"
 #include "FO4/SkylightingConsumer.hlsli"
-// FO4: native fog colors cross the analytic/volume boundary before the final blend.
+// FO4: IBL tints native fog colors before the final blend.
 #include "FO4/FogConsumer.hlsli"
 
 #ifdef DYNAMIC_CUBEMAPS
@@ -808,7 +808,6 @@ PS_OUTPUT main(PS_INPUT input)
 			sunlitFog + grayscale * (grayscale.xxx - sunlitFog);
 		float3 colorStack = useGrayscale ? grayscaleStack : sunlitFog;
 
-		FO4_FOG_REPLACE(input.position.xy, fogColor, colorStack, fogMixFactor);
 		output.color.xyz = lerp(aoColor, colorStack, fogMixFactor);
 		output.color.w = 1.0;
 	} else {
@@ -1191,7 +1190,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		float3 lowFog = lerp(FogColor0.xyz, FogColor2.xyz, fogCurve);
 		float3 highFog = lerp(FogColor1.xyz, FogColor3.xyz, fogCurve);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightWeight));
-		FO4_FOG_ORIGINAL(originalFogColor, fogColor);
 		float fogAmount = fogCurve * heightAlpha;
 		fogAmount *= nearDistanceScale;
 
@@ -1203,7 +1201,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 			fogColor = lerp(fogColor, gray.xxx, gray);
 		}
 
-		FO4_FOG_REPLACE(position.xy, originalFogColor, fogColor, fogAmount);
 		output = float4(lerp(color, fogColor, fogAmount), 1.0);
 	} else {
 		output = 0.0;
@@ -1429,7 +1426,6 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 		float3 cA = lerp(FogColor0.xyz, FogColor2.xyz, fk);
 		float3 cB = lerp(FogColor1.xyz, FogColor3.xyz, fk);
 		float3 fogC = FO4_FOG_VANILLA_COLOR(lerp(cA, cB, fogH));
-		FO4_FOG_ORIGINAL(originalFogColor, fogC);
 		float amt = (fk * alpha) * t2v;
 
 		float3 dir = pos.xyz * rsqrt(dd);
@@ -1441,7 +1437,6 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 			fogC = lerp(fogC, lum2.xxx, lum2);
 		}
 
-		FO4_FOG_REPLACE(svpos.xy, originalFogColor, fogC, amt);
 		result = float4(lerp(col, fogC, amt), 0.5);
 	} else {
 		result = float4(0.0, 0.0, 0.0, 0.0);
@@ -2080,7 +2075,6 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 selectedFog =
 			useGraySaturated ? graySaturated : sunlitFogColor;
 
-		FO4_FOG_REPLACE(input.position.xy, fogColor, selectedFog, fogMixFactor);
 #	if COMPOSITE_SCENE_BLEND
 		output.color.xyz = lerp(ambientWeighted, selectedFog, fogMixFactor);
 #		if COMPOSITE_ALPHA_ONE
@@ -2705,7 +2699,6 @@ float4 main(PSInput input) : SV_Target0
 		float3 highFog =
 			lerp(FogColor1.xyz, FogColor3.xyz, fogCurve);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightWeight));
-		FO4_FOG_ORIGINAL(originalFogColor, fogColor);
 		float fogAmount = fogCurve * heightAlpha * nearDistanceScale;
 
 		float3 worldDirection = normalize(worldPosition);
@@ -2720,7 +2713,6 @@ float4 main(PSInput input) : SV_Target0
 			fogColor = lerp(fogColor, gray.xxx, gray);
 		}
 
-		FO4_FOG_REPLACE(input.position.xy, originalFogColor, fogColor, fogAmount);
 		color = lerp(color, fogColor, fogAmount);
 #	endif
 
@@ -3410,7 +3402,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		float gray = dot(composite, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 		float3 graySaturated = sunlitFog + gray * (gray - sunlitFog);
 		float3 selectedFog = useGrayFog ? graySaturated : sunlitFog;
-		FO4_FOG_REPLACE(position.xy, fogColor, selectedFog, fogMix);
 		float3 outputColor = lerp(composite, selectedFog, fogMix);
 		result = float4(outputColor, 0.5);
 	} else {

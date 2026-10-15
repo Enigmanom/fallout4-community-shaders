@@ -2,11 +2,11 @@
 #define FO4_EFFECT_LIGHTING_CONSUMER
 
 // Without a scaling feature the split recombines to its input.
-#if defined(LIGHTING) && (defined(SKYLIGHTING) || defined(TERRAIN_SHADOWS) || defined(EXPONENTIAL_HEIGHT_FOG))
+#if defined(LIGHTING) && (defined(SKYLIGHTING) || defined(TERRAIN_SHADOWS))
 #	define FO4_EFFECT_LIGHTING
 #endif
 // FO4: soft falloff volume; TEXTURE implies TEXCOORD.
-#if !defined(LIGHTING) && defined(VC) && defined(NORMALS) && defined(TEXTURE) && defined(FALLOFF) && defined(SOFT) && defined(GRAYSCALE_TO_ALPHA) && (defined(TERRAIN_SHADOWS) || defined(EXPONENTIAL_HEIGHT_FOG))
+#if !defined(LIGHTING) && defined(VC) && defined(NORMALS) && defined(TEXTURE) && defined(FALLOFF) && defined(SOFT) && defined(GRAYSCALE_TO_ALPHA) && defined(TERRAIN_SHADOWS)
 #	define FO4_EFFECT_FALLOFF_SHADOW
 #endif
 
@@ -77,10 +77,6 @@ namespace FO4EffectLighting
 
 		dirColor *= dirShadow;
 
-#		if defined(EXPONENTIAL_HEIGHT_FOG)
-		dirColor *= FO4Fog::SunlightView(viewPosition);
-#		endif
-
 #		if defined(SKYLIGHTING)
 #			if defined(IBL)
 		if (!SharedData::iblSettings.EnableIBL)
@@ -137,10 +133,6 @@ namespace FO4EffectLighting
 		}
 
 		dirColor *= shadow;
-
-#		if defined(EXPONENTIAL_HEIGHT_FOG)
-		dirColor *= FO4Fog::SunlightView(viewPosition);
-#		endif
 
 		return dirColor + ambientColor;
 	}

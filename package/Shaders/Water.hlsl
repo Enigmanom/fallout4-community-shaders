@@ -193,7 +193,6 @@ VS_OUTPUT main(VS_INPUT input)
 #endif
 
 #ifdef BSWATER_PIXEL_SHADER
-#	define FO4_FOG_SAMPLER s15
 #	include "FO4/FogConsumer.hlsli"
 #	ifdef TERRAIN_SHADOWS
 #		include "FO4/TerrainShadowsConsumer.hlsli"
@@ -577,9 +576,6 @@ float4 main(PS_INPUT input) : SV_Target0
 	float sunGlare = pow(max(dot(-viewDirection, WATER_PER_GEOMETRY(2).xyz), 0.0), WATER_PER_GEOMETRY(3).w) * WATER_PER_GEOMETRY(2).w;
 
 	float3 lightColor = WATER_PER_GEOMETRY(2).w * WATER_PER_GEOMETRY(3).xyz;
-#		ifdef EXPONENTIAL_HEIGHT_FOG
-	lightColor *= FO4Fog::SunlightView(input.eyeToPosition);
-#		endif
 #		ifdef TERRAIN_SHADOWS
 	lightColor *= TerrainShadows::GetWorldShadow(FrameBuffer::ViewToWorld(input.eyeToPosition));
 #		endif
@@ -594,9 +590,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 color = lerp(perMaterial[2].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, input.eyeVector.w, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), perMaterial[2].w) + lighting;
 	float fogAlpha;
 	float3 fog = atmosphere(input.eyeToPosition, fogAlpha);
-	float3 originalFog = fog;
 	fog = lerp(fog, WATER_PER_GEOMETRY(3).xyz, sunGlare);
-	FO4_FOG_REPLACE_FORWARD(input.screenPosition.xyz, originalFog, fog, fogAlpha);
 	return float4(lerp(color, fog, fogAlpha), 0.0);
 }
 
@@ -898,16 +892,11 @@ float4 main(PS_INPUT input) : SV_Target0
 
 	float fogAlpha;
 	float3 fog = atmosphere(input.eyeToPosition, fogAlpha);
-	float3 originalFog = fog;
 	float3 viewDirection = normalize(-input.eyeToPosition);
 	float sunGlare = pow(max(dot(-viewDirection, WATER_PER_GEOMETRY(2).xyz), 0.0), WATER_PER_GEOMETRY(3).w) * WATER_PER_GEOMETRY(2).w;
 	fog = lerp(fog, WATER_PER_GEOMETRY(3).xyz, sunGlare);
-	FO4_FOG_REPLACE_FORWARD(input.screenPosition.xyz, originalFog, fog, fogAlpha);
 #		ifndef INTERIOR
 	float3 lightColor = WATER_PER_GEOMETRY(2).w * WATER_PER_GEOMETRY(3).xyz;
-#			ifdef EXPONENTIAL_HEIGHT_FOG
-	lightColor *= FO4Fog::SunlightView(input.eyeToPosition);
-#			endif
 #			ifdef TERRAIN_SHADOWS
 	lightColor *= TerrainShadows::GetWorldShadow(FrameBuffer::ViewToWorld(input.eyeToPosition));
 #			endif

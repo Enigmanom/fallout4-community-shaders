@@ -13,7 +13,6 @@ namespace FullscreenDebugOwner
 	static const uint
 #endif
 		None = 0,
-		ExponentialHeightFog = 2,
 		TerrainShadows = 3,
 		WaterEffects = 4,
 		Skylighting = 5,

@@ -60,7 +60,6 @@ body:
         - label: Terrain Shadows
         - label: Screen Space GI
         - label: Inverse Square Lighting
-        - label: Exponential Height Fog
         - label: Dynamic Cubemaps
         - label: Water Effects
         - label: Motion Vector Fixes

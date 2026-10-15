@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <optional>
 
 #include <winrt/base.h>
 
@@ -59,9 +58,6 @@ namespace cs::features
 		// Packs b6; weather evaluation is frame-keyed as packs repeat.
 		render::IBLSettings GetCommonBufferData();
 
-		// Environment then sky SH; empty unless fully projected this frame.
-		std::optional<std::array<ID3D11ShaderResourceView*, kSHSlotCount>> GetSHResources() const noexcept;
-
 	private:
 		ImageBasedLighting() = default;
 
@@ -98,7 +94,6 @@ namespace cs::features
 		winrt::com_ptr<ID3D11ComputeShader> _projectCompute;
 		winrt::com_ptr<ID3D11SamplerState> _linearSampler;
 		// Render thread only: every source the mode needs was projected.
-		bool _projected = false;
 
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _resourcesReady{ false };

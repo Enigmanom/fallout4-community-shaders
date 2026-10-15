@@ -71,7 +71,6 @@ namespace cs
 	{
 		TerrainShadowsFeatureData terrainShadowsSettings;
 		DynamicCubemapsFeatureData dynamicCubemapsSettings;
-		render::ExponentialHeightFogSettings exponentialHeightFogSettings;
 		LODBlendingFeatureData lodBlendingSettings;
 		WaterEffectsFeatureData waterEffectsSettings;
 		TerrainVariationFeatureData terrainVariationSettings;
@@ -81,7 +80,7 @@ namespace cs
 		UnifiedWaterFeatureData unifiedWaterSettings;
 		ExtendedMaterialsFeatureData extendedMaterialsSettings;
 	};
-	static_assert(sizeof(FeatureDataCB) == 656);
+	static_assert(sizeof(FeatureDataCB) == 416);
 	static_assert(sizeof(FeatureDataCB) % 16 == 0);
 	static_assert(offsetof(FeatureDataCB, terrainShadowsSettings) == 0);
 	static_assert(offsetof(TerrainShadowsFeatureData, EnableTerrainShadow) == 0);
@@ -90,14 +89,13 @@ namespace cs
 	static_assert(offsetof(TerrainShadowsFeatureData, Offset) == 24);
 	static_assert(offsetof(TerrainShadowsFeatureData, ZBlur) == 32);
 	static_assert(offsetof(FeatureDataCB, dynamicCubemapsSettings) == 48);
-	static_assert(offsetof(FeatureDataCB, exponentialHeightFogSettings) == 64);
-	static_assert(offsetof(FeatureDataCB, lodBlendingSettings) == 304);
-	static_assert(offsetof(FeatureDataCB, waterEffectsSettings) == 336);
-	static_assert(offsetof(FeatureDataCB, terrainVariationSettings) == 352);
-	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 384);
-	static_assert(offsetof(FeatureDataCB, iblSettings) == 560);
-	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 608);
-	static_assert(offsetof(FeatureDataCB, extendedMaterialsSettings) == 624);
+	static_assert(offsetof(FeatureDataCB, lodBlendingSettings) == 64);
+	static_assert(offsetof(FeatureDataCB, waterEffectsSettings) == 96);
+	static_assert(offsetof(FeatureDataCB, terrainVariationSettings) == 112);
+	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 144);
+	static_assert(offsetof(FeatureDataCB, iblSettings) == 320);
+	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 368);
+	static_assert(offsetof(FeatureDataCB, extendedMaterialsSettings) == 384);
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 

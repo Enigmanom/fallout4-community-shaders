@@ -155,11 +155,6 @@ namespace cs::features
 		return true;
 	}
 
-	ID3D11ShaderResourceView* Skylighting::GetProbeArraySRV() const noexcept
-	{
-		return IsEnabled() ? GetBindableProbeArraySRV() : nullptr;
-	}
-
 	ID3D11ShaderResourceView* Skylighting::GetBindableProbeArraySRV() const noexcept
 	{
 		if (!IsHealthy() || !_probesReady.load(std::memory_order_acquire) || !_injectionsOperational.load(std::memory_order_acquire) || !_texProbeArray)

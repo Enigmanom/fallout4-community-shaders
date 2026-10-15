@@ -220,14 +220,6 @@ namespace cs::features
 		};
 	}
 
-	std::optional<std::array<ID3D11ShaderResourceView*, ImageBasedLighting::kSHSlotCount>>
-	ImageBasedLighting::GetSHResources() const noexcept
-	{
-		if (!IsHealthy() || !IsEnabled() || !_projected || !_envSH || !_skySH)
-			return std::nullopt;
-		return std::array{ _envSH->srv.get(), _skySH->srv.get() };
-	}
-
 	void ImageBasedLighting::BindConsumer(ID3D11DeviceContext* a_context)
 	{
 		if (!a_context || !_resourcesReady.load(std::memory_order_acquire))
@@ -262,7 +254,6 @@ namespace cs::features
 
 	void ImageBasedLighting::Prepass()
 	{
-		_projected = false;
 		if (!IsEnabled()) {
 			if (_clearPending.exchange(false, std::memory_order_acq_rel) && _resourcesReady.load(std::memory_order_acquire)) {
 				if (auto* context = engine::GetImmediateContext()) {
@@ -301,8 +292,6 @@ namespace cs::features
 		Project(context, sky, *_skySH, kSkyPass);
 		_counters.skyProjected.fetch_add(sky ? 1 : 0, std::memory_order_relaxed);
 		_counters.projections.fetch_add(1, std::memory_order_relaxed);
-		// A cleared SH would zero the fog's sky light; fall back to its tint.
-		_projected = frame.active && sky && (frame.settings.DALCMode >= 2 || environment);
 	}
 
 	void ImageBasedLighting::CollectTelemetry(telemetry::Sink& a_sink) const

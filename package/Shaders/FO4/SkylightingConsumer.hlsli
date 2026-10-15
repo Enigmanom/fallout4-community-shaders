@@ -176,7 +176,7 @@ namespace Skylighting
 			Skylighting::SampleShadowVisibility(viewPosition, normalView);  \
 			float softShadow = Skylighting::ShadowVisibility
 #	endif
-// Light-wide multipliers (fog, terrain) scale the soft shadow too.
+// Light-wide multipliers (terrain) scale the soft shadow too.
 #	define FO4_SHADOW_LIGHT_MUL(shadow, softShadow, factor) \
 		{                                                    \
 			const float lightMul = (factor);                 \

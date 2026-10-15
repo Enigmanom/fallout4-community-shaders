@@ -24,7 +24,6 @@ local features = {
     "ScreenSpaceGI",
     "Skylighting",
     "InverseSquareLighting",
-    "ExponentialHeightFog",
     "DynamicCubemaps",
     "IBL",
     "WaterEffects",

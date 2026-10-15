@@ -1,5 +1,4 @@
 #ifdef BSEFFECT_PS_SOURCE
-#	define FO4_FOG_SAMPLER s15
 #	include "FO4/FogConsumer.hlsli"
 #	include "FO4/EffectLightingConsumer.hlsli"
 #	if defined(ENVCUBE_RAIN) || defined(ENVCUBE_SNOW)
@@ -772,33 +771,7 @@ PSOutput main(PSInput input)
 		lightColor = FO4EffectLighting::GetLightingShadow(lightColor, input.Position.xyz, depth);
 #		endif
 
-#		if defined(EXPONENTIAL_HEIGHT_FOG)
-	float4 heightFog = 0;
-	float vanillaFogFactor = input.FogParam.w;
-	if (SharedData::exponentialHeightFogSettings.enabled && !FO4Depth::IsFirstPerson(input.Position.z)) {
-		heightFog = FO4Fog::EvaluateForward(input.Position.xyz, FO4_FOG_VANILLA_COLOR(input.FogParam.xyz));
-		if (ExponentialHeightFog::ShouldDisableVanillaFog())
-			vanillaFogFactor = 0;
-#			if !defined(ADDBLEND) && !defined(MULTBLEND)
-		alpha *= 1 - heightFog.w;
-#			endif
-	}
-#			if defined(ADDBLEND)
-#				if defined(PIPBOY_SCREEN)
-	float addBlendFade = (1 - vanillaFogFactor) * (1 - heightFog.w);
-	float3 blendedColor = lightColor * addBlendFade;
-#				else
-	float3 blendedColor = lightColor * (1 - vanillaFogFactor) * (1 - heightFog.w);
-#				endif
-#			elif defined(MULTBLEND)
-	float3 blendedColor = lerp(lightColor, 1.0.xxx, saturate(1.5 * vanillaFogFactor));
-	blendedColor = lerp(blendedColor, 1.0.xxx, saturate(1.5 * heightFog.w));
-	blendedColor = lerp(1.0.xxx, blendedColor, alpha);
-#			else
-	float3 blendedColor = lerp(lightColor, FO4_FOG_VANILLA_COLOR(input.FogParam.xyz), vanillaFogFactor);
-	blendedColor = lerp(blendedColor, heightFog.xyz, heightFog.w);
-#			endif
-#		elif defined(ADDBLEND)
+#		if defined(ADDBLEND)
 #			if defined(PIPBOY_SCREEN)
 	float addBlendFade = 1.0 - input.FogParam.w;
 	float3 blendedColor = lightColor * addBlendFade;
