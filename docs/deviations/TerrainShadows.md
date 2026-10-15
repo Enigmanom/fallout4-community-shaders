@@ -4,11 +4,11 @@ Heightmaps for Commonwealth, SanctuaryHillsWorld, DiamondCity, DLC03FarHarbor an
 
 | Kind | Upstream | FO4 | Why |
 |---|---|---|---|
-| Forced | Skyrim native directional consumers | Directional terms of BSDFLight, BSDistantTree, BSWater and lit BSEffect; point and ambient terms stay separate | Deferred lighting |
+| Forced | Skyrim native directional consumers | Directional terms of BSDFLight, BSWater and lit BSEffect; point and ambient terms stay separate | Deferred lighting |
 | Divergence | `EnableTerrainShadow` setting; downsampling setting | No feature settings (framework `enabled` only); no downsampling, so the full heightmap is allocated and scanned | |
 | Forced | Child worldspace readiness checks its own editor ID | Checks the resolved inherited-land parent | Loading resolves inherited land to the parent |
 | N/A | RunGrass shader family | Grass receives the multiplier through deferred directional BSDFLight routes | FO4 has no distinct RunGrass target |
 | Pending | GameHour console/Papyrus hooks, fast-travel event, completed celestial generation | Wait/sleep/load/interior-exit request a full refresh and hour-jump polling covers large changes; small forward-hour edits need host hooks | |
 | Pending | Particle and volumetric sunlight | Not ported | Native FO4 particles have no sunlight term to scale |
 | Pending | Reflections and other secondary views | Stay stock | Need their own camera/depth publication |
-| Pending | BSDistantTree receiver | Not confirmed working | |
+| N/A | Distant tree forward receiver | Distant trees receive the multiplier through deferred directional BSDFLight routes | FO4 draws BSDistantTree in the deferred prepass |
