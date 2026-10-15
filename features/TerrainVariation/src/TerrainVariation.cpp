@@ -214,18 +214,10 @@ namespace cs::features
 	void TerrainVariation::DrawSettings()
 	{
 		settings::SettingsEdit edit{ *this };
-		const auto toggle = [&](const auto& field, const char* a_tooltip) {
-			const std::string label = std::string(field.description) + "##" + std::string(field.key);
-			edit.Discrete(dmui::ui::Checkbox(label.c_str(), &(_settings.*field.member)));
-			if (const dmui::TooltipScope tooltip{ dmui::ui::HoveredFlags::kNone };
-				tooltip.Visible()) {
-				dmui::ui::Text("%s", a_tooltip);
-			}
-		};
 		const auto& [lodTiling, meshSupport] = terrain_variation::kSchema.fields;
 		if (const ui::Section section{ "terrain-variation-coverage", "Coverage" }; section) {
-			toggle(lodTiling, "Applies the tiling fix to LOD terrain objects.\nThis helps reduce the visible tiling effect on distant terrain.");
-			toggle(meshSupport, "Applies the tiling fix to meshes that use landscape textures, such as dirt cliffs and mountain slabs.\nAlpha tested meshes like foliage and decals are never affected.");
+			edit.Toggle(lodTiling, _settings, "Applies the tiling fix to LOD terrain objects.\nThis helps reduce the visible tiling effect on distant terrain.");
+			edit.Toggle(meshSupport, _settings, "Applies the tiling fix to meshes that use landscape textures, such as dirt cliffs and mountain slabs.\nAlpha tested meshes like foliage and decals are never affected.");
 		}
 	}
 

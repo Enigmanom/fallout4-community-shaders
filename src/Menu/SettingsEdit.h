@@ -5,6 +5,8 @@
 
 #include <DearModdingUI/UI.h>
 
+#include <string>
+
 namespace cs::settings
 {
 	// Records edits on the feature; HostClient persists them on completion or page exit.
@@ -26,6 +28,16 @@ namespace cs::settings
 		bool Apply(ui::EditResult a_result) noexcept
 		{
 			return Record(a_result.changed, a_result.completed);
+		}
+
+		// A schema bool as a checkbox labeled by its description, with a tooltip.
+		template <class Field, class Settings>
+		bool Toggle(const Field& a_field, Settings& a_settings, const char* a_tooltip)
+		{
+			const std::string label = std::string(a_field.description) + "##" + std::string(a_field.key);
+			const bool changed = Discrete(dmui::ui::Checkbox(label.c_str(), &(a_settings.*a_field.member)));
+			ui::Tooltip(a_tooltip);
+			return changed;
 		}
 
 	private:

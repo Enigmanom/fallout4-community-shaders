@@ -116,15 +116,11 @@ namespace cs::features
 		settings::SettingsEdit edit{ *this };
 		const auto draw = [&](const auto& field) {
 			auto& value = _settings.*field.member;
-			const std::string label = std::string(field.description) + "##" + std::string(field.key);
 			if constexpr (std::is_same_v<std::remove_cvref_t<decltype(value)>, bool>) {
-				edit.Discrete(dmui::ui::Checkbox(label.c_str(), &value));
-				if (const dmui::TooltipScope tooltip{ dmui::ui::HoveredFlags::kNone };
-					tooltip.Visible()) {
-					dmui::ui::Text("%s",
-						"Disables vertex coloring on nearby terrain. Best combined with terrain LOD generated in xLODGen with Vertex Color Intensity set to 0.");
-				}
+				edit.Toggle(field, _settings,
+					"Disables vertex coloring on nearby terrain. Best combined with terrain LOD generated in xLODGen with Vertex Color Intensity set to 0.");
 			} else {
+				const std::string label = std::string(field.description) + "##" + std::string(field.key);
 				const auto range = lod_blending::kSchema.EditRange(field.member);
 				edit.Continuous(dmui::ui::SliderScalar(label.c_str(), &value, &range.min, &range.max, "%.2f"));
 			}
