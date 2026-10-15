@@ -2,7 +2,26 @@
 // Copyright (c) 2026 northaxosky
 cbuffer PerFrame : register(b12)
 {
-	float4 perFrame[48];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 #if defined(WATER_EFFECTS) && !defined(VC) && !defined(LOD) && !defined(STENCIL) && !defined(STENCIL_DISPLACEMENT) && !defined(FOG)
@@ -10,9 +29,6 @@ cbuffer PerFrame : register(b12)
 #endif
 
 #ifdef BSWATER_VERTEX_SHADER
-
-#	define WorldToView (float3x4(perFrame[0], perFrame[1], perFrame[2]))
-#	define PosAdjust (perFrame[35])
 
 #	if defined(NORMAL_TEXCOORD) || defined(WADING)
 #		define HAS_TEXCOORD
@@ -79,15 +95,21 @@ struct VS_OUTPUT
 #	ifdef CLIP_VOLUME
 cbuffer PerTechnique : register(b0)
 {
-	float4 ClipVolumeCenter;
-	float4 ClipVolumeRadius;
+	float4 ClipVolume_row0;  // Clip-volume center.
+	float4 ClipVolume_row1;  // Clip-volume radius.
 };
 #	endif
 
 cbuffer PerMaterial : register(b1)
 {
-	float4 NormalsScroll01;
+	float4 NormalsScroll0_row0;  // Scroll offsets for normal layers 0 and 1.
+#	if defined(LOD)
+	float4 NormalsScroll0_row1;
+#	elif defined(STENCIL) || defined(FOG) || defined(STENCIL_DISPLACEMENT)
 	float4 NormalsScroll2;
+#	else
+	float4 NormalsScroll1;
+#	endif
 	float3 NormalsScale;
 };
 
@@ -95,7 +117,11 @@ cbuffer PerGeometry : register(b2)
 {
 	row_major float3x4 World;
 	row_major float4x4 WorldViewProj;
-	float UseVertexTexCoord;
+#	if defined(STENCIL) || defined(FOG) || defined(STENCIL_DISPLACEMENT)
+	float WorldViewProj_row4;
+#	else
+	float ObjectUV;
+#	endif
 };
 
 VS_OUTPUT main(VS_INPUT input)
@@ -127,12 +153,12 @@ VS_OUTPUT main(VS_INPUT input)
 	float2 worldUv = worldPosition.xy + PosAdjust.xy;
 	float4 worldUv01 = worldUv.xyxy / NormalsScale.xxyy;
 	float2 worldUv2 = worldUv / NormalsScale.z;
-	float2 normalUv0 = UseVertexTexCoord ? vertexUv01.xy : worldUv01.xy;
-	float4 normalUv12 = UseVertexTexCoord ? float4(vertexUv01.zw, vertexUv2) : float4(worldUv01.zw, worldUv2);
-	vsout.TexCoord1.xy = normalUv0 + NormalsScroll01.xy;
-	vsout.TexCoord1.zw = normalUv12.xy + NormalsScroll01.zw;
+	float2 normalUv0 = ObjectUV ? vertexUv01.xy : worldUv01.xy;
+	float4 normalUv12 = ObjectUV ? float4(vertexUv01.zw, vertexUv2) : float4(worldUv01.zw, worldUv2);
+	vsout.TexCoord1.xy = normalUv0 + NormalsScroll0_row0.xy;
+	vsout.TexCoord1.zw = normalUv12.xy + NormalsScroll0_row0.zw;
 #		ifndef LOD
-	vsout.TexCoord2.xy = normalUv12.zw + NormalsScroll2.xy;
+	vsout.TexCoord2.xy = normalUv12.zw + NormalsScroll1.xy;
 	vsout.TexCoord2.z = hposition.w;
 	vsout.TexCoord2.w = 0;
 #		endif
@@ -152,14 +178,14 @@ VS_OUTPUT main(VS_INPUT input)
 #	endif
 
 #	ifdef HAS_SURFACE
-	vsout.TexCoord5 = mul(WorldToView, float4(worldPosition, 1.0));
+	vsout.TexCoord5 = mul(float3x4(WorldToView[0], WorldToView[1], WorldToView[2]), float4(worldPosition, 1.0));
 #	endif
 #	ifdef WATER_PARALLAX
 	vsout.NormalsScale = NormalsScale;
 #	endif
 
 #	ifdef CLIP_VOLUME
-	vsout.ClipDistance = length((worldPosition - ClipVolumeCenter.xyz) / ClipVolumeRadius.xyz) - 1.0;
+	vsout.ClipDistance = length((worldPosition - ClipVolume_row0.xyz) / ClipVolume_row1.xyz) - 1.0;
 #	endif
 
 	return vsout;
@@ -291,16 +317,16 @@ float3 sceneDepthPosition(float2 screenUv)
 	float clipDepth;
 	if (0.01 >= rawDepth) {
 		clipDepth = rawDepth * 100.0;
-		row0 = perFrame[24];
-		row1 = perFrame[25];
-		row2 = perFrame[26];
-		row3 = perFrame[27];
+		row0 = FirstPersonClipToView[0];
+		row1 = FirstPersonClipToView[1];
+		row2 = FirstPersonClipToView[2];
+		row3 = FirstPersonClipToView[3];
 	} else {
 		clipDepth = rawDepth * 1.01 - 0.01;
-		row0 = perFrame[20];
-		row1 = perFrame[21];
-		row2 = perFrame[22];
-		row3 = perFrame[23];
+		row0 = ClipToView[0];
+		row1 = ClipToView[1];
+		row2 = ClipToView[2];
+		row3 = ClipToView[3];
 	}
 
 	float2 clipUv = float2(screenUv.x * perGeometry[0].z, 1.0 - screenUv.y * perGeometry[0].w);
@@ -472,19 +498,19 @@ float fresnelTerm(float grazing)
 
 float3 atmosphere(float3 eyeToPosition, out float alpha)
 {
-	float height = dot(perFrame[14], float4(eyeToPosition, 1.0)) + perFrame[35].z;
-	float distance = length(eyeToPosition) * perFrame[41].x - perFrame[41].z;
+	float height = dot(ViewToWorld[2], float4(eyeToPosition, 1.0)) + PosAdjust.z;
+	float distance = length(eyeToPosition) * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 	float fade = saturate(distance);
-	float2 heightRange = saturate(height * perFrame[46].xy - perFrame[46].zw);
+	float2 heightRange = saturate(height * FogHeightRamps.xy - FogHeightRamps.zw);
 	float blend = lerp(heightRange.x, heightRange.y, fade);
-	float density = (0.75 < distance) ? min((fade - 0.75) * 4.0 * (1.0 - perFrame[43].w) + perFrame[43].w, 1.0) : perFrame[43].w;
+	float density = (0.75 < distance) ? min((fade - 0.75) * 4.0 * (1.0 - FogColor1.w) + FogColor1.w, 1.0) : FogColor1.w;
 	float scale = (distance < 0.015) ? fade * 66.666672 : 1.0;
-	density = min(pow(fade, perFrame[42].w), density);
+	density = min(pow(fade, FogColor0.w), density);
 
 	alpha = 1.0 - blend;
-	alpha = blend * perFrame[44].w + alpha;
-	float3 nearColor = lerp(perFrame[42].xyz, perFrame[44].xyz, density);
-	float3 farColor = lerp(perFrame[43].xyz, perFrame[45].xyz, density);
+	alpha = blend * FogColor2.w + alpha;
+	float3 nearColor = lerp(FogColor0.xyz, FogColor2.xyz, density);
+	float3 farColor = lerp(FogColor1.xyz, FogColor3.xyz, density);
 	float3 fog = lerp(nearColor, farColor, blend);
 	alpha = density * alpha;
 	alpha = alpha * scale;
@@ -542,9 +568,9 @@ float4 main(PS_INPUT input) : SV_Target0
 	normal = normalize(normal);
 
 	float3 viewNormal;
-	viewNormal.x = dot(perFrame[0], float4(normal, 1.0));
-	viewNormal.y = dot(perFrame[1], float4(normal, 1.0));
-	viewNormal.z = dot(perFrame[2], float4(normal, 1.0));
+	viewNormal.x = dot(WorldToView[0], float4(normal, 1.0));
+	viewNormal.y = dot(WorldToView[1], float4(normal, 1.0));
+	viewNormal.z = dot(WorldToView[2], float4(normal, 1.0));
 
 	float3 viewDirection = normalize(-input.eyeToPosition);
 	float3 reflected = reflect(-viewDirection, viewNormal);
@@ -595,7 +621,7 @@ float4 main(PS_INPUT input) : SV_Target0
 
 	float3 specular = 0.0;
 	for (int i = 0; i < NUM_SPECULAR_LIGHTS; i++) {
-		float3 delta = perTechnique[i + 6].xyz - perFrame[35].xyz;
+		float3 delta = perTechnique[i + 6].xyz - PosAdjust.xyz;
 		float3 halfVector = normalize(normalize(delta) - eyeDirection);
 		float falloff = saturate(length(delta) / perTechnique[i + 6].w);
 		float attenuation = 1.0 - falloff * falloff;
@@ -679,10 +705,10 @@ float4 toClip(float3 world)
 {
 	float4 position = float4(world, 1.0);
 	float4 clip;
-	clip.x = dot(perFrame[4], position);
-	clip.y = dot(perFrame[5], position);
-	clip.z = dot(perFrame[6], position);
-	clip.w = dot(perFrame[7], position);
+	clip.x = dot(ViewToClip[0], position);
+	clip.y = dot(ViewToClip[1], position);
+	clip.z = dot(ViewToClip[2], position);
+	clip.w = dot(ViewToClip[3], position);
 	return clip;
 }
 
@@ -762,9 +788,9 @@ PS_OUTPUT_SSLR main(PS_INPUT input)
 	float3 viewDirection = normalize(-input.eyeToPosition);
 
 	float3 viewNormal;
-	viewNormal.x = dot(perFrame[0], float4(normal, 1.0));
-	viewNormal.y = dot(perFrame[1], float4(normal, 1.0));
-	viewNormal.z = dot(perFrame[2], float4(normal, 1.0));
+	viewNormal.x = dot(WorldToView[0], float4(normal, 1.0));
+	viewNormal.y = dot(WorldToView[1], float4(normal, 1.0));
+	viewNormal.z = dot(WorldToView[2], float4(normal, 1.0));
 
 	float3 reflected = reflect(-viewDirection, viewNormal);
 
@@ -783,9 +809,9 @@ PS_OUTPUT_SSLR main(PS_INPUT input)
 	float2 rayUv = -end.z * (delta.xy * (1.0 / delta.z)) + endUv;
 #		else
 	float3 viewNormal;
-	viewNormal.x = dot(perFrame[0], float4(normal, 1.0));
-	viewNormal.y = dot(perFrame[1], float4(normal, 1.0));
-	viewNormal.z = dot(perFrame[2], float4(normal, 1.0));
+	viewNormal.x = dot(WorldToView[0], float4(normal, 1.0));
+	viewNormal.y = dot(WorldToView[1], float4(normal, 1.0));
+	viewNormal.z = dot(WorldToView[2], float4(normal, 1.0));
 
 	float3 viewDirection = normalize(-input.eyeToPosition);
 	float3 reflected = reflect(-viewDirection, viewNormal);
@@ -889,9 +915,9 @@ float4 main(PS_INPUT input) : SV_Target0
 	ambient = ambient * perMaterial[10].z;
 
 	float3 viewNormal;
-	viewNormal.x = dot(perFrame[0], float4(normal, 1.0));
-	viewNormal.y = dot(perFrame[1], float4(normal, 1.0));
-	viewNormal.z = dot(perFrame[2], float4(normal, 1.0));
+	viewNormal.x = dot(WorldToView[0], float4(normal, 1.0));
+	viewNormal.y = dot(WorldToView[1], float4(normal, 1.0));
+	viewNormal.z = dot(WorldToView[2], float4(normal, 1.0));
 	float3 reflected = reflect(-viewDirection, viewNormal);
 	float3 specular = pow(saturate(dot(reflected, WATER_PER_GEOMETRY(2).xyz)), perMaterial[8].x) * lightColor;
 	float3 lighting = specular * perMaterial[1].w + ambient;

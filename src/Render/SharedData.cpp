@@ -97,7 +97,7 @@ namespace cs::render
 			data.MipBias = TemporalRenderer::GetSingleton()->GetMipBias();
 			// FO4: heights and tile selection share b4's position-adjust anchor.
 			engine::FillWaterData(data.WaterData, data.WaterSystemHeight,
-				{ a_camera.CameraPosAdjust.x, a_camera.CameraPosAdjust.y, a_camera.CameraPosAdjust.z });
+				{ a_camera.PosAdjust.x, a_camera.PosAdjust.y, a_camera.PosAdjust.z });
 
 			float sunX = 0.0f;
 			float sunY = 0.0f;

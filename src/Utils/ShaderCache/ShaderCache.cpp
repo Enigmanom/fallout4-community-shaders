@@ -1,5 +1,6 @@
 #include "Utils/ShaderCache/ShaderCache.h"
 
+#include "Utils/ShaderBufferBindings.h"
 #include "Utils/ShaderCache/CacheStorage.h"
 #include "Utils/ShaderCache/CompilerIdentity.h"
 #include "Utils/ShaderCache/SourceCompile.h"
@@ -245,6 +246,9 @@ namespace cs::shader_cache
 							CacheDisposition::kRejected,
 							"record validation failed");
 					}
+					// Slot rules are not in the recipe key, so hits are rechecked.
+					if (lookup.disposition == CacheDisposition::kHit && !util::ValidateSubstrateSlots(lookup.payload).empty())
+						lookup = Reject(CacheDisposition::kStale, "substrate slot validation failed");
 					outcome.disposition = lookup.disposition;
 					outcome.cacheNote = std::move(lookup.note);
 					CountDisposition(outcome.disposition);

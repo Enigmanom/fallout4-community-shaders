@@ -44,24 +44,25 @@
 cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
-	float4 cb12_pad_28_29[2];
-	float4 cb12_idx30_ibl_desaturation;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-	float4 cb12_pad_31_34[4];
-	float4 CameraPosAdjust;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
 #	endif
 };
 cbuffer PerCall_CB0 : register(b0)
 {
-	float4 cb0_idx0_screen_scale_and_blur_tolerance;
-	float4 cb0_idx1_lit_scene_weight;
-	float4 cb0_idx2_lit_scene_alpha;
+	float4 SSSSSParams;  // Screen scale and blur tolerance.
+	float4 SSLRParams0;  // Lit-scene weight.
+	float4 SSLRParams1;  // Lit-scene alpha.
 };
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 ScreenSize;
-	float4 cb2_pad_1_4[4];
-	float4 cb2_idx5_lit_scene_uv_clamp;
+	float4 VPOSOffset_row0;
+	float4 VPOSOffset_row1[4];
+	float4 VPOSOffset_row5;  // Lit-scene UV clamp.
 };
 Texture2D<float4> g_tGbufferNormal : register(t1);
 Texture2D<float4> g_tGbufferMaterial : register(t2);
@@ -156,7 +157,7 @@ struct PS_OUTPUT
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT output;
-	float2 uv = input.position.xy * ScreenSize.xy;
+	float2 uv = input.position.xy * VPOSOffset_row0.xy;
 	float3 shadingData = g_tGbufferShadingData.SampleLevel(g_sGbufferShadingData, uv, 0).xyw;
 	float3 ambientA = g_tAmbientDiffuseA.SampleLevel(g_sAmbientDiffuseA, uv, 0).xyz;
 #	if AMBIENT_DIFFUSE_SET_B
@@ -175,16 +176,16 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 reprojRow0, reprojRow1, reprojRow2, reprojRow3;
 	if (isNearPath) {
 		pos.z = depth * 100.0;
-		reprojRow0 = NearReproj_row0;
-		reprojRow1 = NearReproj_row1;
-		reprojRow2 = NearReproj_row2;
-		reprojRow3 = NearReproj_row3;
+		reprojRow0 = FirstPersonClipToView_row0;
+		reprojRow1 = FirstPersonClipToView_row1;
+		reprojRow2 = FirstPersonClipToView_row2;
+		reprojRow3 = FirstPersonClipToView_row3;
 	} else {
 		pos.z = depth * 1.01 - 0.01;
-		reprojRow0 = FarReproj_row0;
-		reprojRow1 = FarReproj_row1;
-		reprojRow2 = FarReproj_row2;
-		reprojRow3 = FarReproj_row3;
+		reprojRow0 = ClipToView_row0;
+		reprojRow1 = ClipToView_row1;
+		reprojRow2 = ClipToView_row2;
+		reprojRow3 = ClipToView_row3;
 	}
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
 #		if defined(OG)
@@ -192,8 +193,8 @@ PS_OUTPUT main(PS_INPUT input)
 	float2 terrainScreen = float2(uv.x, 1.0 - uv.y);
 #		else
 	float2 terrainScreen = float2(
-		uv.x * ScreenSize.z,
-		1.0 - uv.y * ScreenSize.w);
+		uv.x * VPOSOffset_row0.z,
+		1.0 - uv.y * VPOSOffset_row0.w);
 #		endif
 	float4 terrainPosition = float4(terrainScreen * 2.0 - 1.0, pos.z, 1.0);
 	float4 terrainPositionViewH = float4(
@@ -211,7 +212,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
+			PosAdjust,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
@@ -224,7 +225,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
+			PosAdjust,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		return output;
@@ -257,7 +258,7 @@ PS_OUTPUT main(PS_INPUT input)
 		// OG has no cb2[0].zw screen-UV rescale.
 		float2 sn = float2(uv.x, 1.0 - uv.y);
 #	else
-		float2 sn = float2(uv.x * ScreenSize.z, 1.0 - uv.y * ScreenSize.w);
+		float2 sn = float2(uv.x * VPOSOffset_row0.z, 1.0 - uv.y * VPOSOffset_row0.w);
 #	endif
 		pos.xy = sn * 2.0 - 1.0;
 		pos.w = 1.0;
@@ -277,9 +278,9 @@ PS_OUTPUT main(PS_INPUT input)
 		float mipLevel = (1.0 - shadingData.x) * 6.0;
 		mipLevel = pos.z * 0.001953125 + mipLevel;
 		float arraySlice = floor(matSliceFloat * 255.0 - 1.0);
-		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIBLProbeCube, g_sIBLProbeCube, reflWorld, arraySlice, mipLevel, shadingData.x, cb12_idx30_ibl_desaturation.y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, normalView, shadingData.x), FO4_PROBE_WEIGHT(ambientPairSum));
+		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIBLProbeCube, g_sIBLProbeCube, reflWorld, arraySlice, mipLevel, shadingData.x, WorldWetnessAndRainTransition.y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, normalView, shadingData.x), FO4_PROBE_WEIGHT(ambientPairSum));
 		float luma = dot(cubeSample, float3(0.299, 0.587, 0.114));
-		float desatW = cb12_idx30_ibl_desaturation.y * 0.9;
+		float desatW = WorldWetnessAndRainTransition.y * 0.9;
 		iblColor = lerp(cubeSample, luma.xxx, desatW);
 	} else {
 		iblColor = float3(0, 0, 0);
@@ -288,12 +289,12 @@ PS_OUTPUT main(PS_INPUT input)
 	// OG samples the lit scene and SSAO without the cb2[5].xy clamp.
 	float2 uvClamped = uv;
 #	else
-	float2 uvClamped = min(uv, cb2_idx5_lit_scene_uv_clamp.xy);
+	float2 uvClamped = min(uv, VPOSOffset_row5.xy);
 #	endif
 	float4 litRaw = g_tLitScene.Sample(g_sLitScene, uvClamped);
-	float litAlpha = min(litRaw.w * cb0_idx2_lit_scene_alpha.z, 1.0);
+	float litAlpha = min(litRaw.w * SSLRParams1.z, 1.0);
 	float3 iblLitBlend = lerp(iblColor,
-		litRaw.xyz * cb0_idx1_lit_scene_weight.x,
+		litRaw.xyz * SSLRParams0.x,
 		litAlpha);
 	bool isSkin = (abs(shadingData.z * 255.0 - 5.0) < 0.25);
 	float3 ambientAccum;
@@ -303,10 +304,10 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 skinAux = g_tSkinAuxColor.Sample(g_sSkinAuxColor, uv).xyz;
 #		endif
 		float depthMaskF = isNearPath ? 1.0 : 0.0;
-		float blurDepthScale = depthMaskF * cb0_idx0_screen_scale_and_blur_tolerance.z + 1.0;
+		float blurDepthScale = depthMaskF * SSSSSParams.z + 1.0;
 		float refDepth = g_tBlurDepthRef.SampleLevel(g_sBlurDepthRef, uv, 0).x;
 		float centerRef = blurDepthScale * refDepth;
-		float2 tapBase = cb0_idx0_screen_scale_and_blur_tolerance.xx * float2(0.078125, 0.138890) / centerRef;
+		float2 tapBase = SSSSSParams.xx * float2(0.078125, 0.138890) / centerRef;
 		float3 blurAccum = SSSS_CENTER_WEIGHT * blurSourceCenter;
 		[unroll] for (int i = 0; i < 10; ++i)
 		{
@@ -324,7 +325,7 @@ PS_OUTPUT main(PS_INPUT input)
 				float tapDepth = g_tBlurDepthRef.SampleLevel(
 													g_sBlurDepthRef, tapUV, 0)
 				                     .x;
-				float tol = cb0_idx0_screen_scale_and_blur_tolerance.y * 0.1;
+				float tol = SSSSSParams.y * 0.1;
 				float dt = min(tol * abs(-tapDepth * blurDepthScale + centerRef), 1.0);
 				tapBlended = lerp(tapColor, blurSourceCenter, dt);
 			} else {
@@ -372,34 +373,35 @@ PS_OUTPUT main(PS_INPUT input)
 cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
-	float4 cb12_pad_28_29[2];
-	float4 IblDesaturation;
-	float4 cb12_pad_31_34[4];
-	float4 CameraPosAdjust;
-	float4 CameraPreviousPosAdjust;
-	float4 cb12_pad_37_40[4];
-	float4 FogDistanceRamp;
-	float4 FogNearLowColorAndPower;
-	float4 FogNearHighColorAndClamp;
-	float4 FogFarLowColorAndHighDensityScale;
-	float4 FogFarHighColor;
-	float4 FogHeightRamp;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;  // Near low fog color; w is the power.
+	float4 FogColor1;  // Near high fog color; w is the clamp.
+	float4 FogColor2;  // Far low fog color; w scales high density.
+	float4 FogColor3;  // Far high fog color.
+	float4 FogHeightRamps;
 };
 
 cbuffer PerCall_CB0 : register(b0)
 {
-	float4 ScreenBlurParameters;
-	float4 LitSceneWeight;
-	float4 LitSceneAlpha;
+	float4 SSSSSParams;  // Screen scale and blur tolerance.
+	float4 SSLRParams0;  // Lit-scene weight.
+	float4 SSLRParams1;  // Lit-scene alpha.
 };
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 ScreenSize;
-	float4 SunDirectionAndIntensity;
-	float4 SunColorAndSpecPower;
-	float4 cb2_pad_3_4[2];
-	float4 LitSceneUvClamp;
+	float4 VPOSOffset_row0;
+	float4 SunDirection;   // w is the intensity.
+	float4 SunColor_row0;  // w is the specular power.
+	float4 SunColor_row1[2];
+	float4 SunColor_row3;  // Lit-scene UV clamp.
 };
 
 Texture2D<float4> g_tGbufferNormal : register(t1);
@@ -511,7 +513,7 @@ float3 AmbientPairWeight(float2 uv)
 PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT output;
-	float2 uv = input.position.xy * ScreenSize.xy;
+	float2 uv = input.position.xy * VPOSOffset_row0.xy;
 
 	float3 shadingData =
 		g_tGbufferShadingData.SampleLevel(g_sGbufferShadingData, uv, 0).xyw;
@@ -529,18 +531,18 @@ PS_OUTPUT main(PS_INPUT input)
 	[branch] if (0.01 >= depth)
 	{
 		linearizedDepth = depth * 100.0;
-		reprojRow0 = NearReproj_row0;
-		reprojRow1 = NearReproj_row1;
-		reprojRow2 = NearReproj_row2;
-		reprojRow3 = NearReproj_row3;
+		reprojRow0 = FirstPersonClipToView_row0;
+		reprojRow1 = FirstPersonClipToView_row1;
+		reprojRow2 = FirstPersonClipToView_row2;
+		reprojRow3 = FirstPersonClipToView_row3;
 	}
 	else
 	{
 		linearizedDepth = depth * 1.01 - 0.01;
-		reprojRow0 = FarReproj_row0;
-		reprojRow1 = FarReproj_row1;
-		reprojRow2 = FarReproj_row2;
-		reprojRow3 = FarReproj_row3;
+		reprojRow0 = ClipToView_row0;
+		reprojRow1 = ClipToView_row1;
+		reprojRow2 = ClipToView_row2;
+		reprojRow3 = ClipToView_row3;
 	}
 
 #	if defined(OG)
@@ -549,7 +551,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float4(float2(uv.x, 1.0 - uv.y) * 2.0 - 1.0, linearizedDepth, 1.0);
 #	else
 	float4 uvRemapped =
-		float4(uv.x, 0.0, -uv.y, 0.0) * float4(ScreenSize.z, 0.0, ScreenSize.w, 0.0);
+		float4(uv.x, 0.0, -uv.y, 0.0) * float4(VPOSOffset_row0.z, 0.0, VPOSOffset_row0.w, 0.0);
 	uvRemapped.z += 1.0;
 	float4 positionInput =
 		float4(uvRemapped.xz * 2.0 - 1.0, linearizedDepth, 1.0);
@@ -569,7 +571,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
+			PosAdjust,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
@@ -582,7 +584,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
+			PosAdjust,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		return output;
@@ -628,10 +630,10 @@ PS_OUTPUT main(PS_INPUT input)
 		float mipLevel = (1.0 - shadingData.x) * 6.0;
 		mipLevel = positionView.z * 0.001953125 + mipLevel;
 		float arraySlice = floor(material.y * 255.0 - 1.0);
-		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIblProbeCube, g_sIblProbeCube, reflectionWorld, arraySlice, mipLevel, shadingData.x, IblDesaturation.y, FO4_SKYLIGHTING_SPECULAR(positionView, normalView, shadingData.x), FO4_PROBE_WEIGHT(AmbientPairWeight(uv)));
+		float3 cubeSample = SAMPLE_MATERIAL_ENVIRONMENT(g_tIblProbeCube, g_sIblProbeCube, reflectionWorld, arraySlice, mipLevel, shadingData.x, WorldWetnessAndRainTransition.y, FO4_SKYLIGHTING_SPECULAR(positionView, normalView, shadingData.x), FO4_PROBE_WEIGHT(AmbientPairWeight(uv)));
 		float luminance = dot(cubeSample, float3(0.299, 0.587, 0.114));
 		iblColor = lerp(
-			cubeSample, luminance.xxx, IblDesaturation.y * 0.9);
+			cubeSample, luminance.xxx, WorldWetnessAndRainTransition.y * 0.9);
 	}
 
 	float materialId = shadingData.z * 255.0;
@@ -657,12 +659,12 @@ PS_OUTPUT main(PS_INPUT input)
 			g_tSkinAuxColor.Sample(g_sSkinAuxColor, uv).xyz;
 #		endif
 		float blurDepthScale =
-			(isNearPath ? 1.0 : 0.0) * ScreenBlurParameters.z + 1.0;
+			(isNearPath ? 1.0 : 0.0) * SSSSSParams.z + 1.0;
 		float centerRef =
 			g_tBlurDepthRef.SampleLevel(g_sBlurDepthRef, uv, 0).x *
 			blurDepthScale;
 		float2 tapBase =
-			ScreenBlurParameters.xx * float2(0.078125, 0.138890) / centerRef;
+			SSSSSParams.xx * float2(0.078125, 0.138890) / centerRef;
 		float3 blurAccum = blurSourceCenter * SSSS_CENTER_WEIGHT;
 		[unroll] for (int i = 0; i < 10; ++i)
 		{
@@ -678,7 +680,7 @@ PS_OUTPUT main(PS_INPUT input)
 					g_tBlurSource.SampleLevel(g_sBlurSource, tapUv, 0).xyz;
 				float tapDepth =
 					g_tBlurDepthRef.SampleLevel(g_sBlurDepthRef, tapUv, 0).x;
-				float blurDepthWeightScale = ScreenBlurParameters.y * 0.1;
+				float blurDepthWeightScale = SSSSSParams.y * 0.1;
 				float depthWeight = min(
 					blurDepthWeightScale *
 						abs(-tapDepth * blurDepthScale + centerRef),
@@ -725,12 +727,12 @@ PS_OUTPUT main(PS_INPUT input)
 			min(1.0, 1.0 / rsqrt(saturate(shadingData.x - 0.3)));
 		float glossSquaredScaled = material.z * material.z * 50.0;
 #	if !defined(OG)
-		float2 litSceneUv = min(uv, LitSceneUvClamp.xy);
+		float2 litSceneUv = min(uv, SunColor_row3.xy);
 		float4 litScene = g_tLitScene.Sample(g_sLitScene, litSceneUv);
 #	endif
-		float litAlpha = min(litScene.w * LitSceneAlpha.z, 1.0);
+		float litAlpha = min(litScene.w * SSLRParams1.z, 1.0);
 		float3 iblLitBlend = lerp(
-			iblColor, litScene.xyz * LitSceneWeight.x, litAlpha);
+			iblColor, litScene.xyz * SSLRParams0.x, litAlpha);
 #	if defined(OG)
 		// OG keeps the leading factors in one register, preserving operand order.
 		float3 modulated =
@@ -749,13 +751,13 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 aoColor = modulated * ao;
 
 		float fogPlaneDistance =
-			dot(ViewToWorld_row2, float4(positionView, 1.0)) + CameraPosAdjust.z;
+			dot(ViewToWorld_row2, float4(positionView, 1.0)) + PosAdjust.z;
 		float positionLengthSquared = dot(positionView, positionView);
 		float distanceRamp =
-			sqrt(positionLengthSquared) * FogDistanceRamp.x - FogDistanceRamp.z;
+			sqrt(positionLengthSquared) * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 		float distanceFactor = saturate(distanceRamp);
 		float2 fogRemapPair =
-			saturate(fogPlaneDistance.xx * FogHeightRamp.xy - FogHeightRamp.zw);
+			saturate(fogPlaneDistance.xx * FogHeightRamps.xy - FogHeightRamps.zw);
 		float fogBlend = lerp(
 			fogRemapPair.x, fogRemapPair.y, distanceFactor);
 
@@ -763,29 +765,29 @@ PS_OUTPUT main(PS_INPUT input)
 		if (distanceRamp > 0.75) {
 			float distanceTail = (distanceFactor - 0.75) * 4.0;
 			fogIntensityClamp = min(
-				distanceTail * (1.0 - FogNearHighColorAndClamp.w) +
-					FogNearHighColorAndClamp.w,
+				distanceTail * (1.0 - FogColor1.w) +
+					FogColor1.w,
 				1.0);
 		} else {
-			fogIntensityClamp = FogNearHighColorAndClamp.w;
+			fogIntensityClamp = FogColor1.w;
 		}
 
 		float nearEscape =
 			distanceRamp < 0.015 ? distanceFactor * 66.666672 : 1.0;
-		float distancePow = pow(distanceFactor, FogNearLowColorAndPower.w);
+		float distancePow = pow(distanceFactor, FogColor0.w);
 		float fogIntensity = min(distancePow, fogIntensityClamp);
 		float unfoggedWeight = 1.0 - fogBlend;
 		float fogBlendWeight = mad(
 			fogBlend,
-			FogFarLowColorAndHighDensityScale.w,
+			FogColor2.w,
 			unfoggedWeight);
 		float3 fogColorLow = lerp(
-			FogNearLowColorAndPower.xyz,
-			FogFarLowColorAndHighDensityScale.xyz,
+			FogColor0.xyz,
+			FogColor2.xyz,
 			fogIntensity);
 		float3 fogColorHigh = lerp(
-			FogNearHighColorAndClamp.xyz,
-			FogFarHighColor.xyz,
+			FogColor1.xyz,
+			FogColor3.xyz,
 			fogIntensity);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(fogColorLow, fogColorHigh, fogBlend));
 		float combinedFog = fogIntensity * fogBlendWeight;
@@ -794,13 +796,13 @@ PS_OUTPUT main(PS_INPUT input)
 		float3 viewDirection =
 			positionView * rsqrt(positionLengthSquared);
 		float sunFactor = pow(
-							  max(dot(viewDirection, SunDirectionAndIntensity.xyz), 0.0),
-							  SunColorAndSpecPower.w) *
-		                  SunDirectionAndIntensity.w;
+							  max(dot(viewDirection, SunDirection.xyz), 0.0),
+							  SunColor_row0.w) *
+		                  SunDirection.w;
 		float3 sunlitFog =
-			lerp(fogColor, SunColorAndSpecPower.xyz, sunFactor);
+			lerp(fogColor, SunColor_row0.xyz, sunFactor);
 		bool useGrayscale =
-			fogMixFactor < FogNearHighColorAndClamp.w;
+			fogMixFactor < FogColor1.w;
 		float grayscale = dot(aoColor, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 		float3 grayscaleStack =
 			sunlitFog + grayscale * (grayscale.xxx - sunlitFog);
@@ -829,12 +831,6 @@ PS_OUTPUT main(PS_INPUT input)
 #		define OUTPUTMASK 0
 #	endif
 
-#	if FOGSTACK || defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-#		define AMBIENT_FRAME_COUNT 47
-#	else
-#		define AMBIENT_FRAME_COUNT 31
-#	endif
-
 #	if OUTPUTMASK
 #		define SCREEN_SETUP_COUNT 6
 #	elif FOGSTACK
@@ -845,17 +841,41 @@ PS_OUTPUT main(PS_INPUT input)
 
 cbuffer AmbientFrame : register(b12)
 {
-	float4 ambientFrame[AMBIENT_FRAME_COUNT];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 cbuffer AmbientPass : register(b0)
 {
-	float4 ambientPass[1];
+	float4 SSSSSParams[1];
 };
 
 cbuffer ScreenSetup : register(b2)
 {
+#	if FOGSTACK
 	float4 screenSetup[SCREEN_SETUP_COUNT];
+#	else
+	float4 VPOSOffset[SCREEN_SETUP_COUNT];
+#		define screenSetup VPOSOffset
+#	endif
 };
 
 SamplerState normalSampler : register(s1);
@@ -902,7 +922,7 @@ float3 sampleSkinTap(float2 coordinate, float depthScale, float centerDepth, flo
 	if (abs(materialId * 255.0 - 5.0) < 0.25) {
 		tapColor = ambientBaseTexture.SampleLevel(ambientBaseSampler, coordinate, 0.0).xyz;
 		float tapDepth = linearDepthTexture.SampleLevel(linearDepthSampler, coordinate, 0.0).x;
-		float depthWeightScale = ambientPass[0].y * 0.1;
+		float depthWeightScale = SSSSSParams[0].y * 0.1;
 		float depthWeight = min(depthWeightScale * abs(centerDepth - tapDepth * depthScale), 1.0);
 		tapColor = lerp(tapColor, centerColor, depthWeight);
 	} else {
@@ -996,16 +1016,16 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 
 	if (nearDepth) {
 		linearizedDepth = deviceDepth * 100.0;
-		row0 = ambientFrame[24];
-		row1 = ambientFrame[25];
-		row2 = ambientFrame[26];
-		row3 = ambientFrame[27];
+		row0 = FirstPersonClipToView[0];
+		row1 = FirstPersonClipToView[1];
+		row2 = FirstPersonClipToView[2];
+		row3 = FirstPersonClipToView[3];
 	} else {
 		linearizedDepth = deviceDepth * 1.01 - 0.01;
-		row0 = ambientFrame[20];
-		row1 = ambientFrame[21];
-		row2 = ambientFrame[22];
-		row3 = ambientFrame[23];
+		row0 = ClipToView[0];
+		row1 = ClipToView[1];
+		row2 = ClipToView[2];
+		row3 = ClipToView[3];
 	}
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
@@ -1016,10 +1036,10 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(
 			terrainViewPosition,
 			TerrainShadows::TerrainShadowsSampler,
-			ambientFrame[12],
-			ambientFrame[13],
-			ambientFrame[14],
-			ambientFrame[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -1028,10 +1048,10 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
 			terrainViewPosition,
-			ambientFrame[12],
-			ambientFrame[13],
-			ambientFrame[14],
-			ambientFrame[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -1070,15 +1090,15 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #	endif
 		float3 reflected = reflect(normalize(-viewPosition), normal);
 		float3 environmentCoordinate = float3(
-			dot(ambientFrame[12].xyz, reflected),
-			dot(ambientFrame[13].xyz, reflected),
-			dot(ambientFrame[14].xyz, reflected));
+			dot(ViewToWorld[0].xyz, reflected),
+			dot(ViewToWorld[1].xyz, reflected),
+			dot(ViewToWorld[2].xyz, reflected));
 		float mipLevel = (1.0 - surface.x) * 6.0;
 		mipLevel = viewPosition.z * 0.001953125 + mipLevel;
 		float arraySlice = floor(material.x * 255.0 - 1.0);
-		environment = SAMPLE_MATERIAL_ENVIRONMENT(environmentTexture, environmentSampler, environmentCoordinate, arraySlice, mipLevel, surface.x, ambientFrame[30].y, FO4_SKYLIGHTING_SPECULAR(viewPosition, normal, surface.x), FO4_PROBE_WEIGHT(sampleDirectLighting(coordinate)));
+		environment = SAMPLE_MATERIAL_ENVIRONMENT(environmentTexture, environmentSampler, environmentCoordinate, arraySlice, mipLevel, surface.x, WorldWetnessAndRainTransition.y, FO4_SKYLIGHTING_SPECULAR(viewPosition, normal, surface.x), FO4_PROBE_WEIGHT(sampleDirectLighting(coordinate)));
 		float luminance = dot(environment, float3(0.299, 0.587, 0.114));
-		environment = lerp(environment, luminance.xxx, ambientFrame[30].y * 0.9);
+		environment = lerp(environment, luminance.xxx, WorldWetnessAndRainTransition.y * 0.9);
 	}
 
 #	if FOGSTACK
@@ -1092,9 +1112,9 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #	if !defined(OG)
 		float3 skinAux = skinAuxTexture.Sample(skinAuxSampler, coordinate).xyz;
 #	endif
-		float depthScale = 1.0 + (float)nearDepth * ambientPass[0].z;
+		float depthScale = 1.0 + (float)nearDepth * SSSSSParams[0].z;
 		float centerDepth = linearDepthTexture.SampleLevel(linearDepthSampler, coordinate, 0.0).x * depthScale;
-		float2 tapStep = ambientPass[0].x * float2(0.078125, 0.13889) / centerDepth;
+		float2 tapStep = SSSSSParams[0].x * float2(0.078125, 0.13889) / centerDepth;
 
 		float4 tapCoordinates = coordinate.xyxy + tapStep.xyxy * float4(-2.0, -2.0, -1.28, -1.28);
 		float3 firstTap = sampleSkinTap(tapCoordinates.xy, depthScale, centerDepth, centerColor);
@@ -1151,25 +1171,25 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #		endif
 		);
 
-		float height = dot(ambientFrame[14], float4(viewPosition, 1.0)) + ambientFrame[35].z;
+		float height = dot(ViewToWorld[2], float4(viewPosition, 1.0)) + PosAdjust.z;
 		float distanceSquared = dot(viewPosition, viewPosition);
 		float distance = sqrt(distanceSquared);
-		float distanceCoordinate = distance * ambientFrame[41].x - ambientFrame[41].z;
+		float distanceCoordinate = distance * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 		float distanceSaturated = saturate(distanceCoordinate);
-		float2 heightWeights = saturate(height * ambientFrame[46].xy - ambientFrame[46].zw);
+		float2 heightWeights = saturate(height * FogHeightRamps.xy - FogHeightRamps.zw);
 		float heightWeight = lerp(heightWeights.x, heightWeights.y, distanceSaturated);
 
-		float fogLimit = ambientFrame[43].w;
+		float fogLimit = FogColor1.w;
 		if (distanceCoordinate > 0.75) {
 			fogLimit = min(
-				ambientFrame[43].w + (distanceSaturated - 0.75) * 4.0 * (1.0 - ambientFrame[43].w),
+				FogColor1.w + (distanceSaturated - 0.75) * 4.0 * (1.0 - FogColor1.w),
 				1.0);
 		}
 		float nearDistanceScale = distanceCoordinate < 0.015 ? distanceSaturated * 66.666672 : 1.0;
-		float fogCurve = min(pow(distanceSaturated, ambientFrame[42].w), fogLimit);
-		float heightAlpha = 1.0 - heightWeight + heightWeight * ambientFrame[44].w;
-		float3 lowFog = lerp(ambientFrame[42].xyz, ambientFrame[44].xyz, fogCurve);
-		float3 highFog = lerp(ambientFrame[43].xyz, ambientFrame[45].xyz, fogCurve);
+		float fogCurve = min(pow(distanceSaturated, FogColor0.w), fogLimit);
+		float heightAlpha = 1.0 - heightWeight + heightWeight * FogColor2.w;
+		float3 lowFog = lerp(FogColor0.xyz, FogColor2.xyz, fogCurve);
+		float3 highFog = lerp(FogColor1.xyz, FogColor3.xyz, fogCurve);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightWeight));
 		FO4_FOG_ORIGINAL(originalFogColor, fogColor);
 		float fogAmount = fogCurve * heightAlpha;
@@ -1178,7 +1198,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		float3 worldDirection = normalize(viewPosition);
 		float sunAmount = pow(max(dot(worldDirection, screenSetup[1].xyz), 0.0), screenSetup[2].w) * screenSetup[1].w;
 		fogColor = lerp(fogColor, screenSetup[2].xyz, sunAmount);
-		if (fogAmount < ambientFrame[43].w) {
+		if (fogAmount < FogColor1.w) {
 			float gray = dot(color, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 			fogColor = lerp(fogColor, gray.xxx, gray);
 		}
@@ -1201,18 +1221,37 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 
 cbuffer PerFrame : register(b12)
 {
-	float4 g_PF[47];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 cbuffer PerPass : register(b2)
 {
-	float4 g_PixelToUV;
-	float4 g_DirAndScale;
-	float4 g_TintAndExp;
+	float4 VPOSOffset;     // Pixel-to-UV scale.
+	float4 SunDirection;   // w is the scale.
+	float4 SunColor_row0;  // w is the exponent.
 #	if OUTPUTMASK
-	float4 g_Unused3;
-	float4 g_Unused4;
-	float4 g_UVClamp;
+	float4 SunColor_row1;
+	float4 SunColor_row2;
+	float4 SunColor_row3;  // UV clamp.
 #	endif
 };
 
@@ -1241,7 +1280,7 @@ SamplerState SampMask : register(s9);
 
 float4 main(float4 svpos : SV_POSITION) : SV_Target
 {
-	float2 uv = svpos.xy * g_PixelToUV.xy;
+	float2 uv = svpos.xy * VPOSOffset.xy;
 
 	float3 surf = TexSurface.SampleLevel(SampSurface, uv, 0).xyw;
 	float depth = TexDepth.SampleLevel(SampDepth, uv, 0).x;
@@ -1254,23 +1293,23 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 	float4 m0, m1, m2, m3;
 	if (depth <= 0.01) {
 		pos.z = depth * 100.0;
-		m0 = g_PF[24];
-		m1 = g_PF[25];
-		m2 = g_PF[26];
-		m3 = g_PF[27];
+		m0 = FirstPersonClipToView[0];
+		m1 = FirstPersonClipToView[1];
+		m2 = FirstPersonClipToView[2];
+		m3 = FirstPersonClipToView[3];
 	} else {
 		pos.z = depth * 1.01 - 0.01;
-		m0 = g_PF[20];
-		m1 = g_PF[21];
-		m2 = g_PF[22];
-		m3 = g_PF[23];
+		m0 = ClipToView[0];
+		m1 = ClipToView[1];
+		m2 = ClipToView[2];
+		m3 = ClipToView[3];
 	}
 
 #	if defined(OG)
 	// OG has no cb2[0].zw screen-UV rescale.
 	float2 sn = float2(uv.x, 1.0 - uv.y);
 #	else
-	float2 sn = float2(uv.x * g_PixelToUV.z, 1.0 - uv.y * g_PixelToUV.w);
+	float2 sn = float2(uv.x * VPOSOffset.z, 1.0 - uv.y * VPOSOffset.w);
 #	endif
 	pos.xy = sn * 2.0 - 1.0;
 	pos.w = 1.0;
@@ -1284,10 +1323,10 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(
 			pos.xyz,
 			TerrainShadows::TerrainShadowsSampler,
-			g_PF[12],
-			g_PF[13],
-			g_PF[14],
-			g_PF[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -1296,10 +1335,10 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
 			pos.xyz,
-			g_PF[12],
-			g_PF[13],
-			g_PF[14],
-			g_PF[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -1327,17 +1366,17 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 		ndv = ndv + ndv;
 		float3 r = nn.xyz * -ndv + v;
 
-		float3 rw = float3(dot(g_PF[12].xyz, r),
-			dot(g_PF[13].xyz, r),
-			dot(g_PF[14].xyz, r));
+		float3 rw = float3(dot(ViewToWorld[0].xyz, r),
+			dot(ViewToWorld[1].xyz, r),
+			dot(ViewToWorld[2].xyz, r));
 
 		float lod = (1.0 - surf.x) * 6.0;
 		lod = pos.z * 0.001953125 + lod;
 		float idx = floor(prm.x * 255.0 - 1.0);
 
-		cube = SAMPLE_MATERIAL_ENVIRONMENT(TexCube, SampCube, rw, idx, lod, surf.x, g_PF[30].y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, nn.xyz, surf.x), FO4_PROBE_WEIGHT(TexB.SampleLevel(SampB, uv, 0).xyz * 3.0));
+		cube = SAMPLE_MATERIAL_ENVIRONMENT(TexCube, SampCube, rw, idx, lod, surf.x, WorldWetnessAndRainTransition.y, FO4_SKYLIGHTING_SPECULAR(pos.xyz, nn.xyz, surf.x), FO4_PROBE_WEIGHT(TexB.SampleLevel(SampB, uv, 0).xyz * 3.0));
 		float lum = dot(cube, float3(0.299, 0.587, 0.114));
-		cube = lerp(cube, lum.xxx, g_PF[30].y * 0.9);
+		cube = lerp(cube, lum.xxx, WorldWetnessAndRainTransition.y * 0.9);
 	}
 
 	float4 result;
@@ -1366,38 +1405,38 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 
 #	if OUTPUTMASK
 #		if !defined(OG)
-		float mask = TexMask.Sample(SampMask, min(uv, g_UVClamp.xy)).x;
+		float mask = TexMask.Sample(SampMask, min(uv, SunColor_row3.xy)).x;
 #		endif
 		col = col * mask;
 #	endif
 
 		pos.w = 1.0;
-		float h = dot(g_PF[14], pos) + g_PF[35].z;
+		float h = dot(ViewToWorld[2], pos) + PosAdjust.z;
 		float dd = dot(pos.xyz, pos.xyz);
-		float dist = sqrt(dd) * g_PF[41].x - g_PF[41].z;
+		float dist = sqrt(dd) * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 		float ds = saturate(dist);
-		float2 hh = saturate(h * g_PF[46].xy - g_PF[46].zw);
+		float2 hh = saturate(h * FogHeightRamps.xy - FogHeightRamps.zw);
 		float fogH = ds * (hh.y - hh.x) + hh.x;
 
-		float w43 = g_PF[43].w;
+		float w43 = FogColor1.w;
 		float t1v = (0.75 < dist) ? min(((ds - 0.75) * 4.0) * (1.0 - w43) + w43, 1.0) : w43;
 		float t2v = (dist < 0.015) ? (ds * 66.666672) : 1.0;
-		float fk = min(pow(ds, g_PF[42].w), t1v);
+		float fk = min(pow(ds, FogColor0.w), t1v);
 
 		float alpha = 1.0 - fogH;
-		alpha = fogH * g_PF[44].w + alpha;
+		alpha = fogH * FogColor2.w + alpha;
 
-		float3 cA = lerp(g_PF[42].xyz, g_PF[44].xyz, fk);
-		float3 cB = lerp(g_PF[43].xyz, g_PF[45].xyz, fk);
+		float3 cA = lerp(FogColor0.xyz, FogColor2.xyz, fk);
+		float3 cB = lerp(FogColor1.xyz, FogColor3.xyz, fk);
 		float3 fogC = FO4_FOG_VANILLA_COLOR(lerp(cA, cB, fogH));
 		FO4_FOG_ORIGINAL(originalFogColor, fogC);
 		float amt = (fk * alpha) * t2v;
 
 		float3 dir = pos.xyz * rsqrt(dd);
-		float sun = pow(max(dot(dir, g_DirAndScale.xyz), 0.0), g_TintAndExp.w) * g_DirAndScale.w;
-		fogC = lerp(fogC, g_TintAndExp.xyz, sun);
+		float sun = pow(max(dot(dir, SunDirection.xyz), 0.0), SunColor_row0.w) * SunDirection.w;
+		fogC = lerp(fogC, SunColor_row0.xyz, sun);
 
-		if (amt < g_PF[43].w) {
+		if (amt < FogColor1.w) {
 			float lum2 = dot(col, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 			fogC = lerp(fogC, lum2.xxx, lum2);
 		}
@@ -1419,8 +1458,11 @@ cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 #		if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-	float4 terrain_cb12_pad_28_34[7];
-	float4 CameraPosAdjust;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
 #		endif
 };
 #	endif
@@ -1431,7 +1473,7 @@ cbuffer PerFrame_CB12 : register(b12)
 
 cbuffer ScreenData : register(b2)
 {
-	float4 screenData[COMPOSITE_CB2_COUNT];
+	float4 VPOSOffset[COMPOSITE_CB2_COUNT];
 };
 
 Texture2D<float4> baseTexture : register(t0);
@@ -1474,15 +1516,15 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -1494,15 +1536,15 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -1513,7 +1555,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		return skylightingDebugColor;
 	}
 #	endif
-	float2 uv = position.xy * screenData[0].xy;
+	float2 uv = position.xy * VPOSOffset[0].xy;
 	float4 base = baseTexture.SampleLevel(baseSampler, uv, 0.0);
 #	ifdef SSGI
 	float3 ssgiAlbedo = base.xyz;
@@ -1608,7 +1650,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	// OG samples modulation without the cb2[5].xy clamp.
 	float2 modulationUv = uv;
 #		else
-	float2 modulationUv = min(uv, screenData[5].xy);
+	float2 modulationUv = min(uv, VPOSOffset[5].xy);
 #		endif
 	color *= modulationTexture.Sample(modulationSampler, modulationUv).x;
 #	endif
@@ -1625,37 +1667,40 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
-	float4 cb12_pad_28_34[7];
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
 
-	float4 CameraPosAdjust_for_fog_height;
+	float4 PosAdjust;
 
-	float4 CameraPreviousPosAdjust;
-	float4 cb12_pad_37_40[4];
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
 
-	float4 FogDistanceRamp_and_lowHeightRamp;
+	float4 FogDistanceAndLowHeightRamps;
 
-	float4 FogNearLowColor_and_power;
+	float4 FogColor0;  // Near low fog color; w is the power.
 
-	float4 FogNearHighColor_and_clamp;
+	float4 FogColor1;  // Near high fog color; w is the clamp.
 
-	float4 FogFarLowColor_and_highDensityScale;
+	float4 FogColor2;  // Far low fog color; w scales high density.
 
-	float4 FogFarHighColor_and_padding;
+	float4 FogColor3;  // Far high fog color.
 
-	float4 FogHeightRampScaleBiasPair;
+	float4 FogHeightRamps;
 };
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 ScreenSize;
+	float4 VPOSOffset_row0;
 
-	float4 SunDirection_and_intensity;
+	float4 SunDirection;  // w is the intensity.
 
-	float4 SunColor_and_SpecPower;
+	float4 SunColor_row0;  // w is the specular power.
 
 #	if COMPOSITE_MODULATION
-	float4 cb2_pad_3_4[2];
-	float4 ModulationUvClamp;
+	float4 SunColor_row1[2];
+	float4 SunColor_row3;  // Modulation UV clamp.
 #	endif
 };
 
@@ -1720,7 +1765,7 @@ PS_OUTPUT main(PS_INPUT input)
 {
 	PS_OUTPUT output;
 
-	float2 uv = input.position.xy * ScreenSize.xy;
+	float2 uv = input.position.xy * VPOSOffset_row0.xy;
 
 #	if !COMPOSITE_HAS_TYPE || COMPOSITE_MATERIAL_5
 	float4 baseSample = g_tHdrBaseColor.SampleLevel(g_sBaseColor, uv, 0);
@@ -1764,18 +1809,18 @@ PS_OUTPUT main(PS_INPUT input)
 	[branch] if (0.01 >= depth)
 	{
 		linearizedDepth = depth * 100.0;
-		reprojRow0 = NearReproj_row0;
-		reprojRow1 = NearReproj_row1;
-		reprojRow2 = NearReproj_row2;
-		reprojRow3 = NearReproj_row3;
+		reprojRow0 = FirstPersonClipToView_row0;
+		reprojRow1 = FirstPersonClipToView_row1;
+		reprojRow2 = FirstPersonClipToView_row2;
+		reprojRow3 = FirstPersonClipToView_row3;
 	}
 	else
 	{
 		linearizedDepth = depth * 1.01 - 0.01;
-		reprojRow0 = FarReproj_row0;
-		reprojRow1 = FarReproj_row1;
-		reprojRow2 = FarReproj_row2;
-		reprojRow3 = FarReproj_row3;
+		reprojRow0 = ClipToView_row0;
+		reprojRow1 = ClipToView_row1;
+		reprojRow2 = ClipToView_row2;
+		reprojRow3 = ClipToView_row3;
 	}
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
@@ -1785,7 +1830,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float4(float2(uv.x, 1.0 - uv.y) * 2.0 - 1.0, linearizedDepth, 1.0);
 #		else
 	float4 terrainUvRemapped =
-		float4(uv.x, 0.0, -uv.y, 0.0) * float4(ScreenSize.z, 0.0, ScreenSize.w, 0.0);
+		float4(uv.x, 0.0, -uv.y, 0.0) * float4(VPOSOffset_row0.z, 0.0, VPOSOffset_row0.w, 0.0);
 	terrainUvRemapped.z += 1.0;
 	float4 terrainPosition =
 		float4(terrainUvRemapped.xz * 2.0 - 1.0, linearizedDepth, 1.0);
@@ -1805,7 +1850,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust_for_fog_height,
+			PosAdjust,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
@@ -1818,7 +1863,7 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust_for_fog_height,
+			PosAdjust,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		return output;
@@ -1912,7 +1957,7 @@ PS_OUTPUT main(PS_INPUT input)
 		float2 uvNDC = float2(uv.x, 1.0 - uv.y) * 2.0 - 1.0;
 #	else
 		float4 uvRemapped =
-			float4(uv.x, 0.0, -uv.y, 0.0) * float4(ScreenSize.z, 0.0, ScreenSize.w, 0.0);
+			float4(uv.x, 0.0, -uv.y, 0.0) * float4(VPOSOffset_row0.z, 0.0, VPOSOffset_row0.w, 0.0);
 		uvRemapped.z += 1.0;
 		float2 uvNDC = uvRemapped.xz * 2.0 - 1.0;
 #	endif
@@ -1959,7 +2004,7 @@ PS_OUTPUT main(PS_INPUT input)
 		// OG uses modulation sampled before exclusion.
 		ambientWeighted *= modulation;
 #			else
-		float2 modulationUv = min(uv, ModulationUvClamp.xy);
+		float2 modulationUv = min(uv, SunColor_row3.xy);
 		ambientWeighted *=
 			g_tModulation.Sample(g_sModulation, modulationUv).x;
 #			endif
@@ -1967,41 +2012,41 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 
 		float fogPlaneDistance = dot(ViewToWorld_row2, float4(posView, 1.0));
-		fogPlaneDistance += CameraPosAdjust_for_fog_height.z;
+		fogPlaneDistance += PosAdjust.z;
 
 		float posViewLenSq = dot(posView, posView);
 		float posViewLen = sqrt(posViewLenSq);
-		float distanceRamp = posViewLen * FogDistanceRamp_and_lowHeightRamp.x - FogDistanceRamp_and_lowHeightRamp.z;
+		float distanceRamp = posViewLen * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 		float distanceFactor = saturate(distanceRamp);
 
-		float2 fogRemapPair = saturate(fogPlaneDistance.xx * FogHeightRampScaleBiasPair.xy - FogHeightRampScaleBiasPair.zw);
+		float2 fogRemapPair = saturate(fogPlaneDistance.xx * FogHeightRamps.xy - FogHeightRamps.zw);
 		float fogBlend = lerp(fogRemapPair.x, fogRemapPair.y, distanceFactor);
 
 		float fogIntensityClamp;
 		if (distanceRamp > 0.75) {
 			float t = (distanceFactor - 0.75) * 4.0;
-			float scaled = t * (1.0 - FogNearHighColor_and_clamp.w) + FogNearHighColor_and_clamp.w;
+			float scaled = t * (1.0 - FogColor1.w) + FogColor1.w;
 			fogIntensityClamp = min(scaled, 1.0);
 		} else {
-			fogIntensityClamp = FogNearHighColor_and_clamp.w;
+			fogIntensityClamp = FogColor1.w;
 		}
 
 		float nearEscape = (distanceRamp < 0.015) ? (distanceFactor * 66.666672) : 1.0;
 
-		float distancePow = pow(distanceFactor, FogNearLowColor_and_power.w);
+		float distancePow = pow(distanceFactor, FogColor0.w);
 		float fogIntensity = min(distancePow, fogIntensityClamp);
 
 		float unfoggedWeight = 1.0 - fogBlend;
 		float fogBlendWeight = mad(
 			fogBlend,
-			FogFarLowColor_and_highDensityScale.w,
+			FogColor2.w,
 			unfoggedWeight);
 
-		float3 fogColorAC = lerp(FogNearLowColor_and_power.xyz,
-			FogFarLowColor_and_highDensityScale.xyz,
+		float3 fogColorAC = lerp(FogColor0.xyz,
+			FogColor2.xyz,
 			fogIntensity);
-		float3 fogColorBD = lerp(FogNearHighColor_and_clamp.xyz,
-			FogFarHighColor_and_padding.xyz,
+		float3 fogColorBD = lerp(FogColor1.xyz,
+			FogColor3.xyz,
 			fogIntensity);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(fogColorAC, fogColorBD, fogBlend));
 
@@ -2010,10 +2055,10 @@ PS_OUTPUT main(PS_INPUT input)
 		float fogMixFactor = combinedFog * nearEscape;
 		float3 viewDirUnit = posView * rsqrt(posViewLenSq);
 
-		float NdotL = max(dot(viewDirUnit, SunDirection_and_intensity.xyz), 0.0);
-		float specular = pow(NdotL, SunColor_and_SpecPower.w) * SunDirection_and_intensity.w;
+		float NdotL = max(dot(viewDirUnit, SunDirection.xyz), 0.0);
+		float specular = pow(NdotL, SunColor_row0.w) * SunDirection.w;
 
-		float3 sunlitFogColor = lerp(fogColor, SunColor_and_SpecPower.xyz,
+		float3 sunlitFogColor = lerp(fogColor, SunColor_row0.xyz,
 			specular);
 
 #	if !COMPOSITE_HAS_LIGHT && !COMPOSITE_MATERIAL_5
@@ -2028,7 +2073,7 @@ PS_OUTPUT main(PS_INPUT input)
 			g_tSecondaryColor.Sample(g_sSecondaryColor, uv).w);
 #		endif
 #	endif
-		bool useGraySaturated = (fogMixFactor < FogNearHighColor_and_clamp.w);
+		bool useGraySaturated = (fogMixFactor < FogColor1.w);
 		float gray = dot(ambientWeighted, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 		float3 graySaturated = sunlitFogColor + gray * (gray.xxx - sunlitFogColor);
 
@@ -2071,8 +2116,11 @@ cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 #		if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-	float4 terrain_cb12_pad_28_34[7];
-	float4 CameraPosAdjust;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
 #		endif
 };
 #	endif
@@ -2102,15 +2150,15 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
@@ -2123,15 +2171,15 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		return output;
@@ -2155,8 +2203,11 @@ cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 #		if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-	float4 terrain_cb12_pad_28_34[7];
-	float4 CameraPosAdjust;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
 #		endif
 };
 #	endif
@@ -2185,15 +2236,15 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
@@ -2206,15 +2257,15 @@ PS_OUTPUT main(PS_INPUT input)
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		return output;
@@ -2237,13 +2288,6 @@ PS_OUTPUT main(PS_INPUT input)
 #		include "FO4/ScreenSpaceGIConsumer.hlsli"
 #	endif
 
-#	ifndef COMPOSITE_CB12_COUNT
-#		define COMPOSITE_CB12_COUNT 47
-#	endif
-#	if (defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)) && COMPOSITE_CB12_COUNT < 36
-#		undef COMPOSITE_CB12_COUNT
-#		define COMPOSITE_CB12_COUNT 36
-#	endif
 #	ifndef COMPOSITE_CB2_COUNT
 #		define COMPOSITE_CB2_COUNT 6
 #	endif
@@ -2259,12 +2303,36 @@ PS_OUTPUT main(PS_INPUT input)
 
 cbuffer SceneData : register(b12)
 {
-	float4 scene[COMPOSITE_CB12_COUNT];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 cbuffer ScreenData : register(b2)
 {
+#	if COMPOSITE_FOG_STACK
 	float4 screenData[COMPOSITE_CB2_COUNT];
+#	else
+	float4 VPOSOffset[COMPOSITE_CB2_COUNT];
+#		define screenData VPOSOffset
+#	endif
 };
 
 Texture2D<float4> baseTexture : register(t0);
@@ -2351,16 +2419,16 @@ float4 main(PSInput input) : SV_Target0
 	float4 row3;
 	if (nearDepth) {
 		linearDepth = hardwareDepth * 100.0;
-		row0 = scene[24];
-		row1 = scene[25];
-		row2 = scene[26];
-		row3 = scene[27];
+		row0 = FirstPersonClipToView[0];
+		row1 = FirstPersonClipToView[1];
+		row2 = FirstPersonClipToView[2];
+		row3 = FirstPersonClipToView[3];
 	} else {
 		linearDepth = hardwareDepth * 1.01 - 0.01;
-		row0 = scene[20];
-		row1 = scene[21];
-		row2 = scene[22];
-		row3 = scene[23];
+		row0 = ClipToView[0];
+		row1 = ClipToView[1];
+		row2 = ClipToView[2];
+		row3 = ClipToView[3];
 	}
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
@@ -2388,10 +2456,10 @@ float4 main(PSInput input) : SV_Target0
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(
 			terrainViewPosition,
 			TerrainShadows::TerrainShadowsSampler,
-			scene[12],
-			scene[13],
-			scene[14],
-			scene[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -2400,10 +2468,10 @@ float4 main(PSInput input) : SV_Target0
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
 			terrainViewPosition,
-			scene[12],
-			scene[13],
-			scene[14],
-			scene[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -2452,17 +2520,17 @@ float4 main(PSInput input) : SV_Target0
 			-(1.0 - encodedLengthSquared * 0.5));
 		float3 reflected = reflect(normalize(-worldPosition), normal);
 		float3 probeDirection = float3(
-			dot(scene[12].xyz, reflected),
-			dot(scene[13].xyz, reflected),
-			dot(scene[14].xyz, reflected));
+			dot(ViewToWorld[0].xyz, reflected),
+			dot(ViewToWorld[1].xyz, reflected),
+			dot(ViewToWorld[2].xyz, reflected));
 		float probeLod = mad(
 			1.0 - typeData.x,
 			6.0,
 			worldPosition.z * 0.001953125);
 		float probeSlice = floor(material.x * 255.0 - 1.0);
-		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, scene[30].y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x), FO4_PROBE_WEIGHT(CubeDiffuseWeight(uv)));
+		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, WorldWetnessAndRainTransition.y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x), FO4_PROBE_WEIGHT(CubeDiffuseWeight(uv)));
 		float probeLuma = dot(probeColor, float3(0.299, 0.587, 0.114));
-		probeColor = lerp(probeColor, probeLuma.xxx, scene[30].y * 0.9);
+		probeColor = lerp(probeColor, probeLuma.xxx, WorldWetnessAndRainTransition.y * 0.9);
 	}
 #	else
 	float2 material;
@@ -2522,7 +2590,7 @@ float4 main(PSInput input) : SV_Target0
 		// Specular stays outside SSGI, as upstream.
 		color = ScreenSpaceGI::ComposeDiffuse(
 					input.position.xy,
-					float3x3(scene[12].xyz, scene[13].xyz, scene[14].xyz),
+					float3x3(ViewToWorld[0].xyz, ViewToWorld[1].xyz, ViewToWorld[2].xyz),
 					base.xyz,
 					mad(diffuse, base.xyz, ssgiEmissive),
 					ambientTexture.Sample(ambientSampler, uv).w) +
@@ -2556,8 +2624,8 @@ float4 main(PSInput input) : SV_Target0
 		float2 projectedXY = float2(uv.x, 1.0 - uv.y) * 2.0 - 1.0;
 #		else
 		float2 projectedXY = float2(
-								 uv.x * screenData[0].z,
-								 1.0 - uv.y * screenData[0].w) *
+								 uv.x * VPOSOffset[0].z,
+								 1.0 - uv.y * VPOSOffset[0].w) *
 		                         2.0 -
 		                     1.0;
 #		endif
@@ -2570,17 +2638,17 @@ float4 main(PSInput input) : SV_Target0
 		worldPosition = worldNumerator / worldDenominator;
 		float3 reflected = reflect(normalize(-worldPosition), normal);
 		float3 probeDirection = float3(
-			dot(scene[12].xyz, reflected),
-			dot(scene[13].xyz, reflected),
-			dot(scene[14].xyz, reflected));
+			dot(ViewToWorld[0].xyz, reflected),
+			dot(ViewToWorld[1].xyz, reflected),
+			dot(ViewToWorld[2].xyz, reflected));
 		float probeLod = mad(
 			1.0 - typeData.x,
 			6.0,
 			worldPosition.z * 0.001953125);
 		float probeSlice = floor(material.x * 255.0 - 1.0);
-		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, scene[30].y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x), FO4_PROBE_WEIGHT(diffuse));
+		probeColor = SAMPLE_MATERIAL_ENVIRONMENT(probeTexture, probeSampler, probeDirection, probeSlice, probeLod, typeData.x, WorldWetnessAndRainTransition.y, FO4_SKYLIGHTING_SPECULAR(worldPosition, normal, typeData.x), FO4_PROBE_WEIGHT(diffuse));
 		float probeLuma = dot(probeColor, float3(0.299, 0.587, 0.114));
-		probeColor = lerp(probeColor, probeLuma.xxx, scene[30].y * 0.9);
+		probeColor = lerp(probeColor, probeLuma.xxx, WorldWetnessAndRainTransition.y * 0.9);
 	}
 #	endif
 		float3 reflectionColor = probeColor;
@@ -2588,7 +2656,7 @@ float4 main(PSInput input) : SV_Target0
 		// FO4: compose native cube irradiance before material/probe weighting.
 		reflectionColor = ScreenSpaceGI::ComposeSpecular(
 			input.position.xy,
-			float3x3(scene[12].xyz, scene[13].xyz, scene[14].xyz),
+			float3x3(ViewToWorld[0].xyz, ViewToWorld[1].xyz, ViewToWorld[2].xyz),
 			normalize(-worldPosition),
 			reflectionColor,
 			typeData.x,
@@ -2610,32 +2678,32 @@ float4 main(PSInput input) : SV_Target0
 
 #	if COMPOSITE_FOG_STACK
 		float height =
-			dot(scene[14], float4(worldPosition, 1.0)) + scene[35].z;
+			dot(ViewToWorld[2], float4(worldPosition, 1.0)) + PosAdjust.z;
 		float distanceSquared = dot(worldPosition, worldPosition);
 		float distance = sqrt(distanceSquared);
-		float distanceCoordinate = distance * scene[41].x - scene[41].z;
+		float distanceCoordinate = distance * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 		float distanceSaturated = saturate(distanceCoordinate);
 		float2 heightWeights =
-			saturate(height * scene[46].xy - scene[46].zw);
+			saturate(height * FogHeightRamps.xy - FogHeightRamps.zw);
 		float heightWeight =
 			lerp(heightWeights.x, heightWeights.y, distanceSaturated);
 
-		float fogLimit = scene[43].w;
+		float fogLimit = FogColor1.w;
 		if (distanceCoordinate > 0.75) {
 			fogLimit = min(
-				scene[43].w +
-					(distanceSaturated - 0.75) * 4.0 * (1.0 - scene[43].w),
+				FogColor1.w +
+					(distanceSaturated - 0.75) * 4.0 * (1.0 - FogColor1.w),
 				1.0);
 		}
 		float nearDistanceScale = distanceCoordinate < 0.015 ? distanceSaturated * 66.666672 : 1.0;
 		float fogCurve =
-			min(pow(distanceSaturated, scene[42].w), fogLimit);
+			min(pow(distanceSaturated, FogColor0.w), fogLimit);
 		float heightAlpha =
-			1.0 - heightWeight + heightWeight * scene[44].w;
+			1.0 - heightWeight + heightWeight * FogColor2.w;
 		float3 lowFog =
-			lerp(scene[42].xyz, scene[44].xyz, fogCurve);
+			lerp(FogColor0.xyz, FogColor2.xyz, fogCurve);
 		float3 highFog =
-			lerp(scene[43].xyz, scene[45].xyz, fogCurve);
+			lerp(FogColor1.xyz, FogColor3.xyz, fogCurve);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightWeight));
 		FO4_FOG_ORIGINAL(originalFogColor, fogColor);
 		float fogAmount = fogCurve * heightAlpha * nearDistanceScale;
@@ -2646,7 +2714,7 @@ float4 main(PSInput input) : SV_Target0
 							  screenData[2].w) *
 		                  screenData[1].w;
 		fogColor = lerp(fogColor, screenData[2].xyz, sunAmount);
-		if (fogAmount < scene[43].w) {
+		if (fogAmount < FogColor1.w) {
 			float gray =
 				dot(color, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 			fogColor = lerp(fogColor, gray.xxx, gray);
@@ -2681,8 +2749,11 @@ cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 #		if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-	float4 terrain_cb12_pad_28_34[7];
-	float4 CameraPosAdjust;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
 #		endif
 };
 #	endif
@@ -2695,7 +2766,7 @@ cbuffer PerFrame_CB12 : register(b12)
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 cb2[6];
+	float4 VPOSOffset[6];
 };
 
 SamplerState g_sAmbientPrimary : register(s6);
@@ -2727,15 +2798,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -2747,15 +2818,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -2766,7 +2837,7 @@ float4 main(PS_INPUT input) : SV_Target0
 		return skylightingDebugColor;
 	}
 #		endif
-	float2 screenUv = input.position.xy * cb2[0].xy;
+	float2 screenUv = input.position.xy * VPOSOffset[0].xy;
 	float3 ambient = g_tAmbientPrimary.SampleLevel(g_sAmbientPrimary, screenUv, 0).xyz;
 	ambient += g_tAmbientSecondary.SampleLevel(g_sAmbientSecondary, screenUv, 0).xyz;
 	ambient += g_tLighting.Sample(g_sLighting, screenUv).xyz;
@@ -2776,7 +2847,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	// OG samples occlusion without the cb2[5].xy clamp.
 	float2 occlusionUv = screenUv;
 #		else
-	float2 occlusionUv = min(screenUv, cb2[5].xy);
+	float2 occlusionUv = min(screenUv, VPOSOffset[5].xy);
 #		endif
 	float occlusion = g_tOcclusion.Sample(g_sOcclusion, occlusionUv).x;
 	float3 result = color * 1.5 + ambient;
@@ -2787,7 +2858,7 @@ float4 main(PS_INPUT input) : SV_Target0
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 cb2[1];
+	float4 VPOSOffset[1];
 };
 
 SamplerState g_sShading : register(s3);
@@ -2815,15 +2886,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -2835,15 +2906,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -2854,7 +2925,7 @@ float4 main(PS_INPUT input) : SV_Target0
 		return skylightingDebugColor;
 	}
 #		endif
-	float2 screenUv = input.position.xy * cb2[0].xy;
+	float2 screenUv = input.position.xy * VPOSOffset[0].xy;
 	float material = g_tShading.SampleLevel(g_sShading, screenUv, 0).w;
 	float3 color = g_tColor.SampleLevel(g_sColor, screenUv, 0).xyz;
 #		if defined(OG)
@@ -2877,7 +2948,7 @@ float4 main(PS_INPUT input) : SV_Target0
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 cb2[1];
+	float4 VPOSOffset[1];
 };
 
 SamplerState g_sShading : register(s3);
@@ -2909,15 +2980,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -2929,15 +3000,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -2948,7 +3019,7 @@ float4 main(PS_INPUT input) : SV_Target0
 		return skylightingDebugColor;
 	}
 #		endif
-	float2 screenUv = input.position.xy * cb2[0].xy;
+	float2 screenUv = input.position.xy * VPOSOffset[0].xy;
 	float material = g_tShading.SampleLevel(g_sShading, screenUv, 0).w;
 	float3 color = g_tColorPrimary.SampleLevel(g_sColorPrimary, screenUv, 0).xyz;
 	color += g_tColorSecondary.SampleLevel(g_sColorSecondary, screenUv, 0).xyz;
@@ -2973,7 +3044,7 @@ float4 main(PS_INPUT input) : SV_Target0
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 cb2[6];
+	float4 VPOSOffset[6];
 };
 
 SamplerState g_sLighting : register(s4);
@@ -3001,15 +3072,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -3021,15 +3092,15 @@ float4 main(PS_INPUT input) : SV_Target0
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust,
-			FarReproj_row0,
-			FarReproj_row1,
-			FarReproj_row2,
-			FarReproj_row3,
-			NearReproj_row0,
-			NearReproj_row1,
-			NearReproj_row2,
-			NearReproj_row3,
+			PosAdjust,
+			ClipToView_row0,
+			ClipToView_row1,
+			ClipToView_row2,
+			ClipToView_row3,
+			FirstPersonClipToView_row0,
+			FirstPersonClipToView_row1,
+			FirstPersonClipToView_row2,
+			FirstPersonClipToView_row3,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -3040,7 +3111,7 @@ float4 main(PS_INPUT input) : SV_Target0
 		return skylightingDebugColor;
 	}
 #		endif
-	float2 screenUv = input.position.xy * cb2[0].xy;
+	float2 screenUv = input.position.xy * VPOSOffset[0].xy;
 	float3 ambient = g_tLighting.Sample(g_sLighting, screenUv).xyz;
 	ambient += g_tAmbient.SampleLevel(g_sAmbient, screenUv, 0).xyz;
 	float3 color = g_tColor.SampleLevel(g_sColor, screenUv, 0).xyz;
@@ -3048,7 +3119,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	// OG samples occlusion without the cb2[5].xy clamp.
 	float2 occlusionUv = screenUv;
 #		else
-	float2 occlusionUv = min(screenUv, cb2[5].xy);
+	float2 occlusionUv = min(screenUv, VPOSOffset[5].xy);
 #		endif
 	float occlusion = g_tOcclusion.Sample(g_sOcclusion, occlusionUv).x;
 	float3 result = (color * 1.5 + ambient) * occlusion;
@@ -3102,7 +3173,26 @@ float4 main(PS_INPUT input) : SV_Target0
 
 cbuffer PerFrame_CB12 : register(b12)
 {
-	float4 scene[47];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 cbuffer PerCall_CB2 : register(b2)
@@ -3160,16 +3250,16 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	float4 row3;
 	if (depth <= 0.01) {
 		projectedDepth = depth * 100.0;
-		row0 = scene[24];
-		row1 = scene[25];
-		row2 = scene[26];
-		row3 = scene[27];
+		row0 = FirstPersonClipToView[0];
+		row1 = FirstPersonClipToView[1];
+		row2 = FirstPersonClipToView[2];
+		row3 = FirstPersonClipToView[3];
 	} else {
 		projectedDepth = depth * 1.01 - 0.01;
-		row0 = scene[20];
-		row1 = scene[21];
-		row2 = scene[22];
-		row3 = scene[23];
+		row0 = ClipToView[0];
+		row1 = ClipToView[1];
+		row2 = ClipToView[2];
+		row3 = ClipToView[3];
 	}
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
@@ -3194,10 +3284,10 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(
 			terrainReconstructed.xyz,
 			TerrainShadows::TerrainShadowsSampler,
-			scene[12],
-			scene[13],
-			scene[14],
-			scene[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			terrainDebugColor)) {
 		return terrainDebugColor;
 	}
@@ -3206,10 +3296,10 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
 			terrainReconstructed.xyz,
-			scene[12],
-			scene[13],
-			scene[14],
-			scene[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			waterDebugColor)) {
 		return waterDebugColor;
 	}
@@ -3291,32 +3381,32 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #		endif
 #	endif
 
-		float fogPlane = dot(scene[14], float4(reconstructed.xyz, 1.0)) + scene[35].z;
+		float fogPlane = dot(ViewToWorld[2], float4(reconstructed.xyz, 1.0)) + PosAdjust.z;
 		float distanceSquared = dot(reconstructed.xyz, reconstructed.xyz);
-		float distanceRampRaw = sqrt(distanceSquared) * scene[41].x - scene[41].z;
+		float distanceRampRaw = sqrt(distanceSquared) * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 		float distanceRamp = saturate(distanceRampRaw);
-		float2 heightRemaps = saturate(fogPlane * scene[46].xy - scene[46].zw);
+		float2 heightRemaps = saturate(fogPlane * FogHeightRamps.xy - FogHeightRamps.zw);
 		float heightFactor = lerp(heightRemaps.x, heightRemaps.y, distanceRamp);
 
-		float fogLimit = scene[43].w;
+		float fogLimit = FogColor1.w;
 		if (distanceRampRaw > 0.75) {
 			fogLimit = min(
-				scene[43].w + (distanceRamp - 0.75) * 4.0 * (1.0 - scene[43].w),
+				FogColor1.w + (distanceRamp - 0.75) * 4.0 * (1.0 - FogColor1.w),
 				1.0);
 		}
 
 		float nearEscape = distanceRampRaw < 0.015 ? distanceRamp * 66.666672 : 1.0;
-		float fogCurve = min(pow(distanceRamp, scene[42].w), fogLimit);
-		float heightScale = 1.0 - heightFactor + heightFactor * scene[44].w;
-		float3 lowFog = lerp(scene[42].xyz, scene[44].xyz, fogCurve);
-		float3 highFog = lerp(scene[43].xyz, scene[45].xyz, fogCurve);
+		float fogCurve = min(pow(distanceRamp, FogColor0.w), fogLimit);
+		float heightScale = 1.0 - heightFactor + heightFactor * FogColor2.w;
+		float3 lowFog = lerp(FogColor0.xyz, FogColor2.xyz, fogCurve);
+		float3 highFog = lerp(FogColor1.xyz, FogColor3.xyz, fogCurve);
 		float3 fogColor = FO4_FOG_VANILLA_COLOR(lerp(lowFog, highFog, heightFactor));
 		float fogMix = fogCurve * heightScale * nearEscape;
 
 		float3 viewDirection = normalize(reconstructed.xyz);
 		float sun = pow(max(dot(viewDirection, screenData[1].xyz), 0.0), screenData[2].w) * screenData[1].w;
 		float3 sunlitFog = lerp(fogColor, screenData[2].xyz, sun);
-		bool useGrayFog = fogMix < scene[43].w;
+		bool useGrayFog = fogMix < FogColor1.w;
 		float gray = dot(composite, float3(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0));
 		float3 graySaturated = sunlitFog + gray * (gray - sunlitFog);
 		float3 selectedFog = useGrayFog ? graySaturated : sunlitFog;
@@ -3341,7 +3431,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #	endif
 
 #	if WAVE5B_SSS_RECORD_NORMAL_SHAPE == 1
-#		define WAVE5B_RECORD_NORMAL_CB12_COUNT 28
 #		if defined(OG)
 // OG's screen scale at cb2[5].xy requires six registers.
 #			define WAVE5B_RECORD_NORMAL_CB2_COUNT 6
@@ -3351,18 +3440,15 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #		define WAVE5B_RECORD_NORMAL_HAS_T2 0
 #		define WAVE5B_RECORD_NORMAL_HAS_MATERIAL_FADE 0
 #	elif WAVE5B_SSS_RECORD_NORMAL_SHAPE == 2
-#		define WAVE5B_RECORD_NORMAL_CB12_COUNT 31
 #		define WAVE5B_RECORD_NORMAL_CB2_COUNT 7
 #		define WAVE5B_RECORD_NORMAL_HAS_T2 0
 #		define WAVE5B_RECORD_NORMAL_HAS_MATERIAL_FADE 1
 #		define WAVE5B_RECORD_NORMAL_MATERIAL_FADE_INDEX 6
 #	elif WAVE5B_SSS_RECORD_NORMAL_SHAPE == 3
-#		define WAVE5B_RECORD_NORMAL_CB12_COUNT 28
 #		define WAVE5B_RECORD_NORMAL_CB2_COUNT 7
 #		define WAVE5B_RECORD_NORMAL_HAS_T2 1
 #		define WAVE5B_RECORD_NORMAL_HAS_MATERIAL_FADE 0
 #	elif WAVE5B_SSS_RECORD_NORMAL_SHAPE == 4
-#		define WAVE5B_RECORD_NORMAL_CB12_COUNT 31
 #		define WAVE5B_RECORD_NORMAL_CB2_COUNT 8
 #		define WAVE5B_RECORD_NORMAL_HAS_T2 1
 #		define WAVE5B_RECORD_NORMAL_HAS_MATERIAL_FADE 1
@@ -3371,14 +3457,28 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 #		error Unsupported SSS MRT record-normal shape
 #	endif
 
-#	if defined(TERRAIN_SHADOWS_FULLSCREEN_DEBUG) || defined(WATER_EFFECTS_FULLSCREEN_DEBUG)
-#		undef WAVE5B_RECORD_NORMAL_CB12_COUNT
-#		define WAVE5B_RECORD_NORMAL_CB12_COUNT 36
-#	endif
-
 cbuffer PerFrame_CB12 : register(b12)
 {
-	float4 cb12[WAVE5B_RECORD_NORMAL_CB12_COUNT];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 cbuffer PerCall_CB2 : register(b2)
@@ -3471,16 +3571,16 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 inverseRow3;
 	if (depth <= 0.01) {
 		projectedDepth = depth * 100.0;
-		inverseRow0 = cb12[24];
-		inverseRow1 = cb12[25];
-		inverseRow2 = cb12[26];
-		inverseRow3 = cb12[27];
+		inverseRow0 = FirstPersonClipToView[0];
+		inverseRow1 = FirstPersonClipToView[1];
+		inverseRow2 = FirstPersonClipToView[2];
+		inverseRow3 = FirstPersonClipToView[3];
 	} else {
 		projectedDepth = depth * 1.01 - 0.01;
-		inverseRow0 = cb12[20];
-		inverseRow1 = cb12[21];
-		inverseRow2 = cb12[22];
-		inverseRow3 = cb12[23];
+		inverseRow0 = ClipToView[0];
+		inverseRow1 = ClipToView[1];
+		inverseRow2 = ClipToView[2];
+		inverseRow3 = ClipToView[3];
 	}
 
 #	if defined(OG)
@@ -3505,10 +3605,10 @@ PS_OUTPUT main(PS_INPUT input)
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(
 			reconstructedPosition.xyz,
 			TerrainShadows::TerrainShadowsSampler,
-			cb12[12],
-			cb12[13],
-			cb12[14],
-			cb12[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		output.normal = 0.0;
@@ -3521,10 +3621,10 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
 			reconstructedPosition.xyz,
-			cb12[12],
-			cb12[13],
-			cb12[14],
-			cb12[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		output.normal = 0.0;
@@ -3550,7 +3650,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float materialFade = min(
 		pow(1.0 - dot(viewDirection, recordNormal), cb2[WAVE5B_RECORD_NORMAL_MATERIAL_FADE_INDEX].y),
 		1.0);
-	materialFade = 1.0 + cb12[30].x * (materialFade - 1.0);
+	materialFade = 1.0 + WorldWetnessAndRainTransition.x * (materialFade - 1.0);
 	materialFade = disableMaterialFade ? 1.0 : materialFade;
 #	endif
 
@@ -3660,7 +3760,6 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 
 #	if WAVE5B_SSS_SURFACE_CONTACT_SHAPE == 1
-#		define WAVE5B_SURFACE_CONTACT_CB12_COUNT 28
 #		if defined(OG)
 // OG's screen scale at cb2[5].xy requires six registers.
 #			define WAVE5B_SURFACE_CONTACT_CB2_COUNT 6
@@ -3670,18 +3769,15 @@ PS_OUTPUT main(PS_INPUT input)
 #		define WAVE5B_SURFACE_CONTACT_HAS_T2 0
 #		define WAVE5B_SURFACE_CONTACT_HAS_MATERIAL_FADE 0
 #	elif WAVE5B_SSS_SURFACE_CONTACT_SHAPE == 2
-#		define WAVE5B_SURFACE_CONTACT_CB12_COUNT 31
 #		define WAVE5B_SURFACE_CONTACT_CB2_COUNT 7
 #		define WAVE5B_SURFACE_CONTACT_HAS_T2 0
 #		define WAVE5B_SURFACE_CONTACT_HAS_MATERIAL_FADE 1
 #		define WAVE5B_SURFACE_CONTACT_MATERIAL_FADE_INDEX 6
 #	elif WAVE5B_SSS_SURFACE_CONTACT_SHAPE == 3
-#		define WAVE5B_SURFACE_CONTACT_CB12_COUNT 28
 #		define WAVE5B_SURFACE_CONTACT_CB2_COUNT 7
 #		define WAVE5B_SURFACE_CONTACT_HAS_T2 1
 #		define WAVE5B_SURFACE_CONTACT_HAS_MATERIAL_FADE 0
 #	elif WAVE5B_SSS_SURFACE_CONTACT_SHAPE == 4
-#		define WAVE5B_SURFACE_CONTACT_CB12_COUNT 31
 #		define WAVE5B_SURFACE_CONTACT_CB2_COUNT 8
 #		define WAVE5B_SURFACE_CONTACT_HAS_T2 1
 #		define WAVE5B_SURFACE_CONTACT_HAS_MATERIAL_FADE 1
@@ -3690,14 +3786,28 @@ PS_OUTPUT main(PS_INPUT input)
 #		error Unsupported SSS MRT surface/contact shape
 #	endif
 
-#	if defined(TERRAIN_SHADOWS_FULLSCREEN_DEBUG) || defined(WATER_EFFECTS_FULLSCREEN_DEBUG)
-#		undef WAVE5B_SURFACE_CONTACT_CB12_COUNT
-#		define WAVE5B_SURFACE_CONTACT_CB12_COUNT 36
-#	endif
-
 cbuffer PerFrame_CB12 : register(b12)
 {
-	float4 cb12[WAVE5B_SURFACE_CONTACT_CB12_COUNT];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 
 cbuffer PerCall_CB2 : register(b2)
@@ -3798,16 +3908,16 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 inverseRow3;
 	if (depth <= 0.01) {
 		projectedDepth = depth * 100.0;
-		inverseRow0 = cb12[24];
-		inverseRow1 = cb12[25];
-		inverseRow2 = cb12[26];
-		inverseRow3 = cb12[27];
+		inverseRow0 = FirstPersonClipToView[0];
+		inverseRow1 = FirstPersonClipToView[1];
+		inverseRow2 = FirstPersonClipToView[2];
+		inverseRow3 = FirstPersonClipToView[3];
 	} else {
 		projectedDepth = depth * 1.01 - 0.01;
-		inverseRow0 = cb12[20];
-		inverseRow1 = cb12[21];
-		inverseRow2 = cb12[22];
-		inverseRow3 = cb12[23];
+		inverseRow0 = ClipToView[0];
+		inverseRow1 = ClipToView[1];
+		inverseRow2 = ClipToView[2];
+		inverseRow3 = ClipToView[3];
 	}
 
 #	if defined(OG)
@@ -3832,10 +3942,10 @@ PS_OUTPUT main(PS_INPUT input)
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(
 			reconstructedPosition.xyz,
 			TerrainShadows::TerrainShadowsSampler,
-			cb12[12],
-			cb12[13],
-			cb12[14],
-			cb12[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		output.normal = 0.0;
@@ -3848,10 +3958,10 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
 			reconstructedPosition.xyz,
-			cb12[12],
-			cb12[13],
-			cb12[14],
-			cb12[35],
+			ViewToWorld[0],
+			ViewToWorld[1],
+			ViewToWorld[2],
+			PosAdjust,
 			waterDebugColor)) {
 		output.color = waterDebugColor;
 		output.normal = 0.0;
@@ -3877,7 +3987,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float materialFade = min(
 		pow(1.0 - dot(viewDirection, recordNormal), cb2[WAVE5B_SURFACE_CONTACT_MATERIAL_FADE_INDEX].y),
 		1.0);
-	materialFade = 1.0 + cb12[30].x * (materialFade - 1.0);
+	materialFade = 1.0 + WorldWetnessAndRainTransition.x * (materialFade - 1.0);
 	materialFade = disableMaterialFade ? 1.0 : materialFade;
 #	endif
 
@@ -4007,13 +4117,30 @@ PS_OUTPUT main(PS_INPUT input)
 #ifdef BSDFCOMPOSITE_VS
 cbuffer Scene : register(b12)
 {
-	float4 scene[36];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
 };
 
 cbuffer Geometry : register(b2)
 {
-	float4 geometry[5];
+	float4 World[5];
+#	if defined(DECAL)
+	uint4 BufferStartIdx;
+#	elif defined(GEOMETRY)
+	uint4 World_row5;
+#	else
 	uint4 geometryIndex;
+#	endif
 };
 
 struct InstanceData
@@ -4049,7 +4176,7 @@ VSOutput main(VSInput input)
 {
 	VSOutput output;
 #	ifdef DECAL
-	uint index = input.instanceID + geometryIndex.x;
+	uint index = input.instanceID + BufferStartIdx.x;
 	float4 localPosition = float4(input.position.xyz, 1.0);
 	float4 worldPosition;
 	worldPosition.x = dot(instances[index].data[4], localPosition);
@@ -4057,22 +4184,22 @@ VSOutput main(VSInput input)
 	worldPosition.z = dot(instances[index].data[6], localPosition);
 	worldPosition.w = dot(instances[index].data[7], localPosition);
 	output.instanceIndex = index;
-	output.position.x = dot(scene[8], worldPosition);
-	output.position.y = dot(scene[9], worldPosition);
-	output.position.z = dot(scene[10], worldPosition);
-	output.position.w = dot(scene[11], worldPosition);
+	output.position.x = dot(WorldToClip[0], worldPosition);
+	output.position.y = dot(WorldToClip[1], worldPosition);
+	output.position.z = dot(WorldToClip[2], worldPosition);
+	output.position.w = dot(WorldToClip[3], worldPosition);
 #	else
 #		ifdef GEOMETRY
 	float4 localPosition = float4(input.position.xyz, 1.0);
 	float4 worldPosition;
-	worldPosition.x = dot(float4(geometry[0].xyz, geometry[0].w - scene[35].x), localPosition);
-	worldPosition.y = dot(float4(geometry[1].xyz, geometry[1].w - scene[35].y), localPosition);
-	worldPosition.z = dot(float4(geometry[2].xyz, geometry[2].w - scene[35].z), localPosition);
-	worldPosition.w = dot(geometry[3], localPosition);
-	output.position.x = dot(scene[8], worldPosition);
-	output.position.y = dot(scene[9], worldPosition);
-	output.position.z = dot(scene[10], worldPosition);
-	output.position.w = dot(scene[11], worldPosition);
+	worldPosition.x = dot(float4(World[0].xyz, World[0].w - PosAdjust.x), localPosition);
+	worldPosition.y = dot(float4(World[1].xyz, World[1].w - PosAdjust.y), localPosition);
+	worldPosition.z = dot(float4(World[2].xyz, World[2].w - PosAdjust.z), localPosition);
+	worldPosition.w = dot(World[3], localPosition);
+	output.position.x = dot(WorldToClip[0], worldPosition);
+	output.position.y = dot(WorldToClip[1], worldPosition);
+	output.position.z = dot(WorldToClip[2], worldPosition);
+	output.position.w = dot(WorldToClip[3], worldPosition);
 #		else
 	output.position = float4(input.position.xyz, 1.0);
 #		endif

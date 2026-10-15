@@ -137,8 +137,8 @@ namespace cs::render
 		pack(data.CameraViewInverse, a_camera.ViewInverse);
 		pack(data.CameraViewProjInverse, a_camera.ViewProjectionInverse);
 		pack(data.CameraProjInverse, a_camera.ProjectionInverse);
-		data.CameraPosAdjust = a_camera.CameraPosAdjust;
-		data.CameraPreviousPosAdjust = a_camera.CameraPreviousPosAdjust;
+		data.CameraPosAdjust = a_camera.PosAdjust;
+		data.CameraPreviousPosAdjust = a_camera.PreviousPosAdjust;
 		data.CameraPreviousPosAdjust.w = a_clampOffset;
 		// FO4 has no validated inverse-gamma or Skyrim frame-flag source.
 		data.FrameParams = {};

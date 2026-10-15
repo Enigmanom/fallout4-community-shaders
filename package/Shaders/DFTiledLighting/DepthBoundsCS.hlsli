@@ -5,7 +5,13 @@ cbuffer DepthBoundsParameters : register(b0)
 
 cbuffer DeferredPerFrame : register(b12)
 {
-	float4 PerFrame[28];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
 };
 
 Texture2D<float4> MainDepth : register(t0);
@@ -29,14 +35,14 @@ float LinearizeDepth(float depth)
 	[branch] if (depth <= 0.01)
 	{
 		depth *= 100.0;
-		numerator = PerFrame[26].zw;
-		denominator = PerFrame[27].zw;
+		numerator = FirstPersonClipToView[2].zw;
+		denominator = FirstPersonClipToView[3].zw;
 	}
 	else
 	{
 		depth = depth * 1.01 - 0.01;
-		numerator = PerFrame[22].zw;
-		denominator = PerFrame[23].zw;
+		numerator = ClipToView[2].zw;
+		denominator = ClipToView[3].zw;
 	}
 
 	float2 depthH = float2(depth, 1.0);

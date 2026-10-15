@@ -43,14 +43,14 @@ Texture2D<float4> TexWeatherDepth : register(t8);
 cbuffer UIMaskData : register(b0)
 {
 	float4 UIMaskPadding[2];
-	float4 UIMaskParams;
+	float4 UIMaskRectParams;
 	float4 UIMaskRects[16];
-	float4 UIMaskColor;
+	float4 UIMaskRectColors_row0;
 };
 #	elif defined(SOFT) || defined(PIPBOY_SCREEN)
 cbuffer CameraData : register(b0)
 {
-	float4 CameraDataEffect;
+	float4 CameraData_row0;  // Effect camera parameters.
 #		if defined(PIPBOY_SCREEN)
 	float4 PipboyParams;
 #		endif
@@ -61,12 +61,20 @@ cbuffer PerMaterial : register(b1)
 {
 	float4 BaseColor;
 	float4 BaseColorScale;
+#	if defined(UI_MASK_RECTS)
+	float4 BaseColorScale_row1;
+#	else
 	float4 LightingInfluence;
+#	endif
 #	if defined(ENVMAP) || defined(PARTICLE_DISTORTION) || defined(WEATHER)
-	float4 EffectScale;
+#		if defined(ENVMAP) || defined(PARTICLE_DISTORTION)
+	float4 EnvmapScale_row0;
+#		else
+	float4 LightingInfluence_row1;
+#		endif
 #	endif
 #	if defined(WEATHER)
-	float4 WeatherScale;
+	float4 OcclusionMapSize;  // Weather depth-map size.
 #	endif
 };
 
@@ -75,12 +83,12 @@ cbuffer PerGeometry : register(b2)
 	float4 PLightPositionX;
 	float4 PLightPositionY;
 	float4 PLightPositionZ;
-	float4 PLightSpotDirX;
-	float4 PLightSpotDirY;
-	float4 PLightSpotDirZ;
-	float4 PLightSpotExponent;
-	float4 PLightSpotCosHalfPhi;
-	float4 PLightingRadiusInverse;
+	float4 PSpotDirX;
+	float4 PSpotDirY;
+	float4 PSpotDirZ;
+	float4 PSpotPower;                     // Spot exponent.
+	float4 PSpotAngle;                     // Cosine of the spotlight half-angle.
+	float4 PLightingRadiusInverseSquared;  // Used as a linear inverse radius.
 	float4 PLightColorR;
 	float4 PLightColorG;
 	float4 PLightColorB;
@@ -149,7 +157,7 @@ float3 GetLightingColor(float3 msPosition
 		lightDistX * lightDistX +
 		lightDistY * lightDistY +
 		lightDistZ * lightDistZ);
-	float4 lightFadeMul = saturate(lightDistance * PLightingRadiusInverse);
+	float4 lightFadeMul = saturate(lightDistance * PLightingRadiusInverseSquared);
 	lightFadeMul = 1.0.xxxx - lightFadeMul * lightFadeMul;
 	lightFadeMul = pow(lightFadeMul, 2.2);
 
@@ -159,15 +167,15 @@ float3 GetLightingColor(float3 msPosition
 	lightDistZ /= lightDistance;
 
 	float4 spotFade = saturate(
-		lightDistX * PLightSpotDirX +
-		lightDistY * PLightSpotDirY +
-		lightDistZ * PLightSpotDirZ);
+		lightDistX * PSpotDirX +
+		lightDistY * PSpotDirY +
+		lightDistZ * PSpotDirZ);
 	spotFade = saturate(
 		1.0.xxxx -
 		(1.0.xxxx - spotFade) /
-			(-PLightSpotCosHalfPhi + 1.0.xxxx));
-	float4 spotPower = (bool4)PLightSpotExponent ?
-	                       min(pow(spotFade, PLightSpotExponent), 1.0.xxxx) :
+			(-PSpotAngle + 1.0.xxxx));
+	float4 spotPower = (bool4)PSpotPower ?
+	                       min(pow(spotFade, PSpotPower), 1.0.xxxx) :
 	                       1.0.xxxx;
 	lightFadeMul *= spotPower;
 
@@ -200,7 +208,7 @@ PSOutput main(PSInput input)
 		clip(AlphaTestRef.y - baseTextureAlpha);
 	}
 
-	int maskRectCount = (int)UIMaskParams.x;
+	int maskRectCount = (int)UIMaskRectParams.x;
 	float maskedAlpha = alpha;
 	float mask = 0.0;
 	[loop] for (int maskRectIndex = 0;
@@ -218,7 +226,7 @@ PSOutput main(PSInput input)
 		float rectDistance = max(
 			max(horizontalDistance.x, horizontalDistance.y),
 			max(verticalDistance.x, verticalDistance.y));
-		float rectMask = 1.0 - UIMaskParams.y * rectDistance;
+		float rectMask = 1.0 - UIMaskRectParams.y * rectDistance;
 		mask = max(rectMask, mask);
 
 		bool insideFade =
@@ -234,18 +242,18 @@ PSOutput main(PSInput input)
 	}
 
 	mask = saturate(mask);
-	output.Color.w = maskedAlpha * mask * UIMaskParams.w;
-	bool useLinearColor = UIMaskParams.z != 0.0;
-	float3 gammaMaskColor = pow(UIMaskColor.xyz, 2.2);
+	output.Color.w = maskedAlpha * mask * UIMaskRectParams.w;
+	bool useLinearColor = UIMaskRectParams.z != 0.0;
+	float3 gammaMaskColor = pow(UIMaskRectColors_row0.xyz, 2.2);
 	output.Color.xyz =
-		useLinearColor ? UIMaskColor.xyz : gammaMaskColor;
+		useLinearColor ? UIMaskRectColors_row0.xyz : gammaMaskColor;
 #		if defined(PREMULTIPLY_ALPHA)
 	output.Color.xyz *= output.Color.w;
 #		endif
 #	else
 #		if defined(WEATHER)
 	float2 weatherPixel = input.WeatherCoord.xy + 1.0;
-	weatherPixel *= WeatherScale.x;
+	weatherPixel *= OcclusionMapSize.x;
 	weatherPixel *= 0.5;
 	int2 weatherPixelInt = (int2)weatherPixel;
 	float weatherDepth =
@@ -423,7 +431,7 @@ PSOutput main(PSInput input)
 				.xy *
 			2.0 -
 		1.0;
-	float distortionScale = input.ParticlePosition.y * EffectScale.x;
+	float distortionScale = input.ParticlePosition.y * EnvmapScale_row0.x;
 	float4 distortedTexCoord =
 		distortion.xyxy * distortionScale + input.TexCoord0.zwxy;
 	baseTexColor =
@@ -462,9 +470,9 @@ PSOutput main(PSInput input)
 		TexDepthSampler.Load(int3(input.Position.xy, 0)).x;
 #			if defined(ENVMAP) && defined(VC) && defined(TEXTURE) && defined(GRAYSCALE_TO_COLOR) && defined(GRAYSCALE_TO_ALPHA)
 	depth =
-		(1.0 - depth) * CameraDataEffect.z + CameraDataEffect.y;
+		(1.0 - depth) * CameraData_row0.z + CameraData_row0.y;
 	float depthNear =
-		CameraDataEffect.y * CameraDataEffect.z + CameraDataEffect.y;
+		CameraData_row0.y * CameraData_row0.z + CameraData_row0.y;
 	float2 depthScale = float2(
 		LightingInfluence.y / depth,
 		LightingInfluence.y / depthNear);
@@ -472,18 +480,18 @@ PSOutput main(PSInput input)
 	float nearFade = saturate(input.ParticlePosition.z - depthScale.y);
 #			elif (defined(GRAYSCALE_TO_COLOR) && !defined(GRAYSCALE_TO_ALPHA) && (!defined(LIGHTING) || !defined(VC) || defined(PARTICLE_DISTORTION) || (defined(ENVMAP) && defined(ADDBLEND)))) || (!defined(LIGHTING) && ((!defined(TEXTURE) && (defined(GRAYSCALE_TO_COLOR) || defined(GRAYSCALE_TO_ALPHA))) || (defined(VC) && defined(GRAYSCALE_TO_ALPHA) && !defined(GRAYSCALE_TO_COLOR))))
 	float depthFar =
-		(1.0 - depth) * CameraDataEffect.z + CameraDataEffect.y;
+		(1.0 - depth) * CameraData_row0.z + CameraData_row0.y;
 	float depthScaleFar = LightingInfluence.y / depthFar;
 	float depthNear =
-		CameraDataEffect.y * CameraDataEffect.z + CameraDataEffect.y;
+		CameraData_row0.y * CameraData_row0.z + CameraData_row0.y;
 	float depthScaleNear = LightingInfluence.y / depthNear;
 	float depthFade = saturate(depthScaleFar - input.ParticlePosition.z);
 	float nearFade = saturate(input.ParticlePosition.z - depthScaleNear);
 #			elif (defined(GRAYSCALE_TO_ALPHA) && !defined(GRAYSCALE_TO_COLOR)) || (defined(VC) && defined(LIGHTING) && defined(GRAYSCALE_TO_COLOR) && defined(GRAYSCALE_TO_ALPHA) && !defined(TEXTURE))
 	float depthFar =
-		(1.0 - depth) * CameraDataEffect.z + CameraDataEffect.y;
+		(1.0 - depth) * CameraData_row0.z + CameraData_row0.y;
 	float depthNear =
-		CameraDataEffect.y * CameraDataEffect.z + CameraDataEffect.y;
+		CameraData_row0.y * CameraData_row0.z + CameraData_row0.y;
 	float2 depthScale = float2(
 		LightingInfluence.y / depthFar,
 		LightingInfluence.y / depthNear);
@@ -491,18 +499,18 @@ PSOutput main(PSInput input)
 	float nearFade = saturate(input.ParticlePosition.z - depthScale.y);
 #			elif defined(PARTICLE_DISTORTION) && defined(GRAYSCALE_TO_COLOR) && defined(GRAYSCALE_TO_ALPHA)
 	float depthFar =
-		(1.0 - depth) * CameraDataEffect.z + CameraDataEffect.y;
+		(1.0 - depth) * CameraData_row0.z + CameraData_row0.y;
 	float depthScaleFar = LightingInfluence.y / depthFar;
 	float depthNear =
-		CameraDataEffect.y * CameraDataEffect.z + CameraDataEffect.y;
+		CameraData_row0.y * CameraData_row0.z + CameraData_row0.y;
 	float depthScaleNear = LightingInfluence.y / depthNear;
 	float depthFade = saturate(depthScaleFar - input.ParticlePosition.z);
 	float nearFade = saturate(input.ParticlePosition.z - depthScaleNear);
 #			else
 	float depthFar =
-		(1.0 - depth) * CameraDataEffect.z + CameraDataEffect.y;
+		(1.0 - depth) * CameraData_row0.z + CameraData_row0.y;
 	float depthNear =
-		CameraDataEffect.y * CameraDataEffect.z + CameraDataEffect.y;
+		CameraData_row0.y * CameraData_row0.z + CameraData_row0.y;
 	float2 depthScale = LightingInfluence.yy / float2(depthFar, depthNear);
 	float depthFade = saturate(depthScale.x - input.ParticlePosition.z);
 	float nearFade = saturate(input.ParticlePosition.z - depthScale.y);
@@ -720,7 +728,7 @@ PSOutput main(PSInput input)
 	reflection = -reflection;
 	float3 envmapColor =
 		TexEnvmapSampler.Sample(SampEnvmapSampler, reflection).xyz;
-	envmapColor *= EffectScale.x;
+	envmapColor *= EnvmapScale_row0.x;
 	envmapColor *= normalColor.z;
 	envmapColor *=
 		TexEffectMaskSampler.Sample(
@@ -889,12 +897,31 @@ PSOutput main(PSInput input)
 #	endif
 cbuffer PerFrame : register(b12)
 {
-	float4 Scene[47];
+	row_major float4x4 WorldToView;
+	row_major float4x4 ViewToClip;
+	row_major float4x4 WorldToClip;
+	row_major float4x4 ViewToWorld;
+	row_major float4x4 ClipToWorld;
+	row_major float4x4 ClipToView;
+	row_major float4x4 FirstPersonClipToView;
+	float4 HairSpecularScaleAndPower;
+	float4 HairSpecularShift;
+	float4 WorldWetnessAndRainTransition;
+	row_major float4x4 PreviousWorldToClip;
+	float4 PosAdjust;
+	float4 PreviousPosAdjust;
+	row_major float4x4 UnjitteredWorldToClip;
+	float4 FogDistanceAndLowHeightRamps;
+	float4 FogColor0;
+	float4 FogColor1;
+	float4 FogColor2;
+	float4 FogColor3;
+	float4 FogHeightRamps;
 };
 #	ifdef ENVCUBE_SNOW
 cbuffer PerWeather : register(b0)
 {
-	float4 SnowParameters;
+	float4 ScaleAdjust;  // Snow particle scale.
 };
 #	endif
 #	if (defined(FALLOFF) || defined(RGB_FALLOFF)) && !defined(MEMBRANE)
@@ -910,44 +937,87 @@ cbuffer PerTechnique : register(b1)
 #	elif defined(TEXTURE) && !defined(MEMBRANE)
 cbuffer PerTechnique : register(b1)
 {
-	float4 PerMaterial[1];
+	float4 TexcoordOffset[1];
+#		define PerMaterial TexcoordOffset
 };
 #	endif
 cbuffer PerGeometry : register(b2)
 {
 	row_major float4x4 WorldViewProj;
 #	ifdef MERGE_INSTANCED
-	row_major float3x4 ModelView;
-	float4 GeometryPadding0[6];
+#		if defined(NORMALS)
+	row_major float3x4 World;
+	float4 World_row3[6];
+#		else
+	row_major float3x4 WorldViewProj_row4;
+	float4 WorldViewProj_row7[6];
+#		endif
+#		if defined(NORMALS) && defined(FALLOFF)
+	float4 World_row9;
+	float4 World_row10[10];
+#		elif defined(NORMALS)
 	float4 EyePosition;
-	float4 GeometryPadding1[10];
-	uint4 AttributeOffsets;
-	uint4 InstanceParams;
+	float4 EyePosition_row1[10];
+#		else
+	float4 WorldViewProj_row13;
+	float4 WorldViewProj_row14[10];
+#		endif
+#		if defined(NORMALS) || defined(TEXTURE) || defined(ENVMAP) || defined(VC)
+	uint4 VertexAttribOffsets1;
+#		else
+	uint4 WorldViewProj_row24;
+#		endif
+	uint4 VertexAttribOffsets2;  // Instance vertex attribute offsets.
 #	elif defined(MEMBRANE)
-	float4 MembranePadding0[9];
-	float4 EyePosition;
-	float4 MembranePadding1;
-	float4 MembraneData;
+	float4 WorldViewProj_row4[9];  // Unread padding.
+	float4 EyePosition_row0;
+	float4 EyePosition_row1;  // Unread padding.
+	float4 EyePosition_row2;  // Membrane geometry parameters.
 #	elif defined(WEATHER)
-	row_major float3x4 ModelView;
-	float4 GeometryPadding0[6];
+#		if defined(FALLOFF) || defined(ENVMAP)
+	row_major float3x4 World;
+	float4 World_row3[6];
+#		else
+	row_major float3x4 WorldViewProj_row4;
+	float4 WorldViewProj_row7[6];
+#		endif
+#		if defined(FALLOFF)
+	float4 World_row9;
+	float4 World_row10[2];
+#		elif defined(ENVMAP)
 	float4 EyePosition;
-	float4 GeometryPadding1[2];
-	float4 WeatherOffset;
-	float4 WeatherCenter;
-	float4 WeatherSize;
-	float4 RainOffset;
-	row_major float4x4 WeatherTransform;
+	float4 EyePosition_row1[2];
+#		else
+	float4 WorldViewProj_row13;
+	float4 WorldViewProj_row14[2];
+#		endif
+	float4 EnvcubeParticleOffset_RotationOffset;  // Weather particle and rotation offsets.
+	float4 EnvcubeCameraOffset_Alpha;             // Weather volume center and alpha.
+	float4 EnvcubeSize_row0;                      // Weather particle size.
+#		if defined(ENVCUBE_SNOW)
+	float4 EnvcubeSize_row1;
+#		else
+	float4 EnvcubeVelocity;
+#		endif
+	row_major float4x4 OcclusionWorldViewProj;  // Weather occlusion transform.
 #	elif defined(FALLOFF) || defined(RGB_FALLOFF)
+#		if !defined(SKINNED) || defined(ENVMAP)
+	row_major float3x4 World;
+#		else
 	row_major float3x4 ModelView;
+#		endif
 #	elif defined(ENVMAP)
-	row_major float3x4 ModelView;
-	float4 GeometryPadding[6];
+	row_major float3x4 World;
+	float4 World_row3[6];  // Unread padding.
+#		if defined(SKINNED)
+	float4 World_row9;
+#		else
 	float4 EyePosition;
+#		endif
 #	endif
 #	if defined(ENVMAP) && defined(PIPBOY_SCREEN) && (defined(FALLOFF) || defined(RGB_FALLOFF))
-	float4 GeometryPadding[6];
-	float4 EyePosition;
+	float4 World_row3[6];  // Unread padding.
+	float4 EyePosition_row0;
 #	endif
 };
 #	ifdef SKINNED
@@ -1093,17 +1163,17 @@ VSOutput main(VSInput input)
 {
 #	ifdef MERGE_INSTANCED
 	VSInput input;
-	uint vertexElement = merged.VertexId + InstanceParams.z;
+	uint vertexElement = merged.VertexId + VertexAttribOffsets2.z;
 	uint vertexIndex = SelectPackedIndex(
 		VertexIndices.Load(PackedIndexOffset(vertexElement)), vertexElement);
-	uint instanceElement = vertexElement / (InstanceParams.y * 3);
+	uint instanceElement = vertexElement / (VertexAttribOffsets2.y * 3);
 	uint instanceIndex = SelectPackedIndex(
 		InstanceIndices.Load(PackedIndexOffset(instanceElement)),
 		instanceElement);
 	InstanceTransform instance = InstanceTransforms[instanceIndex];
 	float3x3 instanceBasis = float3x3(
 		instance.Basis[0].xyz, instance.Basis[1].xyz, instance.Basis[2].xyz);
-	uint vertexBase = vertexIndex * InstanceParams.x;
+	uint vertexBase = vertexIndex * VertexAttribOffsets2.x;
 	uint2 packedPosition = VertexData.Load2(vertexBase);
 	float4 vertexPosition = float4(
 		UnpackHalf2(packedPosition.x), UnpackHalf2(packedPosition.y));
@@ -1114,11 +1184,11 @@ VSOutput main(VSInput input)
 		vertexPosition.w);
 #		ifdef TEXTURE
 	input.TexCoord = UnpackHalf2(
-		VertexData.Load(vertexBase + AttributeOffsets.z));
+		VertexData.Load(vertexBase + VertexAttribOffsets1.z));
 #		endif
 #		ifdef NORMALS
 	uint packedNormal =
-		VertexData.Load(vertexBase + AttributeOffsets.x);
+		VertexData.Load(vertexBase + VertexAttribOffsets1.x);
 	uint3 normalBytes = uint3(
 		packedNormal & 0xFF,
 		(packedNormal >> 8) & 0xFF,
@@ -1135,7 +1205,7 @@ VSOutput main(VSInput input)
 #		endif
 #		ifdef ENVMAP
 	uint packedBinormal =
-		VertexData.Load(vertexBase + AttributeOffsets.y);
+		VertexData.Load(vertexBase + VertexAttribOffsets1.y);
 	float mergedBinormalW =
 		(packedBinormal >> 24) * (2.0 / 255.0) - 1.0;
 	uint3 binormalBytes = uint3(
@@ -1150,7 +1220,7 @@ VSOutput main(VSInput input)
 #		endif
 #		ifdef VC
 	float4 packedColor = UnpackUnorm4(
-		VertexData.Load(vertexBase + AttributeOffsets.w));
+		VertexData.Load(vertexBase + VertexAttribOffsets1.w));
 	float instanceTint = InstanceTransforms[instanceIndex].Tint.x;
 	input.Color = float4(packedColor.xyz * instanceTint, packedColor.w);
 #		endif
@@ -1159,14 +1229,14 @@ VSOutput main(VSInput input)
 #	ifdef WEATHER
 #		ifdef ENVCUBE_RAIN
 	float rainFactor = (input.WeatherData.y + 1.0) * 0.5;
-	float4 rainStartPosition = -float4(RainOffset.xyz, 0.0);
+	float4 rainStartPosition = -float4(EnvcubeVelocity.xyz, 0.0);
 #		endif
 	float3 weatherCell =
-		(input.Position.xyz + WeatherOffset.xyz) / WeatherSize.x;
+		(input.Position.xyz + EnvcubeParticleOffset_RotationOffset.xyz) / EnvcubeSize_row0.x;
 	float3 weatherFraction = fmod(weatherCell, 1.0);
 	float3 modelPosition =
-		weatherFraction * WeatherSize.x +
-		(WeatherCenter.xyz - WeatherSize.xxx * 0.5);
+		weatherFraction * EnvcubeSize_row0.x +
+		(EnvcubeCameraOffset_Alpha.xyz - EnvcubeSize_row0.xxx * 0.5);
 	float4 weatherPosition;
 	weatherPosition.xyz = modelPosition;
 	weatherPosition.w = 1.0;
@@ -1179,7 +1249,7 @@ VSOutput main(VSInput input)
 #		else
 	float weatherSine;
 	float weatherCosine;
-	sincos(WeatherOffset.w, weatherSine, weatherCosine);
+	sincos(EnvcubeParticleOffset_RotationOffset.w, weatherSine, weatherCosine);
 	float2 weatherRotation0 = float2(weatherCosine, -weatherSine);
 	float2 weatherRotation1 = float2(weatherSine, weatherCosine);
 	float2 weatherA = float2(
@@ -1189,7 +1259,7 @@ VSOutput main(VSInput input)
 		dot(weatherRotation0, input.WeatherData.zw),
 		dot(weatherRotation1, input.WeatherData.zw));
 	float2 snowOffset =
-		weatherA * SnowParameters.xy + weatherB;
+		weatherA * ScaleAdjust.xy + weatherB;
 	float4 projected = mul(WorldViewProj, weatherPosition);
 	projected.xy += snowOffset;
 #		endif
@@ -1200,7 +1270,7 @@ VSOutput main(VSInput input)
 		1.0 - saturate(input.BlendWeight.x + input.BlendWeight.y +
 					   input.BlendWeight.z));
 	const int4 rows = (int4)(765.010010 * input.BlendIndices);
-	const float3 origin = Scene[35].xyz;
+	const float3 origin = PosAdjust.xyz;
 	const float3x4 boneTransform =
 		weights.x * BoneMatrix(rows.x, origin) +
 		weights.y * BoneMatrix(rows.y, origin) +
@@ -1210,10 +1280,10 @@ VSOutput main(VSInput input)
 		TransformPoint(boneTransform, float4(input.Position.xyz, 1.0));
 	const float4 position = float4(skinnedPosition, 1.0);
 	float4 projected = float4(
-		dot(Scene[8], position),
-		dot(Scene[9], position),
-		dot(Scene[10], position),
-		dot(Scene[11], position));
+		dot(WorldToClip[0], position),
+		dot(WorldToClip[1], position),
+		dot(WorldToClip[2], position),
+		dot(WorldToClip[3], position));
 #		elif defined(COMPOSED_VERTEX_INPUT)
 	float4 projected = mul(WorldViewProj, input.Position);
 #		else
@@ -1229,12 +1299,12 @@ VSOutput main(VSInput input)
 	float projectedU = atan2(input.Position.x, input.Position.y);
 	projectedU /= 3.1416;
 	output.TexCoord.x =
-		abs(projectedU) * MembraneData.w + MembraneData.y;
+		abs(projectedU) * EyePosition_row2.w + EyePosition_row2.y;
 	output.TexCoord.y =
-		input.Position.z * MembraneData.z + MembraneData.x;
+		input.Position.z * EyePosition_row2.z + EyePosition_row2.x;
 #		else
 	output.TexCoord.xy =
-		input.TexCoord * MembraneData.zw + MembraneData.xy;
+		input.TexCoord * EyePosition_row2.zw + EyePosition_row2.xy;
 #		endif
 #		if defined(ALPHA_TEST) || (defined(SKINNED) && !defined(NORMALS))
 	output.TexCoord.z = input.TexCoord.x;
@@ -1272,7 +1342,7 @@ VSOutput main(VSInput input)
 	output.EyeVector = float4(normalize(-skinnedPosition), 1.0);
 #		else
 	output.EyeVector =
-		float4(normalize(EyePosition.xyz - input.Position.xyz), 1.0);
+		float4(normalize(EyePosition_row0.xyz - input.Position.xyz), 1.0);
 #		endif
 #	endif
 #	ifdef VC
@@ -1283,7 +1353,7 @@ VSOutput main(VSInput input)
 	float3 modelViewPosition = skinnedPosition;
 #		else
 	float3 modelViewPosition =
-		mul(ModelView, float4(input.Position.xyz, 1.0));
+		mul(World, float4(input.Position.xyz, 1.0));
 #		endif
 	float3 viewDirection = normalize(-modelViewPosition);
 #		if defined(ENVMAP) && !defined(PIPBOY_SCREEN)
@@ -1301,9 +1371,9 @@ VSOutput main(VSInput input)
 	float3 modelViewNormal = TransformAxis(boneTransform, localNormal);
 #		else
 	float3 modelViewNormal;
-	modelViewNormal.x = dot(ModelView[0].xyz, localNormal);
-	modelViewNormal.y = dot(ModelView[1].xyz, localNormal);
-	modelViewNormal.z = dot(ModelView[2].xyz, localNormal);
+	modelViewNormal.x = dot(World[0].xyz, localNormal);
+	modelViewNormal.y = dot(World[1].xyz, localNormal);
+	modelViewNormal.z = dot(World[2].xyz, localNormal);
 	modelViewNormal = normalize(modelViewNormal);
 #		endif
 	float falloff = saturate(
@@ -1315,10 +1385,10 @@ VSOutput main(VSInput input)
 #	endif
 #	if (defined(FALLOFF) || defined(RGB_FALLOFF)) && defined(WEATHER)
 	float3 modelViewNormal = normalize(float3(
-		ModelView[0].z,
-		ModelView[1].z,
-		ModelView[2].z));
-	float3 modelViewPosition = mul(ModelView, weatherPosition);
+		World[0].z,
+		World[1].z,
+		World[2].z));
+	float3 modelViewPosition = mul(World, weatherPosition);
 	float3 viewDirection = normalize(-modelViewPosition);
 	float falloff = saturate(
 		(abs(dot(modelViewNormal, viewDirection)) - PerMaterial[2].x) /
@@ -1328,34 +1398,34 @@ VSOutput main(VSInput input)
 		lerp(PerMaterial[2].z, PerMaterial[2].w, falloff);
 #	endif
 #	ifdef WEATHER
-	output.WeatherCoord.x = dot(WeatherTransform[0], weatherPosition);
-	output.WeatherCoord.y = -dot(WeatherTransform[1], weatherPosition);
-	output.WeatherCoord.z = dot(WeatherTransform[2], weatherPosition);
-	output.WeatherCoord.w = dot(WeatherTransform[3], weatherPosition);
+	output.WeatherCoord.x = dot(OcclusionWorldViewProj[0], weatherPosition);
+	output.WeatherCoord.y = -dot(OcclusionWorldViewProj[1], weatherPosition);
+	output.WeatherCoord.z = dot(OcclusionWorldViewProj[2], weatherPosition);
+	output.WeatherCoord.w = dot(OcclusionWorldViewProj[3], weatherPosition);
 #	endif
 #	ifdef ENVMAP
 #		ifdef WEATHER
 	float3 eyeVector = EyePosition.xyz - input.Position.xyz;
-	output.EyeVector.x = dot(ModelView[0].xyz, eyeVector);
-	output.EyeVector.y = dot(ModelView[1].xyz, eyeVector);
-	output.EyeVector.z = dot(ModelView[2].xyz, eyeVector);
+	output.EyeVector.x = dot(World[0].xyz, eyeVector);
+	output.EyeVector.y = dot(World[1].xyz, eyeVector);
+	output.EyeVector.z = dot(World[2].xyz, eyeVector);
 	output.EyeVector.w = 0.0;
 	output.Tangent = float3(
-		ModelView[0].x,
-		ModelView[1].x,
-		ModelView[2].x);
+		World[0].x,
+		World[1].x,
+		World[2].x);
 	output.Bitangent = float3(
-		ModelView[0].y,
-		ModelView[1].y,
-		ModelView[2].y);
+		World[0].y,
+		World[1].y,
+		World[2].y);
 	output.Normal = float3(
-		ModelView[0].z,
-		ModelView[1].z,
-		ModelView[2].z);
+		World[0].z,
+		World[1].z,
+		World[2].z);
 #		else
 #			ifdef PIPBOY_SCREEN
 	output.EyeVector =
-		float4(normalize(EyePosition.xyz - input.Position.xyz), 0.0);
+		float4(normalize(EyePosition_row0.xyz - input.Position.xyz), 0.0);
 	float3 outputNormal = modelViewNormal;
 #			elif !defined(FALLOFF) && !defined(RGB_FALLOFF)
 #				ifdef MERGE_INSTANCED
@@ -1368,9 +1438,9 @@ VSOutput main(VSInput input)
 #				ifdef SKINNED
 	output.EyeVector = float4(normalize(eyeVector), 0.0);
 #				else
-	output.EyeVector.x = dot(ModelView[0].xyz, eyeVector);
-	output.EyeVector.y = dot(ModelView[1].xyz, eyeVector);
-	output.EyeVector.z = dot(ModelView[2].xyz, eyeVector);
+	output.EyeVector.x = dot(World[0].xyz, eyeVector);
+	output.EyeVector.y = dot(World[1].xyz, eyeVector);
+	output.EyeVector.z = dot(World[2].xyz, eyeVector);
 #				endif
 #				ifdef MERGE_INSTANCED
 	float3 outputNormal = mul(mergedNormal, instanceBasis);
@@ -1400,9 +1470,9 @@ VSOutput main(VSInput input)
 #			elif defined(SKINNED)
 	tangent = TransformAxis(boneTransform, tangent);
 #			endif
-	output.Tangent.x = dot(tangent, ModelView[0].xyz);
-	output.Tangent.y = dot(tangent, ModelView[1].xyz);
-	output.Tangent.z = dot(tangent, ModelView[2].xyz);
+	output.Tangent.x = dot(tangent, World[0].xyz);
+	output.Tangent.y = dot(tangent, World[1].xyz);
+	output.Tangent.z = dot(tangent, World[2].xyz);
 #			ifdef MERGE_INSTANCED
 	float3 localBitangent = mergedBinormal;
 #			else
@@ -1413,48 +1483,48 @@ VSOutput main(VSInput input)
 #			elif defined(SKINNED)
 	localBitangent = TransformAxis(boneTransform, localBitangent);
 #			endif
-	output.Bitangent.x = dot(localBitangent, ModelView[0].xyz);
-	output.Bitangent.y = dot(localBitangent, ModelView[1].xyz);
-	output.Bitangent.z = dot(localBitangent, ModelView[2].xyz);
-	output.Normal.x = dot(outputNormal, ModelView[0].xyz);
-	output.Normal.y = dot(outputNormal, ModelView[1].xyz);
-	output.Normal.z = dot(outputNormal, ModelView[2].xyz);
+	output.Bitangent.x = dot(localBitangent, World[0].xyz);
+	output.Bitangent.y = dot(localBitangent, World[1].xyz);
+	output.Bitangent.z = dot(localBitangent, World[2].xyz);
+	output.Normal.x = dot(outputNormal, World[0].xyz);
+	output.Normal.y = dot(outputNormal, World[1].xyz);
+	output.Normal.z = dot(outputNormal, World[2].xyz);
 #			ifdef PIPBOY_SCREEN
 	output.EffectNormal = modelViewNormal;
 #			endif
 #		endif
 #	endif
 	float3 viewPosition;
-	viewPosition.x = dot(Scene[20], projected);
-	viewPosition.y = dot(Scene[21], projected);
-	viewPosition.z = dot(Scene[22], projected);
+	viewPosition.x = dot(ClipToView[0], projected);
+	viewPosition.y = dot(ClipToView[1], projected);
+	viewPosition.z = dot(ClipToView[2], projected);
 #	ifdef SOFT
 	output.ParticlePosition.z = projected.w / PerMaterial[1].x;
 #	endif
-	float fogPlane = dot(Scene[14], float4(viewPosition, 1.0));
-	fogPlane += Scene[35].z;
+	float fogPlane = dot(ViewToWorld[2], float4(viewPosition, 1.0));
+	fogPlane += PosAdjust.z;
 	float distanceRamp =
-		length(viewPosition) * Scene[41].x - Scene[41].z;
+		length(viewPosition) * FogDistanceAndLowHeightRamps.x - FogDistanceAndLowHeightRamps.z;
 	float distanceFactor = saturate(distanceRamp);
 	float2 fogRamp =
-		saturate(fogPlane.xx * Scene[46].xy - Scene[46].zw);
+		saturate(fogPlane.xx * FogHeightRamps.xy - FogHeightRamps.zw);
 	float fogAmount = lerp(fogRamp.x, fogRamp.y, distanceFactor);
 	float fogDensity =
-		(1.0 - fogAmount) + fogAmount * Scene[44].w;
-	float fogLimit = Scene[43].w;
+		(1.0 - fogAmount) + fogAmount * FogColor2.w;
+	float fogLimit = FogColor1.w;
 	if (distanceRamp > 0.75) {
 		fogLimit = min(
 			lerp(
-				Scene[43].w,
+				FogColor1.w,
 				1.0,
 				(distanceFactor - 0.75) * 4.0),
 			1.0);
 	}
 	float nearScale =
 		distanceRamp < 0.015 ? distanceFactor * 66.666672 : 1.0;
-	float fogCurve = min(pow(distanceFactor, Scene[42].w), fogLimit);
-	float3 nearFog = lerp(Scene[42].xyz, Scene[44].xyz, fogCurve);
-	float3 farFog = lerp(Scene[43].xyz, Scene[45].xyz, fogCurve);
+	float fogCurve = min(pow(distanceFactor, FogColor0.w), fogLimit);
+	float3 nearFog = lerp(FogColor0.xyz, FogColor2.xyz, fogCurve);
+	float3 farFog = lerp(FogColor1.xyz, FogColor3.xyz, fogCurve);
 	output.FogParam.xyz = lerp(nearFog, farFog, fogAmount);
 	output.FogParam.w = (fogCurve * fogDensity) * nearScale;
 #	ifdef PIPBOY_SCREEN

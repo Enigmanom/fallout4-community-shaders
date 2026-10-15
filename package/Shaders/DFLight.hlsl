@@ -24,7 +24,7 @@
 
 #if defined(OG)
 // OG separates sampling scale from clip reconstruction because cb2[0].zw is unused.
-#	define FO4_LIGHT_UV4 float4(input.position.xy* cb2_og_screen_uv_scale.xy* ScreenSize.xy, input.position.xy* ScreenSize.xy)
+#	define FO4_LIGHT_UV4 float4(input.position.xy* DynamicResolutionParam.xy* VPOSOffset_row0.xy, input.position.xy* VPOSOffset_row0.xy)
 #endif
 
 #ifdef BSDFLIGHT_PS_DEFERRED
@@ -329,60 +329,60 @@ cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-	float4 cb12_idx28_sss_params;
+	float4 HairSpecularScaleAndPower;
 
-	float4 cb12_idx29_sss_angles;
+	float4 HairSpecularShift;
 
-	float4 cb12_idx30;
+	float4 WorldWetnessAndRainTransition;
 };
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 ScreenSize;
+	float4 VPOSOffset_row0;
 
-	float4 SunDirection_and_padding;
+	float4 LightVector;
 
-	float4 SunColor_HDR;
+	float4 LightColor_row0;
 
 #		ifdef AMBIENT_IBL_IN_LIGHT
 
-	float4 cb2_pad_3_5[3];
+	float4 LightColor_row1[3];
 
-	float4 cb2_ambient_gradient_row0;
-	float4 cb2_ambient_gradient_row1;
-	float4 cb2_ambient_gradient_row2;
+	float4 DirectionalAmbient_row0;
+	float4 DirectionalAmbient_row1;
+	float4 DirectionalAmbient_row2;
 
-	float4 cb2_pad_9;
+	float4 SplitDistances;
 #		else
 
-	float4 cb2_pad_3_9[7];
+	float4 LightColor_row1[7];
 #		endif
 
-	float4 cb2_idx10_cascade_range;
+	float4 FadeDistances;
 
-	float4 cb2_cascade0_row0;
-	float4 cb2_cascade0_row1;
-	float4 cb2_cascade0_row2;
+	float4 ShadowMapProj_row0;  // Cascade 0 projection.
+	float4 ShadowMapProj_row1;
+	float4 ShadowMapProj_row2;
 
-	float4 cb2_cascade1_row0;
-	float4 cb2_cascade1_row1;
-	float4 cb2_cascade1_row2;
+	float4 ShadowMapProj_row3;  // Cascade 1 projection.
+	float4 ShadowMapProj_row4;
+	float4 ShadowMapProj_row5;
 
-	float4 cb2_pad_17_19[3];
+	float4 ShadowMapProj_row6[3];
 
-	float4 cb2_idx20_pcf_kernel_scale;
+	float4 ShadowSampleParam_row0;
 
-	float4 cb2_idx21_cascade0_depth_range;
+	float4 ShadowWorldScale_row0;
 
-	float4 cb2_idx22_cascade1_depth_range;
+	float4 ShadowWorldScale_row1;
 
-	float4 cb2_pad_23;
+	float4 ShadowWorldScale_row2;
 
-	float4 cb2_idx24_distance_fade;
+	float4 ShadowFadeParam_row0;
 #		if defined(OG)
 	// OG directional sampling scale lives at cb2[27].
-	float4 cb2_pad_25_26[2];
-	float4 cb2_og_screen_uv_scale;
+	float4 ShadowFadeParam_row1[2];
+	float4 DynamicResolutionParam;
 #		endif
 };
 
@@ -455,9 +455,9 @@ float3 EvaluateAmbientGradient(float3 direction)
 {
 	float4 directionH = float4(direction, 1.0);
 	float3 encoded;
-	encoded.x = dot(cb2_ambient_gradient_row0, directionH);
-	encoded.y = dot(cb2_ambient_gradient_row1, directionH);
-	encoded.z = dot(cb2_ambient_gradient_row2, directionH);
+	encoded.x = dot(DirectionalAmbient_row0, directionH);
+	encoded.y = dot(DirectionalAmbient_row1, directionH);
+	encoded.z = dot(DirectionalAmbient_row2, directionH);
 	return exp2(log2(encoded) * 2.2);
 }
 #		endif
@@ -514,7 +514,7 @@ PS_OUTPUT main(PS_INPUT input)
 	// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 	float4 uv4 = FO4_LIGHT_UV4;
 #		else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #		endif
 	float2 uv = uv4.xy;
 
@@ -526,10 +526,10 @@ PS_OUTPUT main(PS_INPUT input)
 
 	bool isNearPath = (depth <= 0.01);
 	float linearizedDepth = isNearPath ? (depth * 100.0) : (depth * 1.01 - 0.01);
-	float4 reprojRow0 = isNearPath ? NearReproj_row0 : FarReproj_row0;
-	float4 reprojRow1 = isNearPath ? NearReproj_row1 : FarReproj_row1;
-	float4 reprojRow2 = isNearPath ? NearReproj_row2 : FarReproj_row2;
-	float4 reprojRow3 = isNearPath ? NearReproj_row3 : FarReproj_row3;
+	float4 reprojRow0 = isNearPath ? FirstPersonClipToView_row0 : ClipToView_row0;
+	float4 reprojRow1 = isNearPath ? FirstPersonClipToView_row1 : ClipToView_row1;
+	float4 reprojRow2 = isNearPath ? FirstPersonClipToView_row2 : ClipToView_row2;
+	float4 reprojRow3 = isNearPath ? FirstPersonClipToView_row3 : ClipToView_row3;
 
 	float2 uvNDC = uv4.zw * float2(2.0, -2.0) + float2(-1.0, 1.0);
 	float4 pos4 = float4(uvNDC, linearizedDepth, 1.0);
@@ -557,31 +557,31 @@ PS_OUTPUT main(PS_INPUT input)
 	float posViewLen = rsqrt(posViewLenSq);
 	float3 viewDirNeg = -posView * posViewLen;
 
-	bool cascade0Active = (linearizedDepth < cb2_idx10_cascade_range.y);
-	bool cascade1Active = (cb2_idx10_cascade_range.x < linearizedDepth);
+	bool cascade0Active = (linearizedDepth < FadeDistances.y);
+	bool cascade1Active = (FadeDistances.x < linearizedDepth);
 
-	float kernelScale = cb2_idx20_pcf_kernel_scale.z * 3.0;
+	float kernelScale = ShadowSampleParam_row0.z * 3.0;
 
 	float cascade0Pcf = 1.0;
 	if (cascade0Active) {
-		float c0DepthRcp = 1.0 / (cb2_idx21_cascade0_depth_range.w - cb2_idx21_cascade0_depth_range.z);
+		float c0DepthRcp = 1.0 / (ShadowWorldScale_row0.w - ShadowWorldScale_row0.z);
 		cascade0Pcf = ComputeCascadePCF(posView,
-			cb2_cascade0_row0, cb2_cascade0_row1,
-			cb2_cascade0_row2,
+			ShadowMapProj_row0, ShadowMapProj_row1,
+			ShadowMapProj_row2,
 			0.0, c0DepthRcp, kernelScale, 0.275);
 	}
 
 	float cascade1Pcf = 1.0;
 	if (cascade1Active) {
-		float c1DepthRcp = 1.0 / (cb2_idx22_cascade1_depth_range.w - cb2_idx22_cascade1_depth_range.z);
+		float c1DepthRcp = 1.0 / (ShadowWorldScale_row1.w - ShadowWorldScale_row1.z);
 		cascade1Pcf = ComputeCascadePCF(posView,
-			cb2_cascade1_row0, cb2_cascade1_row1,
-			cb2_cascade1_row2,
+			ShadowMapProj_row3, ShadowMapProj_row4,
+			ShadowMapProj_row5,
 			1.0, c1DepthRcp, kernelScale, 1.0);
 	}
 
-	float blendRange = cb2_idx10_cascade_range.y - cb2_idx10_cascade_range.x;
-	float t = saturate((linearizedDepth - cb2_idx10_cascade_range.x) / blendRange);
+	float blendRange = FadeDistances.y - FadeDistances.x;
+	float t = saturate((linearizedDepth - FadeDistances.x) / blendRange);
 	float blendW = t * t * (3.0 - 2.0 * t);
 	float shadowPcf = lerp(cascade0Pcf, cascade1Pcf, blendW);
 
@@ -590,17 +590,17 @@ PS_OUTPUT main(PS_INPUT input)
 	if (!cascade0Active)
 		shadowPcf = cascade1Pcf;
 
-	float distNorm = saturate(dot(posView, posView) / cb2_idx24_distance_fade.x);
+	float distNorm = saturate(dot(posView, posView) / ShadowFadeParam_row0.x);
 	float dist2 = distNorm * distNorm;
 	float dist4 = dist2 * dist2;
 	float fadeFactor = 1.0 - dist4 * dist4;
 	shadowPcf = fadeFactor * (shadowPcf - 1.0) + 1.0;
 
 	float3 albedoPremult = albedoSample.w * albedoSample.xyz;
-	float NdotL_raw = dot(normalView, SunDirection_and_padding.xyz);
+	float NdotL_raw = dot(normalView, LightVector.xyz);
 	float NdotL_pos = max(NdotL_raw, 0.0);
 	float NdotL_clamped = min(NdotL_pos, 1.0);
-	float oneMinusGloss = 1.0 - saturate(cb12_idx30.y);
+	float oneMinusGloss = 1.0 - saturate(WorldWetnessAndRainTransition.y);
 	float oneMinusGloss2 = oneMinusGloss * oneMinusGloss;
 	float oneMinusGloss4 = oneMinusGloss2 * oneMinusGloss2;
 	float schlickFres = 1.0 - oneMinusGloss * oneMinusGloss4;
@@ -611,28 +611,28 @@ PS_OUTPUT main(PS_INPUT input)
 	float brdfModulator = 0.0;
 	float brdfShadowMix = 0.0;
 	if (isMaterial1) {
-		float skinNdotL = dot(matSample.xyz, SunDirection_and_padding.xyz);
+		float skinNdotL = dot(matSample.xyz, LightVector.xyz);
 		float skinNdotV = dot(matSample.xyz, viewDirNeg);
 		float sinScaleL = sqrt(1.0 - min(skinNdotL * skinNdotL, 1.0));
 		float sinScaleV = sqrt(1.0 - min(skinNdotV * skinNdotV, 1.0));
 
 		float sinA1, cosA1;
-		sincos(cb12_idx29_sss_angles.y, sinA1, cosA1);
+		sincos(HairSpecularShift.y, sinA1, cosA1);
 		float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 		float rot1Perp = sqrt(1.0 - rot1 * rot1);
 		float vis1 = max(rot1 * skinNdotV + sinScaleV * rot1Perp, 0.0);
-		float pow1 = exp2(log2(vis1) * cb12_idx28_sss_params.w);
-		float sssIntensity = saturate(cb12_idx28_sss_params.z * pow1 + NdotL_pos);
+		float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
+		float sssIntensity = saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_pos);
 		brdfShadowMix = min(albedoSample.w, sssIntensity);
 
 		float sinA2, cosA2;
-		sincos(cb12_idx29_sss_angles.x, sinA2, cosA2);
+		sincos(HairSpecularShift.x, sinA2, cosA2);
 		float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 		float rot2Perp = sqrt(1.0 - rot2 * rot2);
 		float vis2 = max(rot2 * skinNdotV + sinScaleV * rot2Perp, 0.0);
-		float pow2 = exp2(log2(vis2) * cb12_idx28_sss_params.y) * cb12_idx28_sss_params.x;
+		float pow2 = exp2(log2(vis2) * HairSpecularScaleAndPower.y) * HairSpecularScaleAndPower.x;
 
-		brdfSpecular = NdotL_clamped * (pow2 * SunColor_HDR.xyz);
+		brdfSpecular = NdotL_clamped * (pow2 * LightColor_row0.xyz);
 		brdfModulator = 0.0;
 	} else {
 		float depthScale = matSample.z * 100.0;
@@ -651,7 +651,7 @@ PS_OUTPUT main(PS_INPUT input)
 			FO4Ambient::Specular(EvaluateAmbientGradient(reflectionDir));
 #		endif
 		float3 tangentV = viewDirNeg - normalView * NdotV_raw;
-		float3 tangentL = SunDirection_and_padding.xyz - normalView * NdotL_raw;
+		float3 tangentL = LightVector.xyz - normalView * NdotL_raw;
 		float tangentVL = max(dot(tangentV, tangentL), 0.0);
 
 		float roughSq = roughness01 * roughness01;
@@ -666,7 +666,7 @@ PS_OUTPUT main(PS_INPUT input)
 		visibilityGeom = visibilityGeom * (tangentSin / tangentDenom) + visA;
 		brdfShadowMix = NdotL_pos * visibilityGeom;
 
-		float3 halfVec = SunDirection_and_padding.xyz - posView * posViewLen;
+		float3 halfVec = LightVector.xyz - posView * posViewLen;
 		halfVec *= rsqrt(dot(halfVec, halfVec));
 
 		float NdotV_sat = saturate(NdotV_raw);
@@ -702,7 +702,7 @@ PS_OUTPUT main(PS_INPUT input)
 		specMag *= matSample.y;
 		specMag *= FO4_DIRECTIONAL_SPECULAR_SCALE;
 
-		brdfSpecular = NdotL_clamped * (specMag * SunColor_HDR.xyz);
+		brdfSpecular = NdotL_clamped * (specMag * LightColor_row0.xyz);
 		brdfModulator = depthScale;
 	}
 
@@ -710,18 +710,18 @@ PS_OUTPUT main(PS_INPUT input)
 	float ambientFres = 1.0 - NdotV_view;
 	ambientFres = exp2(log2(ambientFres) * 0.01);
 
-	float fresEdge = saturate(dot(viewDirNeg, -SunDirection_and_padding.xyz));
+	float fresEdge = saturate(dot(viewDirNeg, -LightVector.xyz));
 	float ambientTerm = fresEdge * ambientFres * NdotL_clamped * roughness01;
 
-	float3 finalDiffuse = SunColor_HDR.xyz * ambientTerm;
-	finalDiffuse += SunColor_HDR.xyz * brdfShadowMix;
+	float3 finalDiffuse = LightColor_row0.xyz * ambientTerm;
+	finalDiffuse += LightColor_row0.xyz * brdfShadowMix;
 
 	float backfaceWrap = saturate(-NdotL_raw);
-	finalDiffuse += SunColor_HDR.xyz * (albedoPremult * backfaceWrap);
+	finalDiffuse += LightColor_row0.xyz * (albedoPremult * backfaceWrap);
 
 	float forwardBlend = saturate((brdfModulator + NdotL_raw) / (brdfModulator + 1.0));
 	forwardBlend = max(forwardBlend - NdotL_clamped, 0.0);
-	finalDiffuse += (forwardBlend * SunColor_HDR.xyz) * albedoSample.xyz;
+	finalDiffuse += (forwardBlend * LightColor_row0.xyz) * albedoSample.xyz;
 
 	float specMix = (1.0 - schlickFres * 0.5);
 #		ifdef EXPONENTIAL_HEIGHT_FOG
@@ -751,31 +751,31 @@ cbuffer PerFrame_CB12 : register(b12)
 {
 	DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-	float4 cb12_idx28_sss_params;
+	float4 HairSpecularScaleAndPower;
 
-	float4 cb12_idx29_sss_angles;
+	float4 HairSpecularShift;
 };
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 ScreenSize;
+	float4 VPOSOffset_row0;
 
-	float4 LightPos_and_Radius;
+	float4 LightVector;  // Light position; w is the radius.
 
-	float4 LightColor_HDR;
+	float4 LightColor_row0;
 
-	float4 cb2_idx3_attenuation_curve;
+	float4 LightAttenuation_row0;
 
-	float4 cb2_pad_4_10[7];
+	float4 LightAttenuation_row1[7];
 
-	float4 cb2_lightspace_row0;
-	float4 cb2_lightspace_row1;
-	float4 cb2_lightspace_row2;
-	float4 cb2_lightspace_row3;
+	float4 ShadowMapProj_row0;  // Light-space projection.
+	float4 ShadowMapProj_row1;
+	float4 ShadowMapProj_row2;
+	float4 ShadowMapProj_row3;
 #		if defined(OG)
 	// OG omni-cookie sampling scale lives at cb2[22].
-	float4 cb2_pad_15_21[7];
-	float4 cb2_og_screen_uv_scale;
+	float4 ShadowMapProj_row4[7];
+	float4 DynamicResolutionParam;
 #		endif
 };
 
@@ -840,7 +840,7 @@ PS_OUTPUT main(PS_INPUT input)
 	// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 	float4 uv4 = FO4_LIGHT_UV4;
 #		else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #		endif
 	float2 uv = uv4.xy;
 
@@ -852,10 +852,10 @@ PS_OUTPUT main(PS_INPUT input)
 
 	bool isNearPath = (depth <= 0.01);
 	float linearizedDepth = isNearPath ? (depth * 100.0) : (depth * 1.01 - 0.01);
-	float4 reprojRow0 = isNearPath ? NearReproj_row0 : FarReproj_row0;
-	float4 reprojRow1 = isNearPath ? NearReproj_row1 : FarReproj_row1;
-	float4 reprojRow2 = isNearPath ? NearReproj_row2 : FarReproj_row2;
-	float4 reprojRow3 = isNearPath ? NearReproj_row3 : FarReproj_row3;
+	float4 reprojRow0 = isNearPath ? FirstPersonClipToView_row0 : ClipToView_row0;
+	float4 reprojRow1 = isNearPath ? FirstPersonClipToView_row1 : ClipToView_row1;
+	float4 reprojRow2 = isNearPath ? FirstPersonClipToView_row2 : ClipToView_row2;
+	float4 reprojRow3 = isNearPath ? FirstPersonClipToView_row3 : ClipToView_row3;
 
 	float2 uvNDC = uv4.zw * float2(2.0, -2.0) + float2(-1.0, 1.0);
 	float4 pos4 = float4(uvNDC, linearizedDepth, 1.0);
@@ -866,12 +866,12 @@ PS_OUTPUT main(PS_INPUT input)
 	posViewH.w = dot(reprojRow3, pos4);
 	float3 posView = posViewH.xyz / posViewH.www;
 
-	float3 toLight = LightPos_and_Radius.xyz - posView;
+	float3 toLight = LightVector.xyz - posView;
 	float toLightLenSq = dot(toLight, toLight);
 	float d = sqrt(toLightLenSq);
-	float dNorm = saturate(d / LightPos_and_Radius.w);
-	float dPowZ = exp2(log2(dNorm) * cb2_idx3_attenuation_curve.z);
-	float falloffLin = saturate(cb2_idx3_attenuation_curve.y * dPowZ + cb2_idx3_attenuation_curve.x);
+	float dNorm = saturate(d / LightVector.w);
+	float dPowZ = exp2(log2(dNorm) * LightAttenuation_row0.z);
+	float falloffLin = saturate(LightAttenuation_row0.y * dPowZ + LightAttenuation_row0.x);
 	float attenuation = exp2(log2(1.0 - falloffLin) * 2.2);
 	attenuation = FO4LocalLightAttenuation(d, attenuation);
 
@@ -911,25 +911,25 @@ PS_OUTPUT main(PS_INPUT input)
 		float sinScaleV = sqrt(1.0 - min(skinNdotV * skinNdotV, 1.0));
 
 		float sinA1, cosA1;
-		sincos(cb12_idx29_sss_angles.y, sinA1, cosA1);
+		sincos(HairSpecularShift.y, sinA1, cosA1);
 		float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 		float rot1Perp = sqrt(1.0 - rot1 * rot1);
 		float vis1 = max(rot1 * skinNdotV + sinScaleV * rot1Perp, 0.0);
-		float pow1 = exp2(log2(vis1) * cb12_idx28_sss_params.w);
+		float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
 		float sssIntensity =
-			saturate(cb12_idx28_sss_params.z * pow1 + NdotL_sat);
+			saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_sat);
 		brdfShadowMix = min(albedoW, sssIntensity);
 
 		float sinA2, cosA2;
-		sincos(cb12_idx29_sss_angles.x, sinA2, cosA2);
+		sincos(HairSpecularShift.x, sinA2, cosA2);
 		float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 		float rot2Perp = sqrt(1.0 - rot2 * rot2);
 		float vis2 = max(rot2 * skinNdotV + sinScaleV * rot2Perp, 0.0);
 		float pow2 =
-			exp2(log2(vis2) * cb12_idx28_sss_params.y) *
-			cb12_idx28_sss_params.x;
+			exp2(log2(vis2) * HairSpecularScaleAndPower.y) *
+			HairSpecularScaleAndPower.x;
 
-		brdfSpecular = NdotL_clamped * (pow2 * FO4LocalLightColor(LightColor_HDR.xyz));
+		brdfSpecular = NdotL_clamped * (pow2 * FO4LocalLightColor(LightColor_row0.xyz));
 	} else {
 		float specExp = exp2(matSample.x * 10.0 + 1.0);
 		float NdotV_raw = dot(viewDirNeg, normalView);
@@ -987,7 +987,7 @@ PS_OUTPUT main(PS_INPUT input)
 		specMag *= 3.141593;
 
 		brdfSpecular =
-			NdotL_clamped * (specMag * FO4LocalLightColor(LightColor_HDR.xyz));
+			NdotL_clamped * (specMag * FO4LocalLightColor(LightColor_row0.xyz));
 	}
 
 	float NdotV_view = saturate(dot(normalView, viewDirNeg));
@@ -995,15 +995,15 @@ PS_OUTPUT main(PS_INPUT input)
 	float toLightDotView = saturate(dot(viewDirNeg, -lightDir));
 	float ambientTerm = toLightDotView * edge * NdotL_clamped * roughness01;
 
-	float3 diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz) * ambientTerm;
-	diffuseAccum += FO4LocalLightColor(LightColor_HDR.xyz) * brdfShadowMix;
+	float3 diffuseAccum = FO4LocalLightColor(LightColor_row0.xyz) * ambientTerm;
+	diffuseAccum += FO4LocalLightColor(LightColor_row0.xyz) * brdfShadowMix;
 
 	float4 posViewHomog = float4(posView, 1.0);
 	float3 lsDir;
-	lsDir.x = dot(cb2_lightspace_row0, posViewHomog);
-	lsDir.y = dot(cb2_lightspace_row1, posViewHomog);
-	lsDir.z = dot(cb2_lightspace_row2, posViewHomog);
-	float lsW = dot(cb2_lightspace_row3, posViewHomog);
+	lsDir.x = dot(ShadowMapProj_row0, posViewHomog);
+	lsDir.y = dot(ShadowMapProj_row1, posViewHomog);
+	lsDir.z = dot(ShadowMapProj_row2, posViewHomog);
+	float lsW = dot(ShadowMapProj_row3, posViewHomog);
 	float2 cookieUV = ProjectCookieUV(lsDir / lsW.xxx, lsDir.z);
 	float3 cookieRGB = g_tLightCookie.Sample(g_sLightCookie, cookieUV).xyz;
 
@@ -1028,66 +1028,70 @@ cbuffer PerFrame_CB12 : register(b12)
 
 #		ifndef ATTENUATION_ONLY
 
-	float4 cb12_idx28_sss_params;
+	float4 HairSpecularScaleAndPower;
 
-	float4 cb12_idx29_sss_angles;
+	float4 HairSpecularShift;
 
 #		endif
 };
 
 cbuffer PerCall_CB2 : register(b2)
 {
-	float4 ScreenSize;
+	float4 VPOSOffset_row0;
 
-	float4 LightPos_and_Radius;
+	float4 LightVector;  // Light position; w is the radius.
 
-	float4 LightColor_HDR;
+	float4 LightColor_row0;
 
-	float4 cb2_idx3_attenuation_curve;
+	float4 LightAttenuation_row0;
 
 #		ifdef SPOT
 
-	float4 cb2_pad_4;
+	float4 LightAttenuation_row1;
 
 	float4 SpotData;
 
-	float4 cb2_pad_6_10[5];
+	float4 SpotData_row1[5];
 
 #			ifdef GOBOPROJECTION
 
-	float4 cb2_gobo_row0;
-	float4 cb2_gobo_row1;
-	float4 cb2_gobo_row2_unread;
-	float4 cb2_gobo_row3;
+	float4 ShadowMapProj_row0;  // Gobo projection.
+	float4 ShadowMapProj_row1;
+	float4 ShadowMapProj_row2;
+	float4 ShadowMapProj_row3;
 #			else
 
-	float4 cb2_pad_11_14[4];
+	float4 SpotData_row6[4];
 #			endif
 
-	float4 cb2_pad_15_19[5];
+#			if defined(GOBOPROJECTION)
+	float4 ShadowMapProj_row4[5];
+#			else
+	float4 SpotData_row10[5];
+#			endif
 #		endif
 
 #		ifdef FO4_PROJECTED_SHADOW_FAMILY
 
-	float4 cb2_pad_4_10[7];
+	float4 LightAttenuation_row1[7];
 
-	float4 cb2_shadowproj_row0;
-	float4 cb2_shadowproj_row1;
-	float4 cb2_shadowproj_row2;
-	float4 cb2_shadowproj_row3;
+	float4 ShadowMapProj_row0;  // Shadow projection.
+	float4 ShadowMapProj_row1;
+	float4 ShadowMapProj_row2;
+	float4 ShadowMapProj_row3;
 
-	float4 cb2_idx15_shadow_sample_param;
+	float4 ShadowSampleParam_row0;
 
-	float4 cb2_pad_16_18[3];
+	float4 ShadowSampleParam_row1[3];
 
-	float4 cb2_idx19_shadow_fade;
+	float4 ShadowFadeParam;
 #		endif
 
 	float4 ShadowLightParam;
 #		if defined(OG)
 	// OG projected-light sampling scale lives at cb2[22].
-	float4 cb2_pad_21;
-	float4 cb2_og_screen_uv_scale;
+	float4 ShadowLightParam_row1;
+	float4 DynamicResolutionParam;
 #		endif
 };
 
@@ -1174,7 +1178,7 @@ PS_OUTPUT main(PS_INPUT input)
 	// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 	float4 uv4 = FO4_LIGHT_UV4;
 #		else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #		endif
 	float2 uv = uv4.xy;
 
@@ -1189,18 +1193,18 @@ PS_OUTPUT main(PS_INPUT input)
 	[branch] if (0.01 >= depth)
 	{
 		linearizedDepth = depth * 100.0;
-		reprojRow0 = NearReproj_row0;
-		reprojRow1 = NearReproj_row1;
-		reprojRow2 = NearReproj_row2;
-		reprojRow3 = NearReproj_row3;
+		reprojRow0 = FirstPersonClipToView_row0;
+		reprojRow1 = FirstPersonClipToView_row1;
+		reprojRow2 = FirstPersonClipToView_row2;
+		reprojRow3 = FirstPersonClipToView_row3;
 	}
 	else
 	{
 		linearizedDepth = depth * 1.01 - 0.01;
-		reprojRow0 = FarReproj_row0;
-		reprojRow1 = FarReproj_row1;
-		reprojRow2 = FarReproj_row2;
-		reprojRow3 = FarReproj_row3;
+		reprojRow0 = ClipToView_row0;
+		reprojRow1 = ClipToView_row1;
+		reprojRow2 = ClipToView_row2;
+		reprojRow3 = ClipToView_row3;
 	}
 
 #		if defined(OG)
@@ -1218,15 +1222,15 @@ PS_OUTPUT main(PS_INPUT input)
 	posViewH.w = dot(reprojRow3, pos4);
 	float3 posView = posViewH.xyz / posViewH.www;
 
-	float3 toLight = LightPos_and_Radius.xyz - posView;
+	float3 toLight = LightVector.xyz - posView;
 	float toLightLenSq = dot(toLight, toLight);
 	float d = sqrt(toLightLenSq);
 #		ifdef SPOT
 	float3 lightDir = toLight * rsqrt(toLightLenSq);
 #		endif
-	float dNorm = saturate(d / LightPos_and_Radius.w);
-	float dPowZ = exp2(log2(dNorm) * cb2_idx3_attenuation_curve.z);
-	float falloffLin = saturate(cb2_idx3_attenuation_curve.y * dPowZ + cb2_idx3_attenuation_curve.x);
+	float dNorm = saturate(d / LightVector.w);
+	float dPowZ = exp2(log2(dNorm) * LightAttenuation_row0.z);
+	float falloffLin = saturate(LightAttenuation_row0.y * dPowZ + LightAttenuation_row0.x);
 	float attenuation = exp2(log2(1.0 - falloffLin) * 2.2);
 	attenuation = FO4LocalLightAttenuation(d, attenuation);
 
@@ -1296,10 +1300,10 @@ PS_OUTPUT main(PS_INPUT input)
 #			if defined(FO4_DEFERRED_OG_HALFOMNI_RAW)
 	// OG samples the selected hemisphere unconditionally because only its comparison branches.
 	float3 shadowProj;
-	shadowProj.x = dot(cb2_shadowproj_row0, posViewHomog);
-	shadowProj.y = dot(cb2_shadowproj_row1, posViewHomog);
-	shadowProj.z = dot(cb2_shadowproj_row2, posViewHomog);
-	float shadowProjW = dot(cb2_shadowproj_row3, posViewHomog);
+	shadowProj.x = dot(ShadowMapProj_row0, posViewHomog);
+	shadowProj.y = dot(ShadowMapProj_row1, posViewHomog);
+	shadowProj.z = dot(ShadowMapProj_row2, posViewHomog);
+	float shadowProjW = dot(ShadowMapProj_row3, posViewHomog);
 	float zHalf = shadowProj.z * 0.5 + 0.5;
 	shadowProj /= shadowProjW.xxx;
 	float shadowProjLenSq = dot(shadowProj, shadowProj);
@@ -1316,8 +1320,8 @@ PS_OUTPUT main(PS_INPUT input)
 	float shadowDepth = g_tSpotShadowAtlas.Sample(g_sSpotShadow, float3(scaledUV.x, finalY, 0.0)).x;
 	[branch] if (frontHemisphere)
 	{
-		shadowRef = saturate(sqrt(shadowProjLenSq) / LightPos_and_Radius.w);
-		shadowRef -= cb2_idx15_shadow_sample_param.x;
+		shadowRef = saturate(sqrt(shadowProjLenSq) / LightVector.w);
+		shadowRef -= ShadowSampleParam_row0.x;
 		shadowFactor = (shadowDepth >= shadowRef) ? 1.0 : 0.0;
 	}
 	else
@@ -1329,19 +1333,19 @@ PS_OUTPUT main(PS_INPUT input)
 #			if defined(POINTOMNI) && defined(SHADOW) && !defined(FO4_DEFERRED_OG_HALFOMNI_RAW)
 	float3 shadowProj;
 #				ifdef FO4_DEFERRED_HALFOMNI_NATIVE_BRANCH
-	shadowProj.z = dot(cb2_shadowproj_row2, posViewHomog);
+	shadowProj.z = dot(ShadowMapProj_row2, posViewHomog);
 	float zHalf = shadowProj.z * 0.5 + 0.5;
 	bool halfAccepted = (zHalf >= 0.0);
 	if (halfAccepted) {
 		float4 shadowCoord;
-		shadowProj.x = dot(cb2_shadowproj_row0, posViewHomog);
-		shadowProj.y = dot(cb2_shadowproj_row1, posViewHomog);
-		float shadowProjW = dot(cb2_shadowproj_row3, posViewHomog);
+		shadowProj.x = dot(ShadowMapProj_row0, posViewHomog);
+		shadowProj.y = dot(ShadowMapProj_row1, posViewHomog);
+		float shadowProjW = dot(ShadowMapProj_row3, posViewHomog);
 #				else
-	shadowProj.x = dot(cb2_shadowproj_row0, posViewHomog);
-	shadowProj.y = dot(cb2_shadowproj_row1, posViewHomog);
-	shadowProj.z = dot(cb2_shadowproj_row2, posViewHomog);
-	float shadowProjW = dot(cb2_shadowproj_row3, posViewHomog);
+	shadowProj.x = dot(ShadowMapProj_row0, posViewHomog);
+	shadowProj.y = dot(ShadowMapProj_row1, posViewHomog);
+	shadowProj.z = dot(ShadowMapProj_row2, posViewHomog);
+	float shadowProjW = dot(ShadowMapProj_row3, posViewHomog);
 	float zHalf = shadowProj.z * 0.5 + 0.5;
 #				endif
 		shadowProj /= shadowProjW.xxx;
@@ -1355,7 +1359,7 @@ PS_OUTPUT main(PS_INPUT input)
 			float3 paraboloid = normalize(
 				shadowProj * shadowProjInvLen + float3(0.0, 0.0, 1.0));
 			float2 omniUV = paraboloid.xy / paraboloid.zz;
-			shadowRef = saturate(radial / LightPos_and_Radius.w);
+			shadowRef = saturate(radial / LightVector.w);
 			omniUV = omniUV * 0.5 + 0.5;
 			float selectedY = 1.0 - omniUV.y;
 #					ifdef FO4_DEFERRED_HALFOMNI_POISSON_LIVE_MASK
@@ -1364,9 +1368,9 @@ PS_OUTPUT main(PS_INPUT input)
 			shadowCoord.x = omniUV.x * ShadowLightParam.z;
 #					endif
 #					ifdef FILTER_POISSON
-			float poissonScale = cb2_idx15_shadow_sample_param.z * 3.0;
+			float poissonScale = ShadowSampleParam_row0.z * 3.0;
 #					endif
-			shadowRef -= cb2_idx15_shadow_sample_param.x;
+			shadowRef -= ShadowSampleParam_row0.x;
 #					ifdef FO4_DEFERRED_HALFOMNI_POISSON_LIVE_MASK
 			shadowCoord.z = 1.0 - shadowCoord.z;
 #					else
@@ -1389,7 +1393,7 @@ PS_OUTPUT main(PS_INPUT input)
 	float3 paraboloid = normalize(normalizedShadowProj + pole);
 #					ifdef FO4_DEFERRED_HALFOMNI_NATIVE_BRANCH
 	shadowCoord.xy = paraboloid.xy / paraboloid.zz;
-	shadowRef = saturate(radial / LightPos_and_Radius.w);
+	shadowRef = saturate(radial / LightVector.w);
 	shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
 	float selectedY = 1.0 - shadowCoord.y;
 #						ifdef FO4_DEFERRED_HALFOMNI_POISSON_LIVE_MASK
@@ -1398,10 +1402,10 @@ PS_OUTPUT main(PS_INPUT input)
 	shadowCoord.x *= ShadowLightParam.z;
 #						endif
 #						ifdef FILTER_POISSON
-	float poissonScale = cb2_idx15_shadow_sample_param.z * 3.0;
+	float poissonScale = ShadowSampleParam_row0.z * 3.0;
 #						endif
 #						ifndef FO4_DEFERRED_RAW_BASE
-	shadowRef -= cb2_idx15_shadow_sample_param.x;
+	shadowRef -= ShadowSampleParam_row0.x;
 #						endif
 #						ifdef FO4_DEFERRED_HALFOMNI_POISSON_LIVE_MASK
 	shadowCoord.z = 1.0 - shadowCoord.z;
@@ -1411,7 +1415,7 @@ PS_OUTPUT main(PS_INPUT input)
 	shadowCoord.w = 0.0;
 #					else
 	float2 omniUV = paraboloid.xy / paraboloid.zz;
-	shadowRef = saturate(radial / LightPos_and_Radius.w);
+	shadowRef = saturate(radial / LightVector.w);
 	omniUV = omniUV * 0.5 + 0.5;
 
 #						ifndef HALFOMNI
@@ -1440,30 +1444,30 @@ PS_OUTPUT main(PS_INPUT input)
 #						endif
 #					endif
 #					if defined(FILTER_POISSON) && !defined(FO4_DEFERRED_HALFOMNI_NATIVE_BRANCH) && !defined(FO4_DEFERRED_HALFOMNI_GOBO_NATIVE_BRANCH)
-	float poissonScale = cb2_idx15_shadow_sample_param.z * 3.0;
+	float poissonScale = ShadowSampleParam_row0.z * 3.0;
 #					endif
 #					if !defined(FO4_DEFERRED_RAW_BASE) && !defined(FO4_DEFERRED_RAW_POINTSPOT_SPEC_BASE) && !defined(FO4_DEFERRED_RAW_OMNI_SPEC_BASE) && !defined(FO4_DEFERRED_HALFOMNI_NATIVE_BRANCH)
-	shadowRef -= cb2_idx15_shadow_sample_param.x;
+	shadowRef -= ShadowSampleParam_row0.x;
 #					endif
 #				endif
 #			elif !defined(FO4_DEFERRED_OG_HALFOMNI_RAW)
 
 	float3 shadowProj;
-	shadowProj.x = dot(cb2_shadowproj_row0, posViewHomog);
-	shadowProj.y = dot(cb2_shadowproj_row1, posViewHomog);
-	shadowProj.z = dot(cb2_shadowproj_row2, posViewHomog);
-	float shadowProjW = dot(cb2_shadowproj_row3, posViewHomog);
+	shadowProj.x = dot(ShadowMapProj_row0, posViewHomog);
+	shadowProj.y = dot(ShadowMapProj_row1, posViewHomog);
+	shadowProj.z = dot(ShadowMapProj_row2, posViewHomog);
+	float shadowProjW = dot(ShadowMapProj_row3, posViewHomog);
 	shadowProj /= shadowProjW.xxx;
 
 	shadowCoord.xz = shadowProj.xy * 0.5 + 0.5;
 	shadowCoord.w = 0.0;
 #				ifdef FILTER_POISSON
-	float poissonScale = cb2_idx15_shadow_sample_param.z * 3.0;
+	float poissonScale = ShadowSampleParam_row0.z * 3.0;
 #				endif
 #				if defined(FO4_DEFERRED_RAW_POINTSPOT_BASE) || defined(FO4_DEFERRED_RAW_POINTSPOT_SPEC_BASE)
 	shadowRef = shadowProj.z;
 #				else
-	shadowRef = shadowProj.z - cb2_idx15_shadow_sample_param.x;
+	shadowRef = shadowProj.z - ShadowSampleParam_row0.x;
 #				endif
 #			endif
 
@@ -1489,9 +1493,9 @@ PS_OUTPUT main(PS_INPUT input)
 #				if defined(ATTENUATION_ONLY) || defined(FO4_DEFERRED_PCF9_OMNI_IGNORE_ROUGHNESS) || defined(FO4_DEFERRED_PROJECTED_IGNORE_PAIR) || defined(FO4_DEFERRED_PCF9_OMNI_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_SPEC_IGNORE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_IGNORE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_GOBO_IGNORE) || defined(FO4_DEFERRED_HALFOMNI_PCF9_SPEC_IGNORE) || defined(FO4_DEFERRED_PCF9_OMNI_SPEC_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_BASE) || defined(FO4_DEFERRED_HALFOMNI_PCF1_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_HALFOMNI_PCF9_SPEC_BASE) || defined(FO4_DEFERRED_HALFOMNI_PCF9_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_GOBO_BASE)
 			float tapI = (float)i - 1.0;
 			float tapJ = (float)j - 1.0;
-			float2 tapOffset = float2(tapI, tapJ) * cb2_idx15_shadow_sample_param.zw;
+			float2 tapOffset = float2(tapI, tapJ) * ShadowSampleParam_row0.zw;
 #				else
-			float2 tapOffset = float2(i - 1, j - 1) * cb2_idx15_shadow_sample_param.zw;
+			float2 tapOffset = float2(i - 1, j - 1) * ShadowSampleParam_row0.zw;
 #				endif
 			pcfSum += g_tSpotShadowAtlas.SampleCmpLevelZero(
 				g_sSpotShadowCmp, float3(tapOffset + shadowCoord.xz, shadowCoord.w), shadowRef);
@@ -1507,7 +1511,7 @@ PS_OUTPUT main(PS_INPUT input)
 											  g_sSpotShadow, shadowCoord.xzw)
 	                        .x;
 #				if defined(FO4_DEFERRED_RAW_BASE) || defined(FO4_DEFERRED_RAW_POINTSPOT_SPEC_BASE) || defined(FO4_DEFERRED_RAW_OMNI_SPEC_BASE)
-	shadowRef -= cb2_idx15_shadow_sample_param.x;
+	shadowRef -= ShadowSampleParam_row0.x;
 #				endif
 	shadowFactor = (shadowDepth >= shadowRef) ? 1.0 : 0.0;
 #			endif
@@ -1535,7 +1539,7 @@ else
 		shadowFactor *= (1.0 - edgeFall);
 #			endif
 
-		float shadowDistNorm = saturate(dot(posView, posView) / cb2_idx19_shadow_fade.x);
+		float shadowDistNorm = saturate(dot(posView, posView) / ShadowFadeParam.x);
 		float shadowDist2 = shadowDistNorm * shadowDistNorm;
 		float shadowDist4 = shadowDist2 * shadowDist2;
 #			if (defined(ATTENUATION_ONLY) && (defined(FILTER_PCF1) || defined(FILTER_PCF9) || defined(FILTER_POISSON))) || defined(OG) || defined(FO4_DEFERRED_PCF9_OMNI_IGNORE_ROUGHNESS) || defined(FO4_DEFERRED_PCF1_BASE) || defined(FO4_DEFERRED_RAW_BASE) || defined(FO4_DEFERRED_PCF1_SPEC_IGNORE) || defined(FO4_DEFERRED_RAW_POINTSPOT_SPEC_BASE) || defined(FO4_DEFERRED_RAW_OMNI_SPEC_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_SPEC_IGNORE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_IGNORE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_GOBO_IGNORE) || defined(FO4_DEFERRED_HALFOMNI_PCF9_SPEC_IGNORE) || defined(FO4_DEFERRED_PCF9_OMNI_SPEC_BASE) || defined(FO4_DEFERRED_PCF9_OMNI_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_BASE) || defined(FO4_DEFERRED_HALFOMNI_PCF1_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_HALFOMNI_PCF9_SPEC_BASE) || defined(FO4_DEFERRED_HALFOMNI_PCF9_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_PCF9_POINTSPOT_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_POISSON_POINTSPOT_BASE) || defined(FO4_DEFERRED_POISSON_OMNI_BASE) || defined(FO4_DEFERRED_POISSON_POINTSPOT_SPEC_IGNORE) || defined(FO4_DEFERRED_POISSON_OMNI_SPEC_IGNORE) || defined(FO4_DEFERRED_POISSON_POINTSPOT_GOBO_BASE) || defined(FO4_DEFERRED_POISSON_OMNI_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_POISSON_POINTSPOT_SPEC_GOBO_BASE) || defined(FO4_DEFERRED_HALFOMNI_POISSON_BASE) || defined(FO4_DEFERRED_POISSON_POINTSPOT_SPEC_BASE) || defined(FO4_DEFERRED_POISSON_OMNI_SPEC_BASE) || defined(FO4_DEFERRED_HALFOMNI_POISSON_SPEC_BASE) || defined(FO4_DEFERRED_HALFOMNI_POISSON_SPEC_GOBO_BASE)
@@ -1589,7 +1593,7 @@ attenuation = attenuation * shadowFactor;
 #			endif
 
 			float sinA1, cosA1;
-			sincos(cb12_idx29_sss_angles.y, sinA1, cosA1);
+			sincos(HairSpecularShift.y, sinA1, cosA1);
 			float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 			float rot1Perp = sqrt(1.0 - rot1 * rot1);
 #			if defined(FO4_DEFERRED_BRANCH_LOCAL_NDOTL) || defined(FO4_DEFERRED_SPEC_ORDER)
@@ -1597,14 +1601,14 @@ attenuation = attenuation * shadowFactor;
 #			else
 	float vis1 = max(rot1 * skinNdotV + sinScaleV * rot1Perp, 0.0);
 #			endif
-			float pow1 = exp2(log2(vis1) * cb12_idx28_sss_params.w);
+			float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
 			float sssIntensity =
-				saturate(cb12_idx28_sss_params.z * pow1 + NdotL_sat);
+				saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_sat);
 			brdfShadowMix = min(albedoW, sssIntensity);
 
 #			ifdef SPECULAR
 			float sinA2, cosA2;
-			sincos(cb12_idx29_sss_angles.x, sinA2, cosA2);
+			sincos(HairSpecularShift.x, sinA2, cosA2);
 			float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 			float rot2Perp = sqrt(1.0 - rot2 * rot2);
 #				ifdef FO4_DEFERRED_SPEC_ORDER
@@ -1613,13 +1617,13 @@ attenuation = attenuation * shadowFactor;
 	float vis2 = max(rot2 * skinNdotV + sinScaleV * rot2Perp, 0.0);
 #				endif
 			float pow2 =
-				exp2(log2(vis2) * cb12_idx28_sss_params.y) *
-				cb12_idx28_sss_params.x;
+				exp2(log2(vis2) * HairSpecularScaleAndPower.y) *
+				HairSpecularScaleAndPower.x;
 
 #				ifdef FO4_DEFERRED_SPEC_ORDER
-			brdfSpecular = (pow2 * FO4LocalLightColor(LightColor_HDR.xyz)) * NdotL_clamped;
+			brdfSpecular = (pow2 * FO4LocalLightColor(LightColor_row0.xyz)) * NdotL_clamped;
 #				else
-	brdfSpecular = NdotL_clamped * (pow2 * FO4LocalLightColor(LightColor_HDR.xyz));
+	brdfSpecular = NdotL_clamped * (pow2 * FO4LocalLightColor(LightColor_row0.xyz));
 #				endif
 #			endif
 		}
@@ -1756,9 +1760,9 @@ attenuation = attenuation * shadowFactor;
 			specMag *= 3.1415927;
 
 #				ifdef FO4_DEFERRED_SPEC_ORDER
-			brdfSpecular = (specMag * FO4LocalLightColor(LightColor_HDR.xyz)) * NdotL_clamped;
+			brdfSpecular = (specMag * FO4LocalLightColor(LightColor_row0.xyz)) * NdotL_clamped;
 #				else
-	brdfSpecular = NdotL_clamped * (specMag * FO4LocalLightColor(LightColor_HDR.xyz));
+	brdfSpecular = NdotL_clamped * (specMag * FO4LocalLightColor(LightColor_row0.xyz));
 #				endif
 #			endif
 		}
@@ -1768,7 +1772,7 @@ attenuation = attenuation * shadowFactor;
 		float NdotL_clamped = saturate(NdotL_raw);
 #			endif
 #			ifndef FO4_DEFERRED_PACKED_RIM
-		float3 diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz) * brdfShadowMix;
+		float3 diffuseAccum = FO4LocalLightColor(LightColor_row0.xyz) * brdfShadowMix;
 #			endif
 
 #			if !defined(IGNORERIM) && !defined(IGNOREROUGHNESS)
@@ -1784,15 +1788,15 @@ attenuation = attenuation * shadowFactor;
 float ambientTerm = toLightDotView * edge * NdotL_clamped * roughness01;
 #				endif
 #				ifdef FO4_DEFERRED_PACKED_RIM
-		float3 diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz) * brdfShadowMix;
-		diffuseAccum += FO4LocalLightColor(LightColor_HDR.xyz) * ambientTerm;
+		float3 diffuseAccum = FO4LocalLightColor(LightColor_row0.xyz) * brdfShadowMix;
+		diffuseAccum += FO4LocalLightColor(LightColor_row0.xyz) * ambientTerm;
 #				else
-diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz) * ambientTerm + diffuseAccum;
+diffuseAccum = FO4LocalLightColor(LightColor_row0.xyz) * ambientTerm + diffuseAccum;
 #				endif
 #			endif
 #		else
 
-	float3 diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz);
+	float3 diffuseAccum = FO4LocalLightColor(LightColor_row0.xyz);
 	float3 brdfSpecular = float3(0, 0, 0);
 #		endif
 
@@ -1806,9 +1810,9 @@ diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz) * ambientTerm + diffuseAcc
 
 		float4 goboHomog = float4(posView, 1.0);
 		float2 goboProj;
-		goboProj.x = dot(cb2_gobo_row0, goboHomog);
-		goboProj.y = dot(cb2_gobo_row1, goboHomog);
-		float goboW = dot(cb2_gobo_row3, goboHomog);
+		goboProj.x = dot(ShadowMapProj_row0, goboHomog);
+		goboProj.y = dot(ShadowMapProj_row1, goboHomog);
+		float goboW = dot(ShadowMapProj_row3, goboHomog);
 		float2 goboUV = (goboProj / goboW.xx) * 0.5 + 0.5;
 #			elif defined(POINTOMNI) && defined(SHADOW)
 #				ifdef FO4_DEFERRED_HALFOMNI_GOBO_NATIVE_BRANCH
@@ -1895,14 +1899,14 @@ float2 goboUV = float2(omniUV.x,
 
 	cbuffer PerCall_CB2 : register(b2)
 	{
-		float4 ScreenSize;
-		float4 LightPos_and_Radius;
-		float4 LightColor_HDR;
+		float4 VPOSOffset_row0;
+		float4 LightVector;  // Light position; w is the radius.
+		float4 LightColor_row0;
 		float4 LightAttenuation;
 #	if defined(OG)
 		// OG attenuation sampling scale lives at cb2[22].
-		float4 cb2_pad_4_21[18];
-		float4 cb2_og_screen_uv_scale;
+		float4 LightAttenuation_row1[18];
+		float4 DynamicResolutionParam;
 #	endif
 	};
 
@@ -1932,7 +1936,7 @@ float2 goboUV = float2(omniUV.x,
 		// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 		float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 		float depth = g_tMainDepth.SampleGrad(
 									  g_sMainDepth,
@@ -1948,17 +1952,17 @@ float2 goboUV = float2(omniUV.x,
 		float4 reprojRow3;
 		if (depth <= asfloat(0x3c23d70a)) {
 			linearizedDepth = depth * asfloat(0x42c80000);
-			reprojRow0 = NearReproj_row0;
-			reprojRow1 = NearReproj_row1;
-			reprojRow2 = NearReproj_row2;
-			reprojRow3 = NearReproj_row3;
+			reprojRow0 = FirstPersonClipToView_row0;
+			reprojRow1 = FirstPersonClipToView_row1;
+			reprojRow2 = FirstPersonClipToView_row2;
+			reprojRow3 = FirstPersonClipToView_row3;
 		} else {
 			linearizedDepth =
 				depth * asfloat(0x3f8147ae) + asfloat(0xbc23d70a);
-			reprojRow0 = FarReproj_row0;
-			reprojRow1 = FarReproj_row1;
-			reprojRow2 = FarReproj_row2;
-			reprojRow3 = FarReproj_row3;
+			reprojRow0 = ClipToView_row0;
+			reprojRow1 = ClipToView_row1;
+			reprojRow2 = ClipToView_row2;
+			reprojRow3 = ClipToView_row3;
 		}
 
 #	if defined(OG)
@@ -1982,9 +1986,9 @@ float2 goboUV = float2(omniUV.x,
 		positionViewH.w = dot(reprojRow3, position);
 		float3 positionView = positionViewH.xyz / positionViewH.www;
 
-		float3 delta = LightPos_and_Radius.xyz - positionView;
+		float3 delta = LightVector.xyz - positionView;
 		float distance = length(delta);
-		float normalizedDistance = saturate(distance / LightPos_and_Radius.w);
+		float normalizedDistance = saturate(distance / LightVector.w);
 		float falloff = pow(normalizedDistance, LightAttenuation.z);
 		float biased = saturate(
 			LightAttenuation.y * falloff + LightAttenuation.x);
@@ -1999,7 +2003,7 @@ float2 goboUV = float2(omniUV.x,
 			return output;
 		}
 
-		output.diffuse = float4(FO4LocalLightColor(LightColor_HDR.xyz), 0.0);
+		output.diffuse = float4(FO4LocalLightColor(LightColor_row0.xyz), 0.0);
 		output.diffuse *= attenuation;
 		output.diffuse /= 3.0;
 		output.specular = float4(0, 0, 0, asfloat(0x3f800000));
@@ -2067,56 +2071,66 @@ float2 goboUV = float2(omniUV.x,
 	{
 		DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-		float4 cb12_idx28_hair_spec_params;
+		float4 HairSpecularScaleAndPower;
 
-		float4 cb12_idx29_hair_spec_shifts;
+		float4 HairSpecularShift;
 
-		float4 cb12_idx30;
+		float4 WorldWetnessAndRainTransition;
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-		float4 cb12_pad_31_34[4];
-		float4 CameraPosAdjust;
+		row_major float4x4 PreviousWorldToClip;
+		float4 PosAdjust;
 #	endif
 	};
 
 	cbuffer PerCall_CB2 : register(b2)
 	{
-		float4 ScreenSize;
+		float4 VPOSOffset_row0;
 
-		float4 SunDirection;
+		float4 LightVector;
 
-		float4 SunColor_HDR;
+		float4 LightColor_row0;
 
 #	ifdef AMBIENT
 
-		float4 cb2_pad_3_5[3];
+		float4 LightColor_row1[3];
 
-		float4 cb2_ambient_gradient_row0;
-		float4 cb2_ambient_gradient_row1;
-		float4 cb2_ambient_gradient_row2;
+		float4 DirectionalAmbient_row0;
+		float4 DirectionalAmbient_row1;
+		float4 DirectionalAmbient_row2;
 #	else
-	float4 cb2_pad_3_8[6];
+	float4 LightColor_row1[6];
 #	endif
 
-		float4 cb2_idx9_cascade_slice;
+		float4 SplitDistances_row0;  // y is the cascade slice.
 
-		float4 cb2_pad_10;
+		float4 SplitDistances_row1;
 
-		float4 cb2_cascade0_row0;
-		float4 cb2_cascade0_row1;
-		float4 cb2_cascade0_row2;
+		float4 ShadowMapProj_row0;  // Cascade 0 projection.
+		float4 ShadowMapProj_row1;
+		float4 ShadowMapProj_row2;
 
-		float4 cb2_pad_14_19[6];
+		float4 ShadowMapProj_row3[6];
 
-		float4 cb2_idx20_shadow_sample_param;
+#	if defined(FILTER_PCF9) || defined(FILTER_POISSON)
+		float4 ShadowSampleParam_row0;
+#	else
+	float4 ShadowMapProj_row9;
+#	endif
 
-		float4 cb2_idx21_cascade_world_scale[3];
+#	if defined(FILTER_PCF1)
+		float4 ShadowMapProj_row10[3];
+#	elif defined(FILTER_PCF9)
+	float4 ShadowSampleParam_row1[3];
+#	else
+	float4 ShadowWorldScale[3];
+#	endif
 
-		float4 cb2_idx24_distance_fade;
+		float4 ShadowFadeParam_row0;
 #	if defined(OG)
 		// OG directional sampling scale lives at cb2[27].
-		float4 cb2_pad_25_26[2];
-		float4 cb2_og_screen_uv_scale;
+		float4 ShadowFadeParam_row1[2];
+		float4 DynamicResolutionParam;
 #	endif
 	};
 
@@ -2157,9 +2171,9 @@ float2 goboUV = float2(omniUV.x,
 	{
 		float4 directionH = float4(direction, 1.0);
 		float3 encoded;
-		encoded.x = dot(cb2_ambient_gradient_row0, directionH);
-		encoded.y = dot(cb2_ambient_gradient_row1, directionH);
-		encoded.z = dot(cb2_ambient_gradient_row2, directionH);
+		encoded.x = dot(DirectionalAmbient_row0, directionH);
+		encoded.y = dot(DirectionalAmbient_row1, directionH);
+		encoded.z = dot(DirectionalAmbient_row2, directionH);
 		return exp2(log2(encoded) * 2.2);
 	}
 #	endif
@@ -2168,21 +2182,21 @@ float2 goboUV = float2(omniUV.x,
 	{
 		float4 posViewH = float4(posView, 1.0);
 		float2 shadowUV;
-		shadowUV.x = dot(cb2_cascade0_row0, posViewH);
-		shadowUV.y = dot(cb2_cascade0_row1, posViewH);
-		float shadowZ = dot(cb2_cascade0_row2, posViewH);
+		shadowUV.x = dot(ShadowMapProj_row0, posViewH);
+		shadowUV.y = dot(ShadowMapProj_row1, posViewH);
+		float shadowZ = dot(ShadowMapProj_row2, posViewH);
 
 #	ifdef FILTER_POISSON
-		float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
+		float kernelScale = ShadowSampleParam_row0.z * 3.0;
 #	endif
 
 #	ifdef FO4_DS1_TIGHT_WORLD_SCALE
-		uint cascade = (uint)cb2_idx9_cascade_slice.y;
-		float4 cascadeScale = cb2_idx21_cascade_world_scale[cascade];
+		uint cascade = (uint)SplitDistances_row0.y;
+		float4 cascadeScale = ShadowWorldScale[cascade];
 #	endif
 #	ifdef FO4_DS1_AMBIENT_WORLD_SCALE
 		uint cascade = (uint)slice;
-		float4 cascadeScale = cb2_idx21_cascade_world_scale[cascade];
+		float4 cascadeScale = ShadowWorldScale[cascade];
 #	endif
 
 #	if defined(FILTER_PCF1)
@@ -2199,7 +2213,7 @@ float2 goboUV = float2(omniUV.x,
 		[loop] for (int j = 0; j < 3; ++j)
 		{
 			float offsetY = float(j) - 1.0;
-			float2 tapUV = float2(offsetX, offsetY) * cb2_idx20_shadow_sample_param.zw + shadowUV;
+			float2 tapUV = float2(offsetX, offsetY) * ShadowSampleParam_row0.zw + shadowUV;
 			sum += g_tCascadeShadowCmp.SampleCmpLevelZero(
 				g_sCascadeShadowCmp, float3(tapUV, slice), shadowZ);
 		}
@@ -2303,7 +2317,7 @@ float2 goboUV = float2(omniUV.x,
 		// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 		float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 		float2 uv = uv4.xy;
 
@@ -2317,18 +2331,18 @@ float2 goboUV = float2(omniUV.x,
 		[branch] if (0.01 >= depth)
 		{
 			linearizedDepth = depth * 100.0;
-			reprojRow0 = NearReproj_row0;
-			reprojRow1 = NearReproj_row1;
-			reprojRow2 = NearReproj_row2;
-			reprojRow3 = NearReproj_row3;
+			reprojRow0 = FirstPersonClipToView_row0;
+			reprojRow1 = FirstPersonClipToView_row1;
+			reprojRow2 = FirstPersonClipToView_row2;
+			reprojRow3 = FirstPersonClipToView_row3;
 		}
 		else
 		{
 			linearizedDepth = depth * 1.01 - 0.01;
-			reprojRow0 = FarReproj_row0;
-			reprojRow1 = FarReproj_row1;
-			reprojRow2 = FarReproj_row2;
-			reprojRow3 = FarReproj_row3;
+			reprojRow0 = ClipToView_row0;
+			reprojRow1 = ClipToView_row1;
+			reprojRow2 = ClipToView_row2;
+			reprojRow3 = ClipToView_row3;
 		}
 
 #	if defined(OG)
@@ -2367,25 +2381,25 @@ float2 goboUV = float2(omniUV.x,
 #	endif
 
 		FO4_SOFT_SHADOW_BEGIN(softShadow, posView, normalView);
-		float slice = cb2_idx9_cascade_slice.y;
+		float slice = SplitDistances_row0.y;
 
 		float shadow = ComputeCascadeShadow(posView, slice);
 
-		float distNorm = saturate(dot(posView, posView) / cb2_idx24_distance_fade.x);
+		float distNorm = saturate(dot(posView, posView) / ShadowFadeParam_row0.x);
 		float dist2 = distNorm * distNorm;
 		float dist4 = dist2 * dist2;
 		float fadeFactor = 1.0 - dist4 * dist4;
 		shadow = fadeFactor * (shadow - 1.0) + 1.0;
 
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
-		shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, SunDirection.xyz));
-		float transmissionContactShadow = FO4BackTransmissionScreenSpaceShadow(input.position.xyz, depth, dot(normalView, SunDirection.xyz));
+		shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
+		float transmissionContactShadow = FO4BackTransmissionScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXPONENTIAL_HEIGHT_FOG)
 		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, FO4Fog::SunlightView(posView));
 #	endif
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, CameraPosAdjust));
+		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, PosAdjust));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
@@ -2396,14 +2410,14 @@ float2 goboUV = float2(omniUV.x,
 			ViewToWorld_row0,
 			ViewToWorld_row1,
 			ViewToWorld_row2,
-			CameraPosAdjust);
+			PosAdjust);
 #	endif
 
 		float3 albedoPremult = albedoSample.xyz * albedoSample.w;
-		float NdotL_raw = dot(normalView, SunDirection.xyz);
+		float NdotL_raw = dot(normalView, LightVector.xyz);
 		float NdotL_pos = max(NdotL_raw, 0.0);
 		float NdotL_clamped = min(NdotL_pos, 1.0);
-		float oneMinusGloss = 1.0 - saturate(cb12_idx30.y);
+		float oneMinusGloss = 1.0 - saturate(WorldWetnessAndRainTransition.y);
 		float oneMinusGloss2 = oneMinusGloss * oneMinusGloss;
 		float oneMinusGloss4 = oneMinusGloss2 * oneMinusGloss2;
 		float schlickFres = 1.0 - oneMinusGloss * oneMinusGloss4;
@@ -2416,13 +2430,13 @@ float2 goboUV = float2(omniUV.x,
 		float brdfModulator = 0.0;
 		float brdfShadowMix = 0.0;
 		if (isMaterial1) {
-			float skinNdotL = dot(matSample.xyz, SunDirection.xyz);
+			float skinNdotL = dot(matSample.xyz, LightVector.xyz);
 			float skinNdotV = dot(matSample.xyz, viewDirNeg);
 			float sinScaleL = sqrt(1.0 - min(skinNdotL * skinNdotL, 1.0));
 			float sinScaleV = sqrt(1.0 - min(skinNdotV * skinNdotV, 1.0));
 
 			float sinA1, cosA1;
-			sincos(cb12_idx29_hair_spec_shifts.y, sinA1, cosA1);
+			sincos(HairSpecularShift.y, sinA1, cosA1);
 			float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 			float rot1Perp = sqrt(1.0 - rot1 * rot1);
 #	ifndef AMBIENT
@@ -2430,19 +2444,19 @@ float2 goboUV = float2(omniUV.x,
 #	else
 		float vis1 = max(rot1 * skinNdotV + sinScaleV * rot1Perp, 0.0);
 #	endif
-			float pow1 = exp2(log2(vis1) * cb12_idx28_hair_spec_params.w);
+			float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
 			float hairIntensity =
-				saturate(cb12_idx28_hair_spec_params.z * pow1 + NdotL_pos);
+				saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_pos);
 			brdfShadowMix = min(albedoSample.w, hairIntensity);
 
 			float sinA2, cosA2;
-			sincos(cb12_idx29_hair_spec_shifts.x, sinA2, cosA2);
+			sincos(HairSpecularShift.x, sinA2, cosA2);
 			float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 			float rot2Perp = sqrt(1.0 - rot2 * rot2);
 			float vis2 = max(rot2 * skinNdotV + rot2Perp * sinScaleV, 0.0);
-			float pow2 = exp2(log2(vis2) * cb12_idx28_hair_spec_params.y) * cb12_idx28_hair_spec_params.x;
+			float pow2 = exp2(log2(vis2) * HairSpecularScaleAndPower.y) * HairSpecularScaleAndPower.x;
 
-			brdfSpecular = NdotL_clamped * (pow2 * SunColor_HDR.xyz);
+			brdfSpecular = NdotL_clamped * (pow2 * LightColor_row0.xyz);
 			brdfModulator = 0.0;
 		} else {
 			float depthScale = matSample.z * 100.0;
@@ -2465,7 +2479,7 @@ float2 goboUV = float2(omniUV.x,
 			float specExp = specExpBase * specExpScale;
 #	endif
 			float3 tangentV = viewDirNeg - normalView * NdotV_raw;
-			float3 tangentL = SunDirection.xyz - normalView * NdotL_raw;
+			float3 tangentL = LightVector.xyz - normalView * NdotL_raw;
 			float tangentVLDot = dot(tangentV, tangentL);
 
 			float roughSq = roughness01 * roughness01;
@@ -2482,7 +2496,7 @@ float2 goboUV = float2(omniUV.x,
 			visibilityGeom = visibilityGeom * tangentRatio + visA;
 			brdfShadowMix = NdotL_pos * visibilityGeom;
 
-			float3 halfVec = SunDirection.xyz - posView * posViewLen;
+			float3 halfVec = LightVector.xyz - posView * posViewLen;
 			halfVec *= rsqrt(dot(halfVec, halfVec));
 
 			float NdotV_sat = saturate(NdotV_raw);
@@ -2523,7 +2537,7 @@ float2 goboUV = float2(omniUV.x,
 			specMag *= matSample.y;
 			specMag *= FO4_DIRECTIONAL_SPECULAR_SCALE;
 
-			brdfSpecular = (specMag * SunColor_HDR.xyz) * NdotL_clamped;
+			brdfSpecular = (specMag * LightColor_row0.xyz) * NdotL_clamped;
 			brdfModulator = depthScale;
 		}
 
@@ -2535,17 +2549,17 @@ float2 goboUV = float2(omniUV.x,
 	ambientFres = exp2(log2(ambientFres) * 0.01);
 #	endif
 
-		float fresEdge = saturate(dot(viewDirNeg, -SunDirection.xyz));
+		float fresEdge = saturate(dot(viewDirNeg, -LightVector.xyz));
 		float ambientTerm = ambientFres * fresEdge * NdotL_clamped * roughness01;
 
-		float3 finalDiffuse = SunColor_HDR.xyz * brdfShadowMix;
-		finalDiffuse += SunColor_HDR.xyz * ambientTerm;
+		float3 finalDiffuse = LightColor_row0.xyz * brdfShadowMix;
+		finalDiffuse += LightColor_row0.xyz * ambientTerm;
 
 		float backfaceWrap = saturate(-NdotL_raw);
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 		backfaceWrap *= transmissionContactShadow;
 #	endif
-		finalDiffuse += SunColor_HDR.xyz * (backfaceWrap * albedoPremult);
+		finalDiffuse += LightColor_row0.xyz * (backfaceWrap * albedoPremult);
 
 		float forwardBlend =
 			saturate((NdotL_raw + brdfModulator) / (brdfModulator + 1.0));
@@ -2553,7 +2567,7 @@ float2 goboUV = float2(omniUV.x,
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 		forwardBlend *= transmissionContactShadow;
 #	endif
-		finalDiffuse += (forwardBlend * SunColor_HDR.xyz) * albedoSample.xyz;
+		finalDiffuse += (forwardBlend * LightColor_row0.xyz) * albedoSample.xyz;
 
 #	ifdef WATER_EFFECTS
 		finalDiffuse *= causticsMult;
@@ -2580,7 +2594,7 @@ float2 goboUV = float2(omniUV.x,
 	output.diffuse /= 3.0;
 #	endif
 
-		FO4_SOFT_SUN_LOBES(output, shadow, softShadow, SunColor_HDR.xyz, ambientTerm, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
+		FO4_SOFT_SUN_LOBES(output, shadow, softShadow, LightColor_row0.xyz, ambientTerm, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
 		return output;
 	}
 #endif
@@ -2677,63 +2691,87 @@ float2 goboUV = float2(omniUV.x,
 	{
 		DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-		float4 cb12_idx28_hair_spec_params;
+		float4 HairSpecularScaleAndPower;
 
-		float4 cb12_idx29_hair_spec_shifts;
+		float4 HairSpecularShift;
 
-		float4 cb12_idx30;
+		float4 WorldWetnessAndRainTransition;
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-		float4 cb12_pad_31_34[4];
-		float4 CameraPosAdjust;
+		row_major float4x4 PreviousWorldToClip;
+		float4 PosAdjust;
 #	endif
 	};
 
 	cbuffer PerCall_CB2 : register(b2)
 	{
-		float4 ScreenSize;
+		float4 VPOSOffset_row0;
 
-		float4 SunDirection;
+		float4 LightVector;
 
-		float4 SunColor_HDR;
+		float4 LightColor_row0;
 
 #	ifdef AMBIENT
 
-		float4 cb2_pad_3_5[3];
+		float4 LightColor_row1[3];
 
-		float4 cb2_ambient_gradient_row0;
-		float4 cb2_ambient_gradient_row1;
-		float4 cb2_ambient_gradient_row2;
+		float4 DirectionalAmbient_row0;
+		float4 DirectionalAmbient_row1;
+		float4 DirectionalAmbient_row2;
 #	else
 
-	float4 cb2_pad_3_8[6];
+	float4 LightColor_row1[6];
 #	endif
 
-		float4 cb2_idx9_split_distances;
+#	if defined(BLENDSPLIT) && defined(AMBIENT)
+		float4 DirectionalAmbient_row3;
+#	elif defined(BLENDSPLIT)
+	float4 LightColor_row7;
+#	else
+	float4 SplitDistances;
+#	endif
 
-		float4 cb2_idx10_fade_distances;
+		float4 FadeDistances;
 
-		float4 cb2_cascade0_row0;
-		float4 cb2_cascade0_row1;
-		float4 cb2_cascade0_row2;
-		float4 cb2_cascade1_row0;
-		float4 cb2_cascade1_row1;
-		float4 cb2_cascade1_row2;
+		float4 ShadowMapProj_row0;  // Cascade 0 projection.
+		float4 ShadowMapProj_row1;
+		float4 ShadowMapProj_row2;
+		float4 ShadowMapProj_row3;  // Cascade 1 projection.
+		float4 ShadowMapProj_row4;
+		float4 ShadowMapProj_row5;
 
-		float4 cb2_pad_17_19[3];
+		float4 ShadowMapProj_row6[3];
 
-		float4 cb2_idx20_shadow_sample_param;
+#	if defined(FILTER_PCF9) || defined(FILTER_POISSON)
+		float4 ShadowSampleParam_row0;
+#	else
+	float4 ShadowMapProj_row9;
+#	endif
 
-		float4 cb2_idx21_cascade0_world_scale;
-		float4 cb2_idx22_cascade1_world_scale;
+#	if defined(FILTER_PCF9)
+		float4 ShadowSampleParam_row1;
+		float4 ShadowSampleParam_row2;
+#	elif defined(FILTER_PCSS) || defined(FILTER_POISSON) || defined(FILTER_PCSSPOISSON)
+	float4 ShadowWorldScale_row0;
+	float4 ShadowWorldScale_row1;
+#	else
+	float4 ShadowMapProj_row10;
+	float4 ShadowMapProj_row11;
+#	endif
 
-		float4 cb2_pad_23;
+#	if defined(FILTER_PCF9)
+		float4 ShadowSampleParam_row3;
+#	elif defined(FILTER_PCSS) || defined(FILTER_POISSON) || defined(FILTER_PCSSPOISSON)
+	float4 ShadowWorldScale_row2;
+#	else
+	float4 ShadowMapProj_row12;
+#	endif
 
-		float4 cb2_idx24_distance_fade;
+		float4 ShadowFadeParam_row0;
 #	if defined(OG)
 		// OG directional sampling scale lives at cb2[27].
-		float4 cb2_pad_25_26[2];
-		float4 cb2_og_screen_uv_scale;
+		float4 ShadowFadeParam_row1[2];
+		float4 DynamicResolutionParam;
 #	endif
 	};
 
@@ -2786,9 +2824,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 	{
 		float4 directionH = float4(direction, 1.0);
 		float3 encoded;
-		encoded.x = dot(cb2_ambient_gradient_row0, directionH);
-		encoded.y = dot(cb2_ambient_gradient_row1, directionH);
-		encoded.z = dot(cb2_ambient_gradient_row2, directionH);
+		encoded.x = dot(DirectionalAmbient_row0, directionH);
+		encoded.y = dot(DirectionalAmbient_row1, directionH);
+		encoded.z = dot(DirectionalAmbient_row2, directionH);
 		return exp2(log2(encoded) * 2.2);
 	}
 #	endif
@@ -2826,7 +2864,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		[loop] for (int j = 0; j < 3; ++j)
 		{
 			float offsetY = float(j) - 1.0;
-			float2 tapUV = float2(offsetX, offsetY) * cb2_idx20_shadow_sample_param.zw + shadowUV;
+			float2 tapUV = float2(offsetX, offsetY) * ShadowSampleParam_row0.zw + shadowUV;
 			sum += g_tCascadeShadowCmp.SampleCmpLevelZero(
 				g_sCascadeShadowCmp, float3(tapUV, slice), shadowZ);
 		}
@@ -2899,12 +2937,12 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	elif defined(FILTER_POISSON)
 
 #		if defined(FO4_DS2_TIGHT_ORDER) || defined(FO4_DS2_REUSE_AMBIENT_VIEW_LOG)
-	float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
+	float kernelScale = ShadowSampleParam_row0.z * 3.0;
 #		endif
 	float rcpWorldRange = 1.0 / (cascadeScale.w - cascadeScale.z);
 	float zRef = shadowZ - rcpWorldRange * poissonBiasScale;
 #		if !defined(FO4_DS2_TIGHT_ORDER) && !defined(FO4_DS2_REUSE_AMBIENT_VIEW_LOG)
-	float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
+	float kernelScale = ShadowSampleParam_row0.z * 3.0;
 #		endif
 
 	float sum = 0.0;
@@ -2952,7 +2990,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 		float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 		float2 uv = uv4.xy;
 
@@ -2966,18 +3004,18 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		[branch] if (0.01 >= depth)
 		{
 			linearizedDepth = depth * 100.0;
-			reprojRow0 = NearReproj_row0;
-			reprojRow1 = NearReproj_row1;
-			reprojRow2 = NearReproj_row2;
-			reprojRow3 = NearReproj_row3;
+			reprojRow0 = FirstPersonClipToView_row0;
+			reprojRow1 = FirstPersonClipToView_row1;
+			reprojRow2 = FirstPersonClipToView_row2;
+			reprojRow3 = FirstPersonClipToView_row3;
 		}
 		else
 		{
 			linearizedDepth = depth * 1.01 - 0.01;
-			reprojRow0 = FarReproj_row0;
-			reprojRow1 = FarReproj_row1;
-			reprojRow2 = FarReproj_row2;
-			reprojRow3 = FarReproj_row3;
+			reprojRow0 = ClipToView_row0;
+			reprojRow1 = ClipToView_row1;
+			reprojRow2 = ClipToView_row2;
+			reprojRow3 = ClipToView_row3;
 		}
 
 #	if defined(OG)
@@ -3029,7 +3067,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 #	ifdef FO4_DS2_TIGHT_NOBLEND
 		float shadow;
-		if (linearizedDepth < cb2_idx9_split_distances.w) {
+		if (linearizedDepth < SplitDistances.w) {
 #	endif
 
 #	ifdef FO4_DS2_EARLY_SPLIT_GATE
@@ -3038,24 +3076,24 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			// OG lets the compiler shape the split gate because native code has no branch hint.
 			[branch]
 #		endif
-				if (linearizedDepth < cb2_idx9_split_distances.w)
+				if (linearizedDepth < SplitDistances.w)
 			{
 #	endif
-				bool cascade0Active = (linearizedDepth < cb2_idx10_fade_distances.y);
-				bool beforeCascade1 = (linearizedDepth < cb2_idx10_fade_distances.x);
+				bool cascade0Active = (linearizedDepth < FadeDistances.y);
+				bool beforeCascade1 = (linearizedDepth < FadeDistances.x);
 #	ifndef FO4_DS2_REASSOC_ORDER
-				bool cascade1Active = (cb2_idx10_fade_distances.x < linearizedDepth);
-				bool beyondCascade0 = (cb2_idx10_fade_distances.y < linearizedDepth);
+				bool cascade1Active = (FadeDistances.x < linearizedDepth);
+				bool beyondCascade0 = (FadeDistances.y < linearizedDepth);
 #	endif
 
 				float cascade0Shadow = 1.0;
 				if (cascade0Active) {
 					cascade0Shadow = ComputeCascadeShadow(
-						posView, cb2_cascade0_row0, cb2_cascade0_row1, cb2_cascade0_row2,
+						posView, ShadowMapProj_row0, ShadowMapProj_row1, ShadowMapProj_row2,
 						0.0
 #	ifdef FO4_DS2_USES_WORLD_SCALE
 						,
-						cb2_idx21_cascade0_world_scale
+						ShadowWorldScale_row0
 #	endif
 #	ifdef FILTER_POISSON
 						,
@@ -3065,18 +3103,18 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				}
 
 #	ifdef FO4_DS2_REASSOC_ORDER
-				bool cascade1Active = (cb2_idx10_fade_distances.x < linearizedDepth);
-				bool beyondCascade0 = (cb2_idx10_fade_distances.y < linearizedDepth);
+				bool cascade1Active = (FadeDistances.x < linearizedDepth);
+				bool beyondCascade0 = (FadeDistances.y < linearizedDepth);
 #	endif
 
 				float cascade1Shadow = 1.0;
 				if (cascade1Active) {
 					cascade1Shadow = ComputeCascadeShadow(
-						posView, cb2_cascade1_row0, cb2_cascade1_row1, cb2_cascade1_row2,
+						posView, ShadowMapProj_row3, ShadowMapProj_row4, ShadowMapProj_row5,
 						1.0
 #	ifdef FO4_DS2_USES_WORLD_SCALE
 						,
-						cb2_idx22_cascade1_world_scale
+						ShadowWorldScale_row1
 #	endif
 #	ifdef FILTER_POISSON
 						,
@@ -3087,13 +3125,13 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 #	ifdef BLENDSPLIT
 
-				float blendRange = cb2_idx10_fade_distances.y - cb2_idx10_fade_distances.x;
+				float blendRange = FadeDistances.y - FadeDistances.x;
 #		ifdef FO4_DS2_TIGHT_ORDER
-				float blendDistance = linearizedDepth - cb2_idx10_fade_distances.x;
+				float blendDistance = linearizedDepth - FadeDistances.x;
 				float blendRangeInv = 1.0 / blendRange;
 				float t = saturate(blendDistance * blendRangeInv);
 #		elif defined(FO4_DS2_TARGET_ORDER)
-			float blendDelta = linearizedDepth - cb2_idx10_fade_distances.x;
+			float blendDelta = linearizedDepth - FadeDistances.x;
 			float inverseBlendRange = 1.0 / blendRange;
 #			ifdef FO4_DS2_EQUAL_IGNORE_BLEND
 			float t = saturate(blendDelta * inverseBlendRange);
@@ -3101,7 +3139,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float t = saturate(inverseBlendRange * blendDelta);
 #			endif
 #		else
-			float t = saturate((linearizedDepth - cb2_idx10_fade_distances.x) / blendRange);
+			float t = saturate((linearizedDepth - FadeDistances.x) / blendRange);
 #		endif
 #		ifdef FO4_DS2_REASSOC_ORDER
 				float blendSeed = mad(t, -2.0, 3.0);
@@ -3123,7 +3161,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 				shadow = beforeCascade1 ? cascade0Shadow : shadow;
 
-				float distNorm = saturate(dot(posView, posView) / cb2_idx24_distance_fade.x);
+				float distNorm = saturate(dot(posView, posView) / ShadowFadeParam_row0.x);
 				float dist2 = distNorm * distNorm;
 				float dist4 = dist2 * dist2;
 				float fadeFactor = 1.0 - dist4 * dist4;
@@ -3138,7 +3176,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 #		ifndef BLENDSPLIT
 
-	if (!(linearizedDepth < cb2_idx9_split_distances.w)) {
+	if (!(linearizedDepth < SplitDistances.w)) {
 		shadow = 1.0;
 	}
 #		endif
@@ -3151,14 +3189,14 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
-			shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, SunDirection.xyz));
-			float transmissionContactShadow = FO4BackTransmissionScreenSpaceShadow(input.position.xyz, depth, dot(normalView, SunDirection.xyz));
+			shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
+			float transmissionContactShadow = FO4BackTransmissionScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXPONENTIAL_HEIGHT_FOG)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, FO4Fog::SunlightView(posView));
 #	endif
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, CameraPosAdjust));
+			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, PosAdjust));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
@@ -3169,13 +3207,13 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 #	endif
 
-			float NdotL_raw = dot(normalView, SunDirection.xyz);
+			float NdotL_raw = dot(normalView, LightVector.xyz);
 			float NdotL_pos = max(NdotL_raw, 0.0);
 			float NdotL_clamped = min(NdotL_pos, 1.0);
-			float oneMinusGloss = 1.0 - saturate(cb12_idx30.y);
+			float oneMinusGloss = 1.0 - saturate(WorldWetnessAndRainTransition.y);
 			float oneMinusGloss2 = oneMinusGloss * oneMinusGloss;
 			float oneMinusGloss4 = oneMinusGloss2 * oneMinusGloss2;
 			float schlickFres = 1.0 - oneMinusGloss * oneMinusGloss4;
@@ -3188,13 +3226,13 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float brdfModulator = 0.0;
 			float brdfShadowMix = 0.0;
 			if (isMaterial1) {
-				float skinNdotL = dot(matSample.xyz, SunDirection.xyz);
+				float skinNdotL = dot(matSample.xyz, LightVector.xyz);
 				float skinNdotV = dot(matSample.xyz, viewDirNeg);
 				float sinScaleL = sqrt(1.0 - min(skinNdotL * skinNdotL, 1.0));
 				float sinScaleV = sqrt(1.0 - min(skinNdotV * skinNdotV, 1.0));
 
 				float sinA1, cosA1;
-				sincos(cb12_idx29_hair_spec_shifts.y, sinA1, cosA1);
+				sincos(HairSpecularShift.y, sinA1, cosA1);
 				float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 				float rot1Perp = sqrt(1.0 - rot1 * rot1);
 #	ifdef FO4_DS2_TIGHT_NONAMBIENT
@@ -3202,13 +3240,13 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 		float vis1 = max(rot1 * skinNdotV + sinScaleV * rot1Perp, 0.0);
 #	endif
-				float pow1 = exp2(log2(vis1) * cb12_idx28_hair_spec_params.w);
+				float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
 				float hairIntensity =
-					saturate(cb12_idx28_hair_spec_params.z * pow1 + NdotL_pos);
+					saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_pos);
 				brdfShadowMix = min(albedoSample.w, hairIntensity);
 
 				float sinA2, cosA2;
-				sincos(cb12_idx29_hair_spec_shifts.x, sinA2, cosA2);
+				sincos(HairSpecularShift.x, sinA2, cosA2);
 				float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 				float rot2Perp = sqrt(1.0 - rot2 * rot2);
 #	ifdef FO4_DS2_REASSOC_ORDER
@@ -3216,9 +3254,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 		float vis2 = max(rot2 * skinNdotV + sinScaleV * rot2Perp, 0.0);
 #	endif
-				float pow2 = exp2(log2(vis2) * cb12_idx28_hair_spec_params.y) * cb12_idx28_hair_spec_params.x;
+				float pow2 = exp2(log2(vis2) * HairSpecularScaleAndPower.y) * HairSpecularScaleAndPower.x;
 
-				brdfSpecular = NdotL_clamped * (pow2 * SunColor_HDR.xyz);
+				brdfSpecular = NdotL_clamped * (pow2 * LightColor_row0.xyz);
 				brdfModulator = 0.0;
 			} else {
 				float depthScale = matSample.z * 100.0;
@@ -3266,7 +3304,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				brdfShadowMix = NdotL_pos;
 #	else
 		float3 tangentV = viewDirNeg - normalView * NdotV_raw;
-		float3 tangentL = SunDirection.xyz - normalView * NdotL_raw;
+		float3 tangentL = LightVector.xyz - normalView * NdotL_raw;
 #		ifdef FO4_DS2_REASSOC_ORDER
 		float tangentVLDot = dot(tangentV, tangentL);
 
@@ -3299,7 +3337,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		brdfShadowMix = NdotL_pos * visibilityGeom;
 #	endif
 
-				float3 halfVec = SunDirection.xyz - posView * posViewLen;
+				float3 halfVec = LightVector.xyz - posView * posViewLen;
 				halfVec *= rsqrt(dot(halfVec, halfVec));
 
 #	if defined(FO4_DS2_TIGHT_NONAMBIENT) && defined(IGNOREROUGHNESS)
@@ -3366,15 +3404,15 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				specMag *= FO4_DIRECTIONAL_SPECULAR_SCALE;
 
 #	ifdef FO4_DS2_REASSOC_ORDER
-				brdfSpecular = (specMag * SunColor_HDR.xyz) * NdotL_clamped;
+				brdfSpecular = (specMag * LightColor_row0.xyz) * NdotL_clamped;
 #	else
-		brdfSpecular = NdotL_clamped * (specMag * SunColor_HDR.xyz);
+		brdfSpecular = NdotL_clamped * (specMag * LightColor_row0.xyz);
 #	endif
 				brdfModulator = depthScale;
 			}
 
 #	ifdef IGNOREROUGHNESS
-			float3 finalDiffuse = SunColor_HDR.xyz * brdfShadowMix;
+			float3 finalDiffuse = LightColor_row0.xyz * brdfShadowMix;
 #	else
 #		ifdef FO4_DS2_REUSE_AMBIENT_VIEW_LOG
 	float ambientFres = exp2(ambientFresLog * 0.01);
@@ -3384,7 +3422,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 	ambientFres = exp2(log2(ambientFres) * 0.01);
 #		endif
 
-	float fresEdge = saturate(dot(viewDirNeg, -SunDirection.xyz));
+	float fresEdge = saturate(dot(viewDirNeg, -LightVector.xyz));
 #		ifdef FO4_DS2_REASSOC_ORDER
 	float ambientTerm = ambientFres * fresEdge * NdotL_clamped * roughness01;
 #		else
@@ -3392,11 +3430,11 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #		endif
 
 #		ifdef FO4_DS2_REASSOC_ORDER
-	float3 finalDiffuse = SunColor_HDR.xyz * brdfShadowMix;
-	finalDiffuse += SunColor_HDR.xyz * ambientTerm;
+	float3 finalDiffuse = LightColor_row0.xyz * brdfShadowMix;
+	finalDiffuse += LightColor_row0.xyz * ambientTerm;
 #		else
-	float3 finalDiffuse = SunColor_HDR.xyz * ambientTerm;
-	finalDiffuse += SunColor_HDR.xyz * brdfShadowMix;
+	float3 finalDiffuse = LightColor_row0.xyz * ambientTerm;
+	finalDiffuse += LightColor_row0.xyz * brdfShadowMix;
 #		endif
 #	endif
 
@@ -3405,9 +3443,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			backfaceWrap *= transmissionContactShadow;
 #	endif
 #	ifdef FO4_DS2_REASSOC_ORDER
-			finalDiffuse += SunColor_HDR.xyz * (backfaceWrap * albedoPremult);
+			finalDiffuse += LightColor_row0.xyz * (backfaceWrap * albedoPremult);
 #	else
-	finalDiffuse += SunColor_HDR.xyz * (albedoPremult * backfaceWrap);
+	finalDiffuse += LightColor_row0.xyz * (albedoPremult * backfaceWrap);
 #	endif
 
 #	if defined(FO4_DS2_TIGHT_ORDER) || defined(FO4_DS2_EQUAL_IGNORE_BLEND)
@@ -3421,7 +3459,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 			forwardBlend *= transmissionContactShadow;
 #	endif
-			finalDiffuse += (forwardBlend * SunColor_HDR.xyz) * albedoSample.xyz;
+			finalDiffuse += (forwardBlend * LightColor_row0.xyz) * albedoSample.xyz;
 
 #	ifdef WATER_EFFECTS
 			finalDiffuse *= causticsMult;
@@ -3474,9 +3512,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 
 #	ifdef IGNOREROUGHNESS
-			FO4_SOFT_SUN_LOBES(output, shadow, softShadow, SunColor_HDR.xyz, 0.0, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
+			FO4_SOFT_SUN_LOBES(output, shadow, softShadow, LightColor_row0.xyz, 0.0, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
 #	else
-	FO4_SOFT_SUN_LOBES(output, shadow, softShadow, SunColor_HDR.xyz, ambientTerm, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
+	FO4_SOFT_SUN_LOBES(output, shadow, softShadow, LightColor_row0.xyz, ambientTerm, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
 #	endif
 			return output;
 		}
@@ -3593,63 +3631,83 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		{
 			DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-			float4 cb12_idx28_hair_spec_params;
+			float4 HairSpecularScaleAndPower;
 
-			float4 cb12_idx29_hair_spec_shifts;
+			float4 HairSpecularShift;
 
-			float4 cb12_idx30;
+			float4 WorldWetnessAndRainTransition;
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-			float4 cb12_pad_31_34[4];
-			float4 CameraPosAdjust;
+			row_major float4x4 PreviousWorldToClip;
+			float4 PosAdjust;
 #	endif
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
+			float4 VPOSOffset_row0;
 
-			float4 SunDirection;
+			float4 LightVector;
 
-			float4 SunColor_HDR;
+			float4 LightColor_row0;
 
 #	ifdef AMBIENT
 
-			float4 cb2_pad_3_5[3];
+			float4 LightColor_row1[3];
 
-			float4 cb2_ambient_gradient_row0;
-			float4 cb2_ambient_gradient_row1;
-			float4 cb2_ambient_gradient_row2;
+			float4 DirectionalAmbient_row0;
+			float4 DirectionalAmbient_row1;
+			float4 DirectionalAmbient_row2;
 #	else
 
-	float4 cb2_pad_3_8[6];
+	float4 LightColor_row1[6];
 #	endif
 
-			float4 cb2_idx9_split_distances;
+#	if defined(BLENDSPLIT) && defined(AMBIENT)
+			float4 DirectionalAmbient_row3;
+#	elif defined(BLENDSPLIT)
+	float4 LightColor_row7;
+#	else
+	float4 SplitDistances;
+#	endif
 
-			float4 cb2_idx10_fade_distances;
+			float4 FadeDistances;
 
-			float4 cb2_cascade0_row0;
-			float4 cb2_cascade0_row1;
-			float4 cb2_cascade0_row2;
-			float4 cb2_cascade1_row0;
-			float4 cb2_cascade1_row1;
-			float4 cb2_cascade1_row2;
-			float4 cb2_cascade2_row0;
-			float4 cb2_cascade2_row1;
-			float4 cb2_cascade2_row2;
+			float4 ShadowMapProj_row0;  // Cascade 0 projection.
+			float4 ShadowMapProj_row1;
+			float4 ShadowMapProj_row2;
+			float4 ShadowMapProj_row3;  // Cascade 1 projection.
+			float4 ShadowMapProj_row4;
+			float4 ShadowMapProj_row5;
+			float4 ShadowMapProj_row6;  // Cascade 2 projection.
+			float4 ShadowMapProj_row7;
+			float4 ShadowMapProj_row8;
 
-			float4 cb2_idx20_shadow_sample_param;
+#	if defined(FILTER_PCF9) || defined(FILTER_POISSON)
+			float4 ShadowSampleParam_row0;
+#	else
+	float4 ShadowMapProj_row9;
+#	endif
 
-			float4 cb2_idx21_cascade0_world_scale;
-			float4 cb2_idx22_cascade1_world_scale;
-			float4 cb2_idx23_cascade2_world_scale;
+#	if defined(FILTER_PCF9)
+			float4 ShadowSampleParam_row1;
+			float4 ShadowSampleParam_row2;
+			float4 ShadowSampleParam_row3;
+#	elif defined(FILTER_PCSS) || defined(FILTER_POISSON) || defined(FILTER_PCSSPOISSON)
+	float4 ShadowWorldScale_row0;
+	float4 ShadowWorldScale_row1;
+	float4 ShadowWorldScale_row2;
+#	else
+	float4 ShadowMapProj_row10;
+	float4 ShadowMapProj_row11;
+	float4 ShadowMapProj_row12;
+#	endif
 
-			float4 cb2_idx24_distance_fade;
+			float4 ShadowFadeParam_row0;
 #	if defined(OG)
 			// OG directional sampling scale lives at cb2[27].
-			float4 cb2_pad_25_26[2];
-			float4 cb2_og_screen_uv_scale;
+			float4 ShadowFadeParam_row1[2];
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -3702,9 +3760,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		{
 			float4 directionH = float4(direction, 1.0);
 			float3 encoded;
-			encoded.x = dot(cb2_ambient_gradient_row0, directionH);
-			encoded.y = dot(cb2_ambient_gradient_row1, directionH);
-			encoded.z = dot(cb2_ambient_gradient_row2, directionH);
+			encoded.x = dot(DirectionalAmbient_row0, directionH);
+			encoded.y = dot(DirectionalAmbient_row1, directionH);
+			encoded.z = dot(DirectionalAmbient_row2, directionH);
 			return exp2(log2(encoded) * 2.2);
 		}
 #	endif
@@ -3742,7 +3800,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		[loop] for (int j = 0; j < 3; ++j)
 		{
 			float offsetY = float(j) - 1.0;
-			float2 tapUV = float2(offsetX, offsetY) * cb2_idx20_shadow_sample_param.zw + shadowUV;
+			float2 tapUV = float2(offsetX, offsetY) * ShadowSampleParam_row0.zw + shadowUV;
 			sum += g_tCascadeShadowCmp.SampleCmpLevelZero(
 				g_sCascadeShadowCmp, float3(tapUV, slice), shadowZ);
 		}
@@ -3867,12 +3925,12 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	elif defined(FILTER_POISSON)
 
 #		if defined(FO4_DS3_REUSE_AMBIENT_VIEW_LOG) || defined(FO4_DS3_EQUAL_AMBIENT_BLEND_PCF9) || defined(FO4_DS3_EQUAL_NONAMBIENT_PCF1) || defined(FO4_DS3_TIGHT_NONAMBIENT_BLEND) || defined(FO4_DS3_TIGHT_AMBIENT_IGNORE_BLEND)
-	float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
+	float kernelScale = ShadowSampleParam_row0.z * 3.0;
 #		endif
 	float rcpWorldRange = 1.0 / (cascadeScale.w - cascadeScale.z);
 	float zRef = shadowZ - rcpWorldRange * poissonBiasScale;
 #		if !defined(FO4_DS3_REUSE_AMBIENT_VIEW_LOG) && !defined(FO4_DS3_EQUAL_AMBIENT_BLEND_PCF9) && !defined(FO4_DS3_EQUAL_NONAMBIENT_PCF1) && !defined(FO4_DS3_TIGHT_NONAMBIENT_BLEND) && !defined(FO4_DS3_TIGHT_AMBIENT_IGNORE_BLEND)
-	float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
+	float kernelScale = ShadowSampleParam_row0.z * 3.0;
 #		endif
 
 	float sum = 0.0;
@@ -3900,31 +3958,31 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		float ComputeDirectionalShadow(float3 posView, float linearizedDepth)
 		{
 #	ifndef BLENDSPLIT
-			if (!(linearizedDepth < cb2_idx9_split_distances.w)) {
+			if (!(linearizedDepth < SplitDistances.w)) {
 				return 1.0;
 			}
 #	endif
 
 #	ifdef FO4_DS3_PHASED_BLEND
-			bool4 below = linearizedDepth < cb2_idx10_fade_distances.ywxz;
+			bool4 below = linearizedDepth < FadeDistances.ywxz;
 			bool cascade0Active = below.x;
 #	elif defined(FO4_DS3_PHASED_SPLIT)
-	bool4 belowFade = linearizedDepth < cb2_idx10_fade_distances.ywxz;
+	bool4 belowFade = linearizedDepth < FadeDistances.ywxz;
 	bool cascade0Active = belowFade.x;
 #	else
-	bool cascade0Active = (linearizedDepth < cb2_idx10_fade_distances.y);
-	bool cascade1Active = (cb2_idx10_fade_distances.x < linearizedDepth) && (linearizedDepth < cb2_idx10_fade_distances.w);
-	bool cascade2Active = (cb2_idx10_fade_distances.z < linearizedDepth);
+	bool cascade0Active = (linearizedDepth < FadeDistances.y);
+	bool cascade1Active = (FadeDistances.x < linearizedDepth) && (linearizedDepth < FadeDistances.w);
+	bool cascade2Active = (FadeDistances.z < linearizedDepth);
 #	endif
 
 			float cascade0Shadow = 1.0;
 			if (cascade0Active) {
 				cascade0Shadow = ComputeCascadeShadow(
-					posView, cb2_cascade0_row0, cb2_cascade0_row1, cb2_cascade0_row2,
+					posView, ShadowMapProj_row0, ShadowMapProj_row1, ShadowMapProj_row2,
 					0.0
 #	ifdef FO4_DS3_USES_WORLD_SCALE
 					,
-					cb2_idx21_cascade0_world_scale
+					ShadowWorldScale_row0
 #	endif
 #	ifdef FILTER_POISSON
 					,
@@ -3934,12 +3992,12 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			}
 
 #	ifdef FO4_DS3_PHASED_BLEND
-			bool3 above = cb2_idx10_fade_distances.xyz < linearizedDepth;
+			bool3 above = FadeDistances.xyz < linearizedDepth;
 			bool3 regions = below.ywy && above.xyz;
 			bool cascade1Active = regions.x;
 			bool cascade2Active = above.z;
 #	elif defined(FO4_DS3_PHASED_SPLIT)
-	bool3 aboveFade = cb2_idx10_fade_distances.xzy < linearizedDepth;
+	bool3 aboveFade = FadeDistances.xzy < linearizedDepth;
 #		if defined(OG)
 	// OG tests the lower bound first to preserve native phased-split operand order.
 	bool2 middleRegion = aboveFade.xz && belowFade.yw;
@@ -3953,11 +4011,11 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float cascade1Shadow = 1.0;
 			if (cascade1Active) {
 				cascade1Shadow = ComputeCascadeShadow(
-					posView, cb2_cascade1_row0, cb2_cascade1_row1, cb2_cascade1_row2,
+					posView, ShadowMapProj_row3, ShadowMapProj_row4, ShadowMapProj_row5,
 					1.0
 #	ifdef FO4_DS3_USES_WORLD_SCALE
 					,
-					cb2_idx22_cascade1_world_scale
+					ShadowWorldScale_row1
 #	endif
 #	ifdef FILTER_POISSON
 					,
@@ -3969,11 +4027,11 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float cascade2Shadow = 1.0;
 			if (cascade2Active) {
 				cascade2Shadow = ComputeCascadeShadow(
-					posView, cb2_cascade2_row0, cb2_cascade2_row1, cb2_cascade2_row2,
+					posView, ShadowMapProj_row6, ShadowMapProj_row7, ShadowMapProj_row8,
 					2.0
 #	ifdef FO4_DS3_USES_WORLD_SCALE
 					,
-					cb2_idx23_cascade2_world_scale
+					ShadowWorldScale_row2
 #	endif
 #	ifdef FILTER_POISSON
 					,
@@ -3986,9 +4044,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 #		ifdef FO4_DS3_PHASED_BLEND
 			float2 blendRange =
-				cb2_idx10_fade_distances.yw - cb2_idx10_fade_distances.xz;
+				FadeDistances.yw - FadeDistances.xz;
 			float2 blendDistance =
-				linearizedDepth - cb2_idx10_fade_distances.xz;
+				linearizedDepth - FadeDistances.xz;
 			float2 blendRangeInv = 1.0 / blendRange;
 			float2 blendT = saturate(blendDistance * blendRangeInv);
 			float2 blendSeed = mad(blendT, -2.0, 3.0);
@@ -3997,10 +4055,10 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float w01 = blendWeight.x;
 			float w12 = blendWeight.y;
 #		else
-		float range01 = cb2_idx10_fade_distances.y - cb2_idx10_fade_distances.x;
-		float range12 = cb2_idx10_fade_distances.w - cb2_idx10_fade_distances.z;
-		float t01 = saturate((linearizedDepth - cb2_idx10_fade_distances.x) / range01);
-		float t12 = saturate((linearizedDepth - cb2_idx10_fade_distances.z) / range12);
+		float range01 = FadeDistances.y - FadeDistances.x;
+		float range12 = FadeDistances.w - FadeDistances.z;
+		float t01 = saturate((linearizedDepth - FadeDistances.x) / range01);
+		float t12 = saturate((linearizedDepth - FadeDistances.z) / range12);
 		float w01 = min(t01 * t01 * (3.0 - 2.0 * t01), 1.0);
 		float w12 = min(t12 * t12 * (3.0 - 2.0 * t12), 1.0);
 #		endif
@@ -4024,11 +4082,11 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #		else
 	float shadow = cascade2Active ? cascade2Shadow : cascade1Shadow;
 	shadow = cascade0Active ? 1.0 : shadow;
-	shadow = (cb2_idx10_fade_distances.x < linearizedDepth) ? shadow : cascade0Shadow;
+	shadow = (FadeDistances.x < linearizedDepth) ? shadow : cascade0Shadow;
 #		endif
 #	endif
 
-			float distNorm = saturate(dot(posView, posView) / cb2_idx24_distance_fade.x);
+			float distNorm = saturate(dot(posView, posView) / ShadowFadeParam_row0.x);
 			float dist2 = distNorm * distNorm;
 			float dist4 = dist2 * dist2;
 			float fadeFactor = 1.0 - dist4 * dist4;
@@ -4058,7 +4116,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 			float2 uv = uv4.xy;
 
@@ -4072,18 +4130,18 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			[branch] if (0.01 >= depth)
 			{
 				linearizedDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			}
 			else
 			{
 				linearizedDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 #	if defined(OG)
@@ -4132,14 +4190,14 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float shadow = ComputeDirectionalShadow(posView, linearizedDepth);
 
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
-			shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, SunDirection.xyz));
-			float transmissionContactShadow = FO4BackTransmissionScreenSpaceShadow(input.position.xyz, depth, dot(normalView, SunDirection.xyz));
+			shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
+			float transmissionContactShadow = FO4BackTransmissionScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXPONENTIAL_HEIGHT_FOG)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, FO4Fog::SunlightView(posView));
 #	endif
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, CameraPosAdjust));
+			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, PosAdjust));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
@@ -4150,7 +4208,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 #	endif
 
 #	ifdef FO4_DS3_REASSOC_ORDER
@@ -4158,10 +4216,10 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 	float3 albedoPremult = albedoSample.w * albedoSample.xyz;
 #	endif
-			float NdotL_raw = dot(normalView, SunDirection.xyz);
+			float NdotL_raw = dot(normalView, LightVector.xyz);
 			float NdotL_pos = max(NdotL_raw, 0.0);
 			float NdotL_clamped = min(NdotL_pos, 1.0);
-			float oneMinusGloss = 1.0 - saturate(cb12_idx30.y);
+			float oneMinusGloss = 1.0 - saturate(WorldWetnessAndRainTransition.y);
 			float oneMinusGloss2 = oneMinusGloss * oneMinusGloss;
 			float oneMinusGloss4 = oneMinusGloss2 * oneMinusGloss2;
 			float schlickFres = 1.0 - oneMinusGloss * oneMinusGloss4;
@@ -4174,13 +4232,13 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			float brdfModulator = 0.0;
 			float brdfShadowMix = 0.0;
 			if (isMaterial1) {
-				float skinNdotL = dot(matSample.xyz, SunDirection.xyz);
+				float skinNdotL = dot(matSample.xyz, LightVector.xyz);
 				float skinNdotV = dot(matSample.xyz, viewDirNeg);
 				float sinScaleL = sqrt(1.0 - min(skinNdotL * skinNdotL, 1.0));
 				float sinScaleV = sqrt(1.0 - min(skinNdotV * skinNdotV, 1.0));
 
 				float sinA1, cosA1;
-				sincos(cb12_idx29_hair_spec_shifts.y, sinA1, cosA1);
+				sincos(HairSpecularShift.y, sinA1, cosA1);
 				float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 				float rot1Perp = sqrt(1.0 - rot1 * rot1);
 #	ifdef FO4_DS3_TIGHT_NONAMBIENT
@@ -4188,13 +4246,13 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 		float vis1 = max(rot1 * skinNdotV + sinScaleV * rot1Perp, 0.0);
 #	endif
-				float pow1 = exp2(log2(vis1) * cb12_idx28_hair_spec_params.w);
+				float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
 				float hairIntensity =
-					saturate(cb12_idx28_hair_spec_params.z * pow1 + NdotL_pos);
+					saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_pos);
 				brdfShadowMix = min(albedoSample.w, hairIntensity);
 
 				float sinA2, cosA2;
-				sincos(cb12_idx29_hair_spec_shifts.x, sinA2, cosA2);
+				sincos(HairSpecularShift.x, sinA2, cosA2);
 				float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 				float rot2Perp = sqrt(1.0 - rot2 * rot2);
 #	ifdef FO4_DS3_REASSOC_ORDER
@@ -4202,9 +4260,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 		float vis2 = max(rot2 * skinNdotV + sinScaleV * rot2Perp, 0.0);
 #	endif
-				float pow2 = exp2(log2(vis2) * cb12_idx28_hair_spec_params.y) * cb12_idx28_hair_spec_params.x;
+				float pow2 = exp2(log2(vis2) * HairSpecularScaleAndPower.y) * HairSpecularScaleAndPower.x;
 
-				brdfSpecular = NdotL_clamped * (pow2 * SunColor_HDR.xyz);
+				brdfSpecular = NdotL_clamped * (pow2 * LightColor_row0.xyz);
 				brdfModulator = 0.0;
 			} else {
 				float depthScale = matSample.z * 100.0;
@@ -4257,7 +4315,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				brdfShadowMix = NdotL_pos;
 #	else
 		float3 tangentV = viewDirNeg - normalView * NdotV_raw;
-		float3 tangentL = SunDirection.xyz - normalView * NdotL_raw;
+		float3 tangentL = LightVector.xyz - normalView * NdotL_raw;
 #		ifdef FO4_DS3_REASSOC_ORDER
 		float tangentVLDot = dot(tangentV, tangentL);
 #		else
@@ -4291,7 +4349,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		brdfShadowMix = NdotL_pos * visibilityGeom;
 #	endif
 
-				float3 halfVec = SunDirection.xyz - posView * posViewLen;
+				float3 halfVec = LightVector.xyz - posView * posViewLen;
 				halfVec *= rsqrt(dot(halfVec, halfVec));
 
 #	ifdef FO4_DS3_TIGHT_NONAMBIENT_IGNORE
@@ -4358,15 +4416,15 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				specMag *= FO4_DIRECTIONAL_SPECULAR_SCALE;
 
 #	ifdef FO4_DS3_REASSOC_ORDER
-				brdfSpecular = (specMag * SunColor_HDR.xyz) * NdotL_clamped;
+				brdfSpecular = (specMag * LightColor_row0.xyz) * NdotL_clamped;
 #	else
-		brdfSpecular = NdotL_clamped * (specMag * SunColor_HDR.xyz);
+		brdfSpecular = NdotL_clamped * (specMag * LightColor_row0.xyz);
 #	endif
 				brdfModulator = depthScale;
 			}
 
 #	ifndef FO4_DS3_LATE_DIFFUSE
-			float3 finalDiffuse = SunColor_HDR.xyz * brdfShadowMix;
+			float3 finalDiffuse = LightColor_row0.xyz * brdfShadowMix;
 #	endif
 
 #	ifndef IGNOREROUGHNESS
@@ -4377,7 +4435,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		float NdotV_view = saturate(dot(normalView, viewDirNeg));
 		float ambientFres = exp2(log2(1.0 - NdotV_view) * 0.01);
 #		endif
-			float fresEdge = saturate(dot(viewDirNeg, -SunDirection.xyz));
+			float fresEdge = saturate(dot(viewDirNeg, -LightVector.xyz));
 #		ifdef FO4_DS3_REASSOC_ORDER
 			float ambientTerm = ambientFres * fresEdge * NdotL_clamped * roughness01;
 #		else
@@ -4385,10 +4443,10 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #		endif
 
 #		ifdef FO4_DS3_LATE_DIFFUSE
-			float3 finalDiffuse = SunColor_HDR.xyz * brdfShadowMix;
-			finalDiffuse += SunColor_HDR.xyz * ambientTerm;
+			float3 finalDiffuse = LightColor_row0.xyz * brdfShadowMix;
+			finalDiffuse += LightColor_row0.xyz * ambientTerm;
 #		else
-		finalDiffuse += SunColor_HDR.xyz * ambientTerm;
+		finalDiffuse += LightColor_row0.xyz * ambientTerm;
 #		endif
 #	endif
 
@@ -4397,9 +4455,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			backfaceWrap *= transmissionContactShadow;
 #	endif
 #	ifdef FO4_DS3_REASSOC_ORDER
-			finalDiffuse += SunColor_HDR.xyz * (backfaceWrap * albedoPremult);
+			finalDiffuse += LightColor_row0.xyz * (backfaceWrap * albedoPremult);
 #	else
-	finalDiffuse += SunColor_HDR.xyz * (albedoPremult * backfaceWrap);
+	finalDiffuse += LightColor_row0.xyz * (albedoPremult * backfaceWrap);
 #	endif
 
 #	if defined(FO4_DS3_PHASED_BLEND) || defined(FO4_DS3_EQUAL_NONAMBIENT_PCF1)
@@ -4413,7 +4471,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 			forwardBlend *= transmissionContactShadow;
 #	endif
-			finalDiffuse += (forwardBlend * SunColor_HDR.xyz) * albedoSample.xyz;
+			finalDiffuse += (forwardBlend * LightColor_row0.xyz) * albedoSample.xyz;
 
 #	ifdef WATER_EFFECTS
 			finalDiffuse *= causticsMult;
@@ -4459,9 +4517,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 
 #	ifdef IGNOREROUGHNESS
-			FO4_SOFT_SUN_LOBES(output, shadow, softShadow, SunColor_HDR.xyz, 0.0, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
+			FO4_SOFT_SUN_LOBES(output, shadow, softShadow, LightColor_row0.xyz, 0.0, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
 #	else
-	FO4_SOFT_SUN_LOBES(output, shadow, softShadow, SunColor_HDR.xyz, ambientTerm, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
+	FO4_SOFT_SUN_LOBES(output, shadow, softShadow, LightColor_row0.xyz, ambientTerm, backfaceWrap, albedoPremult, forwardBlend, albedoSample.xyz);
 #	endif
 			return output;
 		}
@@ -4518,31 +4576,31 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		{
 			DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-			float4 cb12_idx28_sss_params;
+			float4 HairSpecularScaleAndPower;
 
-			float4 cb12_idx29_sss_angles;
+			float4 HairSpecularShift;
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
+			float4 VPOSOffset_row0;
 
-			float4 LightPos_and_Radius;
+			float4 LightVector;  // Light position; w is the radius.
 
-			float4 LightColor_HDR;
+			float4 LightColor_row0;
 
-			float4 cb2_idx3_attenuation_curve;
+			float4 LightAttenuation_row0;
 
-			float4 cb2_pad_4_10[7];
+			float4 LightAttenuation_row1[7];
 
-			float4 cb2_lightspace_row0;
-			float4 cb2_lightspace_row1;
-			float4 cb2_lightspace_row2;
-			float4 cb2_lightspace_row3;
+			float4 ShadowMapProj_row0;  // Light-space projection.
+			float4 ShadowMapProj_row1;
+			float4 ShadowMapProj_row2;
+			float4 ShadowMapProj_row3;
 #	if defined(OG)
 			// OG gobo sampling scale lives at cb2[22].
-			float4 cb2_pad_15_21[7];
-			float4 cb2_og_screen_uv_scale;
+			float4 ShadowMapProj_row4[7];
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -4617,7 +4675,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 			float2 uv = uv4.xy;
 
@@ -4632,18 +4690,18 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			[branch] if (0.01 >= depth)
 			{
 				linearizedDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			}
 			else
 			{
 				linearizedDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 #	if defined(OG)
@@ -4661,12 +4719,12 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			posViewH.w = dot(reprojRow3, pos4);
 			float3 posView = posViewH.xyz / posViewH.www;
 
-			float3 toLight = LightPos_and_Radius.xyz - posView;
+			float3 toLight = LightVector.xyz - posView;
 			float toLightLenSq = dot(toLight, toLight);
 			float d = sqrt(toLightLenSq);
-			float dNorm = saturate(d / LightPos_and_Radius.w);
-			float dPowZ = exp2(log2(dNorm) * cb2_idx3_attenuation_curve.z);
-			float falloffLin = saturate(cb2_idx3_attenuation_curve.y * dPowZ + cb2_idx3_attenuation_curve.x);
+			float dNorm = saturate(d / LightVector.w);
+			float dPowZ = exp2(log2(dNorm) * LightAttenuation_row0.z);
+			float falloffLin = saturate(LightAttenuation_row0.y * dPowZ + LightAttenuation_row0.x);
 			float attenuation = exp2(log2(1.0 - falloffLin) * 2.2);
 			attenuation = FO4LocalLightAttenuation(d, attenuation);
 
@@ -4726,23 +4784,23 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 
 				float sinA1, cosA1;
-				sincos(cb12_idx29_sss_angles.y, sinA1, cosA1);
+				sincos(HairSpecularShift.y, sinA1, cosA1);
 				float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 				float rot1Perp = sqrt(1.0 - rot1 * rot1);
 				float vis1 = max(rot1 * skinNdotV + rot1Perp * sinScaleV, 0.0);
-				float pow1 = exp2(log2(vis1) * cb12_idx28_sss_params.w);
-				float sssIntensity = saturate(cb12_idx28_sss_params.z * pow1 + NdotL_sat);
+				float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
+				float sssIntensity = saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_sat);
 				brdfShadowMix = min(albedoW, sssIntensity);
 
 #	ifdef SPECULAR
 				float sinA2, cosA2;
-				sincos(cb12_idx29_sss_angles.x, sinA2, cosA2);
+				sincos(HairSpecularShift.x, sinA2, cosA2);
 				float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 				float rot2Perp = sqrt(1.0 - rot2 * rot2);
 				float vis2 = max(rot2 * skinNdotV + rot2Perp * sinScaleV, 0.0);
-				float pow2 = exp2(log2(vis2) * cb12_idx28_sss_params.y) *
-				             cb12_idx28_sss_params.x;
-				brdfSpecular = (pow2 * FO4LocalLightColor(LightColor_HDR.xyz)) * NdotL_clamped;
+				float pow2 = exp2(log2(vis2) * HairSpecularScaleAndPower.y) *
+				             HairSpecularScaleAndPower.x;
+				brdfSpecular = (pow2 * FO4LocalLightColor(LightColor_row0.xyz)) * NdotL_clamped;
 #	endif
 			}
 			else
@@ -4832,7 +4890,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				specMag = min(specMag, 15.0);
 				specMag *= matSample.y;
 				specMag *= 3.1415927;
-				brdfSpecular = (specMag * FO4LocalLightColor(LightColor_HDR.xyz)) * NdotL_clamped;
+				brdfSpecular = (specMag * FO4LocalLightColor(LightColor_row0.xyz)) * NdotL_clamped;
 #	endif
 			}
 
@@ -4857,15 +4915,15 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 	float ambientTerm = 0.0;
 #	endif
-			float3 diffuseAccum = FO4LocalLightColor(LightColor_HDR.xyz) * brdfShadowMix;
-			diffuseAccum += FO4LocalLightColor(LightColor_HDR.xyz) * ambientTerm;
+			float3 diffuseAccum = FO4LocalLightColor(LightColor_row0.xyz) * brdfShadowMix;
+			diffuseAccum += FO4LocalLightColor(LightColor_row0.xyz) * ambientTerm;
 
 			float4 posViewHomog = float4(posView, 1.0);
 			float4 lsDir;
-			lsDir.x = dot(cb2_lightspace_row0, posViewHomog);
-			lsDir.y = dot(cb2_lightspace_row1, posViewHomog);
-			lsDir.z = dot(cb2_lightspace_row2, posViewHomog);
-			lsDir.w = dot(cb2_lightspace_row3, posViewHomog);
+			lsDir.x = dot(ShadowMapProj_row0, posViewHomog);
+			lsDir.y = dot(ShadowMapProj_row1, posViewHomog);
+			lsDir.z = dot(ShadowMapProj_row2, posViewHomog);
+			lsDir.w = dot(ShadowMapProj_row3, posViewHomog);
 			float2 cookieUV = ProjectCookieUV(lsDir);
 			float3 cookieRGB = g_tLightCookie.Sample(g_sLightCookie, cookieUV).xyz;
 
@@ -4925,36 +4983,49 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-			float4 cb12_pad_28_34[7];
-			float4 CameraPosAdjust;
+			float4 HairSpecularScaleAndPower;
+			float4 HairSpecularShift;
+			float4 WorldWetnessAndRainTransition;
+			row_major float4x4 PreviousWorldToClip;
+			float4 PosAdjust;
 #	endif
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
+			float4 VPOSOffset_row0;
 
-			float4 cb2_pad_1_8[8];
+			float4 VPOSOffset_row1[8];
 
-			float4 cb2_idx9_cascade_slice;
+			float4 SplitDistances_row0;  // y is the cascade slice.
 
-			float4 cb2_pad_10;
+			float4 SplitDistances_row1;
 
-			float4 cb2_shadowproj_row0;
-			float4 cb2_shadowproj_row1;
-			float4 cb2_shadowproj_row2;
+			float4 ShadowMapProj_row0;  // Shadow projection.
+			float4 ShadowMapProj_row1;
+			float4 ShadowMapProj_row2;
 
-			float4 cb2_pad_14_19[6];
+			float4 ShadowMapProj_row3[6];
 
-			float4 cb2_idx20_shadow_sample_param;
+#	if defined(FILTER_PCF9) || defined(FILTER_POISSON)
+			float4 ShadowSampleParam_row0;
+#	else
+	float4 ShadowMapProj_row9;
+#	endif
 
-			float4 cb2_idx21_cascade_world_scale[3];
+#	if defined(FILTER_PCF9)
+			float4 ShadowSampleParam_row1[3];
+#	elif defined(FILTER_PCSS) || defined(FILTER_POISSON) || defined(FILTER_PCSSPOISSON)
+	float4 ShadowWorldScale[3];
+#	else
+	float4 ShadowMapProj_row10[3];
+#	endif
 
-			float4 cb2_idx24_distance_fade;
+			float4 ShadowFadeParam_row0;
 #	if defined(OG)
 			// OG directional sampling scale lives at cb2[27].
-			float4 cb2_pad_25_26[2];
-			float4 cb2_og_screen_uv_scale;
+			float4 ShadowFadeParam_row1[2];
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -5013,7 +5084,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 
 			float depth = g_tMainDepth.SampleGrad(g_sMainDepth, uv4.xy,
@@ -5026,18 +5097,18 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			[branch] if (0.01 >= depth)
 			{
 				linearDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			}
 			else
 			{
 				linearDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 #	if defined(OG)
@@ -5068,19 +5139,19 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 			float4 posViewH1 = float4(posView, 1.0);
 			float2 shadowUV;
-			shadowUV.x = dot(cb2_shadowproj_row0, posViewH1);
-			shadowUV.y = dot(cb2_shadowproj_row1, posViewH1);
-			float shadowZ = min(dot(cb2_shadowproj_row2, posViewH1), 0.999999);
-			float slice = cb2_idx9_cascade_slice.y;
+			shadowUV.x = dot(ShadowMapProj_row0, posViewH1);
+			shadowUV.y = dot(ShadowMapProj_row1, posViewH1);
+			float shadowZ = min(dot(ShadowMapProj_row2, posViewH1), 0.999999);
+			float slice = SplitDistances_row0.y;
 
 #	ifdef FILTER_POISSON
 
-			float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
+			float kernelScale = ShadowSampleParam_row0.z * 3.0;
 #	endif
 
 #	ifdef FO4_SHADOW_DYNAMIC_CB2
-			uint cascade = (uint)cb2_idx9_cascade_slice.y;
-			float4 cascadeScale = cb2_idx21_cascade_world_scale[cascade];
+			uint cascade = (uint)SplitDistances_row0.y;
+			float4 cascadeScale = ShadowWorldScale[cascade];
 #	endif
 
 			float shadow;
@@ -5101,7 +5172,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		[loop] for (int j = 0; j < 3; ++j)
 		{
 			float offsetY = float(j) - 1.0;
-			float2 tapUV = float2(offsetX, offsetY) * cb2_idx20_shadow_sample_param.zw + shadowUV;
+			float2 tapUV = float2(offsetX, offsetY) * ShadowSampleParam_row0.zw + shadowUV;
 			sum += g_tCascadeShadowCmp.SampleCmpLevelZero(
 				g_sCascadeShadowCmp, float3(tapUV, slice), zRef);
 		}
@@ -5244,7 +5315,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 	shadow = (sampledDepth >= zRef) ? 1.0 : 0.0;
 #	endif
 
-			float distNorm = saturate(dot(posView, posView) / cb2_idx24_distance_fade.x);
+			float distNorm = saturate(dot(posView, posView) / ShadowFadeParam_row0.x);
 			float dist2 = distNorm * distNorm;
 			float dist4 = dist2 * dist2;
 			float fadeFactor = 1.0 - dist4 * dist4;
@@ -5261,7 +5332,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			result *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
@@ -5278,7 +5349,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 #	endif
 
 #	if defined(WATER_EFFECTS) || defined(EXPONENTIAL_HEIGHT_FOG)
@@ -5333,40 +5404,59 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
 #	if defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS)
-			float4 cb12_pad_28_34[7];
-			float4 CameraPosAdjust;
+			float4 HairSpecularScaleAndPower;
+			float4 HairSpecularShift;
+			float4 WorldWetnessAndRainTransition;
+			row_major float4x4 PreviousWorldToClip;
+			float4 PosAdjust;
 #	endif
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
+			float4 VPOSOffset_row0;
 
-			float4 cb2_pad_1_5[5];
+			float4 VPOSOffset_row1[5];
 
-			float4 cb2_ambient_row0;
-			float4 cb2_ambient_row1;
-			float4 cb2_ambient_row2;
+#	if defined(AMBIENT)
+			float4 DirectionalAmbient_row0;
+			float4 DirectionalAmbient_row1;
+			float4 DirectionalAmbient_row2;
+#	else
+	float4 VPOSOffset_row6;
+	float4 VPOSOffset_row7;
+	float4 VPOSOffset_row8;
+#	endif
 
-			float4 cb2_idx9_cascade_slice;
+			float4 SplitDistances_row0;  // y is the cascade slice.
 
-			float4 cb2_pad_10;
+			float4 SplitDistances_row1;
 
-			float4 cb2_shadowproj_row0;
-			float4 cb2_shadowproj_row1;
-			float4 cb2_shadowproj_row2;
+			float4 ShadowMapProj_row0;  // Shadow projection.
+			float4 ShadowMapProj_row1;
+			float4 ShadowMapProj_row2;
 
-			float4 cb2_pad_14_19[6];
+			float4 ShadowMapProj_row3[6];
 
-			float4 cb2_idx20_shadow_sample_param;
+#	if defined(FILTER_PCF9) || defined(FILTER_POISSON)
+			float4 ShadowSampleParam_row0;
+#	else
+	float4 ShadowMapProj_row9;
+#	endif
 
-			float4 cb2_idx21_cascade_world_scale[3];
+#	if defined(FILTER_PCF1)
+			float4 ShadowMapProj_row10[3];
+#	elif defined(FILTER_PCF9)
+	float4 ShadowSampleParam_row1[3];
+#	else
+	float4 ShadowWorldScale[3];
+#	endif
 
-			float4 cb2_idx24_distance_fade;
+			float4 ShadowFadeParam_row0;
 #	if defined(OG)
 			// OG directional sampling scale lives at cb2[27].
-			float4 cb2_pad_25_26[2];
-			float4 cb2_og_screen_uv_scale;
+			float4 ShadowFadeParam_row1[2];
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -5408,7 +5498,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 
 			float depth = g_tMainDepth.SampleGrad(g_sMainDepth, uv4.xy,
@@ -5421,18 +5511,18 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			[branch] if (0.01 >= depth)
 			{
 				linearDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			}
 			else
 			{
 				linearDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 #	if defined(OG)
@@ -5461,9 +5551,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 			FO4_AMBIENT_SKYLIGHTING_SET(input.position.xy, posView, normal);
 			float3 ambientDiffuse;
-			ambientDiffuse.x = dot(cb2_ambient_row0, float4(normal, 1.0));
-			ambientDiffuse.y = dot(cb2_ambient_row1, float4(normal, 1.0));
-			ambientDiffuse.z = dot(cb2_ambient_row2, float4(normal, 1.0));
+			ambientDiffuse.x = dot(DirectionalAmbient_row0, float4(normal, 1.0));
+			ambientDiffuse.y = dot(DirectionalAmbient_row1, float4(normal, 1.0));
+			ambientDiffuse.z = dot(DirectionalAmbient_row2, float4(normal, 1.0));
 			ambientDiffuse = FO4Ambient::Diffuse(pow(ambientDiffuse, 2.2), normal);
 
 			bool isMaterial1 = abs(material.z * 255.0 - 1.0) < 0.25;
@@ -5471,10 +5561,10 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 			float4 posViewH1 = float4(posView, 1.0);
 			float2 shadowUV;
-			shadowUV.x = dot(cb2_shadowproj_row0, posViewH1);
-			shadowUV.y = dot(cb2_shadowproj_row1, posViewH1);
-			float shadowZ = min(dot(cb2_shadowproj_row2, posViewH1), 0.999999);
-			float slice = cb2_idx9_cascade_slice.y;
+			shadowUV.x = dot(ShadowMapProj_row0, posViewH1);
+			shadowUV.y = dot(ShadowMapProj_row1, posViewH1);
+			float shadowZ = min(dot(ShadowMapProj_row2, posViewH1), 0.999999);
+			float slice = SplitDistances_row0.y;
 
 			float shadow;
 
@@ -5492,7 +5582,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		[loop] for (int j = 0; j < 3; ++j)
 		{
 			float offsetY = float(j) - 1.0;
-			float2 tapUV = float2(offsetX, offsetY) * cb2_idx20_shadow_sample_param.zw + shadowUV;
+			float2 tapUV = float2(offsetX, offsetY) * ShadowSampleParam_row0.zw + shadowUV;
 			sum += g_tCascadeShadowCmp.SampleCmpLevelZero(
 				g_sCascadeShadowCmp, float3(tapUV, slice), shadowZ);
 		}
@@ -5501,9 +5591,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 
 #	elif defined(FILTER_POISSON)
 
-	float kernelScale = cb2_idx20_shadow_sample_param.z * 3.0;
-	uint cascade = (uint)cb2_idx9_cascade_slice.y;
-	float4 cascadeScale = cb2_idx21_cascade_world_scale[cascade];
+	float kernelScale = ShadowSampleParam_row0.z * 3.0;
+	uint cascade = (uint)SplitDistances_row0.y;
+	float4 cascadeScale = ShadowWorldScale[cascade];
 	float rcpWorldRange = 1.0 / (cascadeScale.w - cascadeScale.z);
 	float zRef = shadowZ - 0.275 * rcpWorldRange;
 
@@ -5523,7 +5613,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #		error "unreachable: the filter guard above admits exactly PCF1, PCF9 or POISSON"
 #	endif
 
-			float distNorm = saturate(dot(posView, posView) / cb2_idx24_distance_fade.x);
+			float distNorm = saturate(dot(posView, posView) / ShadowFadeParam_row0.x);
 			float dist2 = distNorm * distNorm;
 			float dist4 = dist2 * dist2;
 			float fadeFactor = 1.0 - dist4 * dist4;
@@ -5541,7 +5631,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 #		endif
 #		if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			result *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
@@ -5558,7 +5648,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 #		endif
 
 #		if defined(WATER_EFFECTS) || defined(EXPONENTIAL_HEIGHT_FOG)
@@ -5588,7 +5678,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		ViewToWorld_row0,
 		ViewToWorld_row1,
 		ViewToWorld_row2,
-		CameraPosAdjust);
+		PosAdjust);
 #		endif
 #		if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 	splitShadow *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
@@ -5599,7 +5689,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		ViewToWorld_row0,
 		ViewToWorld_row1,
 		ViewToWorld_row2,
-		CameraPosAdjust);
+		PosAdjust);
 #		endif
 
 	float3 ambientSpecular;
@@ -5615,9 +5705,9 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		float fresnel = pow(1.0 - saturate(NdotV), 3.0 - material.x) * 0.25;
 
 		float3 ambientReflected;
-		ambientReflected.x = dot(cb2_ambient_row0, float4(reflected, 1.0));
-		ambientReflected.y = dot(cb2_ambient_row1, float4(reflected, 1.0));
-		ambientReflected.z = dot(cb2_ambient_row2, float4(reflected, 1.0));
+		ambientReflected.x = dot(DirectionalAmbient_row0, float4(reflected, 1.0));
+		ambientReflected.y = dot(DirectionalAmbient_row1, float4(reflected, 1.0));
+		ambientReflected.z = dot(DirectionalAmbient_row2, float4(reflected, 1.0));
 		ambientSpecular = FO4Ambient::Specular((fresnel * pow(ambientReflected, 2.2)) * material.y);
 	}
 
@@ -5706,51 +5796,51 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 		{
 			DEFERRED_PERFRAME_CB12_SHARED_BLOCK;
 
-			float4 cb12_idx28_hair_spec_params;
+			float4 HairSpecularScaleAndPower;
 
-			float4 cb12_idx29_hair_spec_shifts;
+			float4 HairSpecularShift;
 
 #	if defined(DIRECTIONAL) && defined(SPECULAR)
-			float4 cb12_idx30;
+			float4 WorldWetnessAndRainTransition;
 #	elif defined(DIRECTIONAL) && (defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS))
-	float4 cb12_idx30_terrain_pad;
+	float4 WorldWetnessAndRainTransition;
 #	endif
 
 #	if defined(DIRECTIONAL) && (defined(TERRAIN_SHADOWS) || defined(WATER_EFFECTS))
-			float4 cb12_pad_31_34[4];
-			float4 CameraPosAdjust;
+			row_major float4x4 PreviousWorldToClip;
+			float4 PosAdjust;
 #	endif
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
+			float4 VPOSOffset_row0;
 
 			float4 LightVector;
 
-			float4 LightColor_HDR;
+			float4 LightColor_row0;
 
 #	if defined(POINTOMNI)
 
 			float4 LightAttenuation;
 #	elif defined(AMBIENT)
 
-	float4 cb2_pad_3_5[3];
+	float4 LightColor_row1[3];
 
-	float4 cb2_ambient_gradient_row0;
-	float4 cb2_ambient_gradient_row1;
-	float4 cb2_ambient_gradient_row2;
+	float4 DirectionalAmbient_row0;
+	float4 DirectionalAmbient_row1;
+	float4 DirectionalAmbient_row2;
 #	endif
 #	if defined(OG)
 			// OG unshadowed scale follows the light-specific padding.
 #		if defined(POINTOMNI)
-			float4 cb2_pad_4_21[18];
+			float4 LightAttenuation_row1[18];
 #		elif defined(AMBIENT)
-		float4 cb2_pad_9_26[18];
+		float4 DirectionalAmbient_row3[18];
 #		else
-		float4 cb2_pad_3_26[24];
+		float4 LightColor_row1[24];
 #		endif
-			float4 cb2_og_screen_uv_scale;
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -5798,9 +5888,9 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 		{
 			float4 directionH = float4(direction, 1.0);
 			float3 encoded;
-			encoded.x = dot(cb2_ambient_gradient_row0, directionH);
-			encoded.y = dot(cb2_ambient_gradient_row1, directionH);
-			encoded.z = dot(cb2_ambient_gradient_row2, directionH);
+			encoded.x = dot(DirectionalAmbient_row0, directionH);
+			encoded.y = dot(DirectionalAmbient_row1, directionH);
+			encoded.z = dot(DirectionalAmbient_row2, directionH);
 			return exp2(log2(encoded) * 2.2);
 		}
 #	endif
@@ -5828,7 +5918,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 uv4 = FO4_LIGHT_UV4;
 #	else
-	float4 uv4 = input.position.xyxy * ScreenSize.xyzw;
+	float4 uv4 = input.position.xyxy * VPOSOffset_row0.xyzw;
 #	endif
 			float2 uv = uv4.xy;
 
@@ -5841,16 +5931,16 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			float4 reprojRow0, reprojRow1, reprojRow2, reprojRow3;
 			if (depth <= 0.01) {
 				linearizedDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			} else {
 				linearizedDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 			float2 uvFlipped = float2(uv4.z, 1.0 - uv4.w);
@@ -5944,7 +6034,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 #	endif
 
 #	ifdef FO4_UNSHADOWED_USES_GLOSS_FRESNEL
-			float oneMinusGloss = 1.0 - saturate(cb12_idx30.y);
+			float oneMinusGloss = 1.0 - saturate(WorldWetnessAndRainTransition.y);
 			float oneMinusGloss2 = oneMinusGloss * oneMinusGloss;
 			float oneMinusGloss4 = oneMinusGloss2 * oneMinusGloss2;
 			float schlickFres = 1.0 - oneMinusGloss * oneMinusGloss4;
@@ -5989,7 +6079,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 #	endif
 
 				float sinA1, cosA1;
-				sincos(cb12_idx29_hair_spec_shifts.y, sinA1, cosA1);
+				sincos(HairSpecularShift.y, sinA1, cosA1);
 				float rot1 = -skinNdotL * cosA1 - sinScaleL * sinA1;
 				float rot1Perp = sqrt(1.0 - rot1 * rot1);
 #	ifdef AMBIENT
@@ -5997,14 +6087,14 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 #	else
 		float vis1 = max(rot1 * skinNdotV + rot1Perp * sinScaleV, 0.0);
 #	endif
-				float pow1 = exp2(log2(vis1) * cb12_idx28_hair_spec_params.w);
+				float pow1 = exp2(log2(vis1) * HairSpecularScaleAndPower.w);
 				float hairIntensity =
-					saturate(cb12_idx28_hair_spec_params.z * pow1 + NdotL_pos);
+					saturate(HairSpecularScaleAndPower.z * pow1 + NdotL_pos);
 				brdfShadowMix = min(albedoAlpha, hairIntensity);
 
 #	ifdef SPECULAR
 				float sinA2, cosA2;
-				sincos(cb12_idx29_hair_spec_shifts.x, sinA2, cosA2);
+				sincos(HairSpecularShift.x, sinA2, cosA2);
 				float rot2 = -skinNdotL * cosA2 - sinScaleL * sinA2;
 				float rot2Perp = sqrt(1.0 - rot2 * rot2);
 #		if defined(FO4_UNSHADOWED_AMBIENT_IGNORE_ROUGHNESS) || defined(FO4_UNSHADOWED_AMBIENT_ROUGHNESS)
@@ -6012,13 +6102,13 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 #		else
 			float vis2 = max(rot2 * skinNdotV + rot2Perp * sinScaleV, 0.0);
 #		endif
-				float pow2 = exp2(log2(vis2) * cb12_idx28_hair_spec_params.y) * cb12_idx28_hair_spec_params.x;
+				float pow2 = exp2(log2(vis2) * HairSpecularScaleAndPower.y) * HairSpecularScaleAndPower.x;
 
 #		if defined(OG) && defined(POINTOMNI) && defined(IGNOREROUGHNESS)
 				// OG puts hair intensity first to preserve native specular operand order.
-				brdfSpecular = (pow2 * FO4LocalLightColor(LightColor_HDR.xyz)) * NdotL_clamped;
+				brdfSpecular = (pow2 * FO4LocalLightColor(LightColor_row0.xyz)) * NdotL_clamped;
 #		else
-			brdfSpecular = NdotL_clamped * (pow2 * FO4LocalLightColor(LightColor_HDR.xyz));
+			brdfSpecular = NdotL_clamped * (pow2 * FO4LocalLightColor(LightColor_row0.xyz));
 #		endif
 #	endif
 			}
@@ -6219,7 +6309,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 				specMag *= matSample.y;
 				specMag *= FO4_SPECULAR_SCALE;
 
-				brdfSpecular = (specMag * FO4LocalLightColor(LightColor_HDR.xyz)) * NdotL_clamped;
+				brdfSpecular = (specMag * FO4LocalLightColor(LightColor_row0.xyz)) * NdotL_clamped;
 #	endif
 
 #	if defined(DIRECTIONAL) && defined(AMBIENT) && !defined(FO4_UNSHADOWED_AMBIENT_ROUGHNESS)
@@ -6232,7 +6322,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			float NdotL_clamped = saturate(NdotL_raw);
 #	endif
 
-			float3 finalDiffuse = FO4LocalLightColor(LightColor_HDR.xyz) * brdfShadowMix;
+			float3 finalDiffuse = FO4LocalLightColor(LightColor_row0.xyz) * brdfShadowMix;
 			FO4_SOFT_LOBES_DECLARE(softDiffuse);
 
 #	if !defined(IGNOREROUGHNESS) && !defined(IGNORERIM)
@@ -6251,7 +6341,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 		float ambientTerm = fresEdge * ambientFres * NdotL_clamped * roughness01;
 #		endif
 
-			FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += FO4LocalLightColor(LightColor_HDR.xyz) * ambientTerm;
+			FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += FO4LocalLightColor(LightColor_row0.xyz) * ambientTerm;
 #	endif
 
 #	ifdef DIRECTIONAL
@@ -6269,9 +6359,9 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			backfaceWrap *= transmissionContactShadow;
 #		endif
 #		if defined(FO4_UNSHADOWED_AMBIENT_IGNORE_ROUGHNESS) || defined(FO4_UNSHADOWED_AMBIENT_ROUGHNESS)
-			FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += FO4LocalLightColor(LightColor_HDR.xyz) * (backfaceWrap * albedoPremult);
+			FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += FO4LocalLightColor(LightColor_row0.xyz) * (backfaceWrap * albedoPremult);
 #		else
-		FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += FO4LocalLightColor(LightColor_HDR.xyz) * (backfaceWrap * albedoPremult);
+		FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += FO4LocalLightColor(LightColor_row0.xyz) * (backfaceWrap * albedoPremult);
 #		endif
 
 #		if defined(FO4_UNSHADOWED_AMBIENT_IGNORE_ROUGHNESS) || defined(FO4_UNSHADOWED_AMBIENT_ROUGHNESS)
@@ -6285,7 +6375,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 #		ifdef SCREEN_SPACE_SHADOWS
 			forwardBlend *= transmissionContactShadow;
 #		endif
-			FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += (forwardBlend * FO4LocalLightColor(LightColor_HDR.xyz)) * albedoSample.xyz;
+			FO4_SOFT_LOBE(finalDiffuse, softDiffuse) += (forwardBlend * FO4LocalLightColor(LightColor_row0.xyz)) * albedoSample.xyz;
 #	endif
 
 #	if defined(DIRECTIONAL) && defined(EXPONENTIAL_HEIGHT_FOG)
@@ -6301,7 +6391,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 			finalDiffuse *= terrainShadowMult;
 			FO4_SOFT_LOBE_SCALE(softDiffuse, terrainShadowMult);
 			brdfSpecular *= terrainShadowMult;
@@ -6318,7 +6408,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 				ViewToWorld_row0,
 				ViewToWorld_row1,
 				ViewToWorld_row2,
-				CameraPosAdjust);
+				PosAdjust);
 			finalDiffuse *= causticsMult;
 			FO4_SOFT_LOBE_SCALE(softDiffuse, causticsMult);
 			brdfSpecular *= causticsMult;
@@ -6377,15 +6467,15 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
-			float4 cb2_pad_1_5[5];
+			float4 VPOSOffset_row0;
+			float4 VPOSOffset_row1[5];
 			float4 DirectionalAmbient_row0;
 			float4 DirectionalAmbient_row1;
 			float4 DirectionalAmbient_row2;
 #	if defined(OG)
 			// OG ambient sampling scale lives at cb2[22].
-			float4 cb2_pad_9_21[13];
-			float4 cb2_og_screen_uv_scale;
+			float4 DirectionalAmbient_row3[13];
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -6427,7 +6517,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 screen = FO4_LIGHT_UV4;
 #	else
-	float4 screen = input.position.xyxy * ScreenSize;
+	float4 screen = input.position.xyxy * VPOSOffset_row0;
 #	endif
 			float2 uv = screen.xy;
 			float gradientX = ddx(uv.x);
@@ -6443,16 +6533,16 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			float4 reprojRow3;
 			if (depth <= 0.01) {
 				linearDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			} else {
 				linearDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 			float2 ndc = float2(screen.z, 1.0 - screen.w) * 2.0 - 1.0;
@@ -6500,29 +6590,33 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 
 		cbuffer PerFrame_CB12 : register(b12)
 		{
-			float4 cb12_pad_0_19[20];
-			float4 FarReproj_row0;
-			float4 FarReproj_row1;
-			float4 FarReproj_row2;
-			float4 FarReproj_row3;
-			float4 NearReproj_row0;
-			float4 NearReproj_row1;
-			float4 NearReproj_row2;
-			float4 NearReproj_row3;
+			row_major float4x4 WorldToView;
+			row_major float4x4 ViewToClip;
+			row_major float4x4 WorldToClip;
+			row_major float4x4 ViewToWorld;
+			row_major float4x4 ClipToWorld;
+			float4 ClipToView_row0;
+			float4 ClipToView_row1;
+			float4 ClipToView_row2;
+			float4 ClipToView_row3;
+			float4 FirstPersonClipToView_row0;
+			float4 FirstPersonClipToView_row1;
+			float4 FirstPersonClipToView_row2;
+			float4 FirstPersonClipToView_row3;
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
-			float4 cb2_pad_1_5[5];
+			float4 VPOSOffset_row0;
+			float4 VPOSOffset_row1[5];
 			float4 DirectionalAmbient_row0;
 			float4 DirectionalAmbient_row1;
 			float4 DirectionalAmbient_row2;
-			float4 cb2_pad_9_20[12];
+			float4 DirectionalAmbient_row3[12];
 			float4 CharacterLightParams;
 #	if defined(OG)
 			// OG character-light sampling scale follows cb2[21].
-			float4 cb2_og_screen_uv_scale;
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -6553,7 +6647,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 screen = FO4_LIGHT_UV4;
 #	else
-	float4 screen = input.position.xyxy * ScreenSize;
+	float4 screen = input.position.xyxy * VPOSOffset_row0;
 #	endif
 			float2 uv = screen.xy;
 			float gradientX = ddx(uv.x);
@@ -6569,16 +6663,16 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			float4 reprojRow3;
 			if (depth <= 0.01) {
 				linearDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			} else {
 				linearDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 			float2 ndc = float2(screen.z, 1.0 - screen.w) * 2.0 - 1.0;
@@ -6626,29 +6720,33 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 
 		cbuffer PerFrame_CB12 : register(b12)
 		{
-			float4 cb12_pad_0_19[20];
-			float4 FarReproj_row0;
-			float4 FarReproj_row1;
-			float4 FarReproj_row2;
-			float4 FarReproj_row3;
-			float4 NearReproj_row0;
-			float4 NearReproj_row1;
-			float4 NearReproj_row2;
-			float4 NearReproj_row3;
+			row_major float4x4 WorldToView;
+			row_major float4x4 ViewToClip;
+			row_major float4x4 WorldToClip;
+			row_major float4x4 ViewToWorld;
+			row_major float4x4 ClipToWorld;
+			float4 ClipToView_row0;
+			float4 ClipToView_row1;
+			float4 ClipToView_row2;
+			float4 ClipToView_row3;
+			float4 FirstPersonClipToView_row0;
+			float4 FirstPersonClipToView_row1;
+			float4 FirstPersonClipToView_row2;
+			float4 FirstPersonClipToView_row3;
 		};
 
 		cbuffer PerCall_CB2 : register(b2)
 		{
-			float4 ScreenSize;
-			float4 cb2_pad_1_5[5];
+			float4 VPOSOffset_row0;
+			float4 VPOSOffset_row1[5];
 			float4 DirectionalAmbient_row0;
 			float4 DirectionalAmbient_row1;
 			float4 DirectionalAmbient_row2;
-			float4 cb2_pad_9_25[17];
+			float4 DirectionalAmbient_row3[17];
 			float4 CharacterLightParams;
 #	if defined(OG)
 			// OG character-light sampling scale follows cb2[21].
-			float4 cb2_og_screen_uv_scale;
+			float4 DynamicResolutionParam;
 #	endif
 		};
 
@@ -6679,7 +6777,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			// OG samples scaled pixels but reconstructs clip coordinates from unscaled pixels.
 			float4 screen = FO4_LIGHT_UV4;
 #	else
-	float4 screen = input.position.xyxy * ScreenSize;
+	float4 screen = input.position.xyxy * VPOSOffset_row0;
 #	endif
 			float2 uv = screen.xy;
 			float gradientX = ddx(uv.x);
@@ -6695,16 +6793,16 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 			float4 reprojRow3;
 			if (depth <= 0.01) {
 				linearDepth = depth * 100.0;
-				reprojRow0 = NearReproj_row0;
-				reprojRow1 = NearReproj_row1;
-				reprojRow2 = NearReproj_row2;
-				reprojRow3 = NearReproj_row3;
+				reprojRow0 = FirstPersonClipToView_row0;
+				reprojRow1 = FirstPersonClipToView_row1;
+				reprojRow2 = FirstPersonClipToView_row2;
+				reprojRow3 = FirstPersonClipToView_row3;
 			} else {
 				linearDepth = depth * 1.01 - 0.01;
-				reprojRow0 = FarReproj_row0;
-				reprojRow1 = FarReproj_row1;
-				reprojRow2 = FarReproj_row2;
-				reprojRow3 = FarReproj_row3;
+				reprojRow0 = ClipToView_row0;
+				reprojRow1 = ClipToView_row1;
+				reprojRow2 = ClipToView_row2;
+				reprojRow3 = ClipToView_row3;
 			}
 
 			float2 ndc = float2(screen.z, 1.0 - screen.w) * 2.0 - 1.0;
@@ -6796,14 +6894,14 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 
 		cbuffer PerGeometry : register(b2)
 		{
-			row_major float4x4 transform;
+			row_major float4x4 WorldViewProj;
 		};
 
 		VSOutput main(VSInput input)
 		{
 			VSOutput output;
 			float4 position = float4(input.position.xyz, 1.0);
-			output.position = mul(transform, position);
+			output.position = mul(WorldViewProj, position);
 			output.position.z = min(output.position.z, output.position.w);
 #	if !defined(OG)
 			// OG omits POSITION14 because only the modern interface carries it.

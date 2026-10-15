@@ -1,25 +1,24 @@
 # Inverse Square Lighting
 
 Enable `[features.InverseSquareLighting] load = true` and the `BSDFLight` and
-`DFTiledLighting` shader ownership targets, then restart. There are no global
-strength, source-size or interior/exterior settings in upstream ISL.
+`DFTiledLighting` shader ownership targets, then restart.
 
 Place authoring files in `Data\F4SE\Plugins\FO4CommunityShaders\Lights\*.toml`.
-The FO4 format replaces Skyrim's occupied LIGH extension bits and repurposed
-spot fields; see [DEVIATIONS](../../docs/deviations/InverseSquareLighting.md).
-Neither native form flags nor native attenuation coefficients are changed.
+The FO4 format replaces Skyrim's LIGH extension bits and repurposed spot fields;
+see [deviations](../../docs/deviations/InverseSquareLighting.md).
+Native form flags and attenuation coefficients are not changed.
 Explicit opt-outs retain native attenuation and color.
 
 `[features.InverseSquareLighting.settings] derive_unauthored_lights` (default
 `true`, applies at next launch) converts every light with no TOML entry from
-its native falloff when it is created; `false` leaves unlisted lights native,
-as upstream. A matching TOML entry, base form or reference, is authoritative:
-only its fields apply, omitted fields take upstream defaults with intensity scale 1,
+its native falloff when it is created; `false` leaves unlisted lights native.
+A matching TOML entry, base form or reference, is authoritative:
+only its fields apply, omitted fields take defaults with intensity scale 1,
 and derived values are never merged with it.
 Derivation fills only `inverse_square`, `size` and an intensity scale
-(equivalent to retuning LIGH fade). `size` makes ISL's half-intensity distance
-match the native curve's (clamped to 0.01 to just below 50, the √2 sentinel).
-The scale then matches the d²-weighted energy of the native curve out to its
+(equivalent to retuning LIGH fade). `size` makes the half-intensity distance
+match the native curve's (clamped to 0.01 to just below 50, the sqrt(2) sentinel).
+The scale then matches the d^2-weighted energy of the native curve out to its
 radius with that size. Derived lights keep the native radius. Lights stay native
 when DATA flag 0x4 negates color, the radial scalar is 0, native energy is not
 positive, or the radius is at most 0.1.
@@ -46,25 +45,13 @@ Reference fields override their base form and inherit omitted fields.
 Invalid types, unknown fields and nonfinite numbers reject the document.
 Missing or wrong-type forms are logged and ignored. Changes require restart.
 
-| Field | Default | Upstream interpretation |
+| Field | Default | Meaning |
 |---|---|---|
 | `inverse_square` | `false` | Opts this light into ISL |
-| `linear` | `false` | Upstream per-light linear-color flag |
-| `cutoff` | `1.0` | Clamped to 0.01–1; exactly 1 selects 0.05 for nonshadow lights or 0.022 for shadow lights |
-| `size` | √2 | Source size in meters; values ≥50 select √2, then clamp to 0.01–50 |
+| `linear` | `false` | Per-light linear-color flag |
+| `cutoff` | `1.0` | Clamped to 0.01-1; exactly 1 selects 0.05 for nonshadow lights or 0.022 for shadow lights |
+| `size` | sqrt(2) | Source size in meters; values >= 50 select sqrt(2), then clamp to 0.01-50 |
 
-Intensity is the native animated dimmer times 4, times the derived scale. Radius and the 252-unit
-fade zone follow upstream. Render publication includes native `currentFade`;
-gameplay luminance intentionally does not. Spot cones, cookies, shadow tests,
-hemisphere/box masks and native gameplay exclusions remain independent.
-
-The native tiled list stays authoritative: t8 metadata follows the same dense
-accepted-append index and buffer side as t6. Raster local draws receive b11
-metadata. Native radii are restored when lights are removed or the feature is
-quarantined. Enlarged-radius tile culling guards all 10–25 group dimensions
-against writing beyond 127 indices; the native count and lighting clamp remain.
-
-Upstream's balanced intensity/cutoff/size case produces zero radius, leading to
-infinite reciprocal radius/fade-zone inputs. It is retained for parity and
-recorded as an upstream PR candidate, not silently corrected.
-
+Intensity is the native animated dimmer times 4, times the derived scale.
+Spot cones, cookies, shadow tests, hemisphere/box masks and native gameplay
+exclusions remain independent.

@@ -97,25 +97,6 @@ namespace cs::util
 			return ShaderKind::kUnsupported;
 		}
 
-		bool TryGetCacheStage(
-			ShaderKind a_kind,
-			shader_cache::ShaderCacheStage& a_stage) noexcept
-		{
-			switch (a_kind) {
-			case ShaderKind::kPixel:
-				a_stage = shader_cache::ShaderCacheStage::kPixel;
-				return true;
-			case ShaderKind::kVertex:
-				a_stage = shader_cache::ShaderCacheStage::kVertex;
-				return true;
-			case ShaderKind::kCompute:
-				a_stage = shader_cache::ShaderCacheStage::kCompute;
-				return true;
-			default:
-				return false;
-			}
-		}
-
 		HRESULT CreateShaderChild(
 			ID3D11Device& a_device,
 			ShaderKind a_kind,
@@ -174,26 +155,6 @@ namespace cs::util
 				break;
 			}
 			return SUCCEEDED(result) && !a_shader ? E_FAIL : result;
-		}
-
-		shader_cache::ShaderRecipe BuildShaderRecipe(
-			const wchar_t* a_filePath,
-			const std::vector<std::pair<const char*, const char*>>& a_defines,
-			const char* a_programType,
-			const char* a_program,
-			shader_cache::ShaderCacheStage a_stage)
-		{
-			shader_cache::ShaderRecipe recipe;
-			recipe.source = a_filePath;
-			recipe.includeRoots.push_back(kDefaultShaderRoot);
-			recipe.defines.reserve(a_defines.size());
-			for (const auto& [name, value] : a_defines)
-				recipe.defines.emplace_back(name, value);
-			AppendStandardShaderDefines(recipe.defines, a_programType);
-			recipe.entryPoint = a_program;
-			recipe.profile = a_programType;
-			recipe.stage = a_stage;
-			return recipe;
 		}
 
 		void LogCompileFailure(
@@ -302,14 +263,11 @@ namespace cs::util
 			return nullptr;
 		};
 
-		shader_cache::ShaderCacheStage cacheStage{};
-		if (TryGetCacheStage(kind, cacheStage)) {
-			const auto recipe =
-				BuildShaderRecipe(a_filePath, a_defines, a_programType, a_program, cacheStage);
+		if (const auto recipe = BuildUtilityShaderRecipe(a_filePath, a_defines, a_programType, a_program)) {
 			shader_cache::ShaderCacheOptions options;
 			options.revalidation = g_activeRevalidation;
 			auto outcome =
-				shader_cache::LoadOrCompileShader(recipe, options);
+				shader_cache::LoadOrCompileShader(*recipe, options);
 			if (!outcome.succeeded)
 				return fail(outcome.error);
 
@@ -323,7 +281,7 @@ namespace cs::util
 			if ((FAILED(createResult) || !shader) && outcome.origin == shader_cache::CompileOrigin::kCacheHit) {
 				L->warn("Cached shader bytecode rejected by the device; recompiling {}", narrow);
 				outcome = shader_cache::LoadOrCompileShader(
-					recipe,
+					*recipe,
 					options,
 					shader_cache::CacheMode::kRecompile);
 				if (!outcome.succeeded)

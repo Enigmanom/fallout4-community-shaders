@@ -782,7 +782,7 @@ namespace cs::features
 		_grid.cellID = cellID;
 
 		// FO4: model space is world minus the camera position adjustment, not the eye.
-		const auto& anchor = camera->CameraPosAdjust;
+		const auto& anchor = camera->PosAdjust;
 		const auto arrayOrigin = [&](float a_cell, std::size_t a_axis) {
 			return (static_cast<std::uint32_t>(static_cast<int>(a_cell)) - kProbeArrayDims[a_axis] / 2) % kProbeArrayDims[a_axis];
 		};

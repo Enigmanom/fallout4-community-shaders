@@ -16,7 +16,7 @@ namespace cs::engine
 		DirectX::XMFLOAT4X4 ProjectionUnjittered{}, ProjectionInverse{}, ProjectionUnjitteredInverse{};
 		DirectX::XMFLOAT4X4 ViewInverse{}, ViewProjectionInverse{};
 		DirectX::XMFLOAT4 ViewToWorld[3]{};
-		DirectX::XMFLOAT4 CameraPosAdjust{}, CameraPreviousPosAdjust{};
+		DirectX::XMFLOAT4 PosAdjust{}, PreviousPosAdjust{};
 		std::uint32_t frameCount = 0;
 	};
 
@@ -24,28 +24,32 @@ namespace cs::engine
 	inline constexpr std::size_t kFrameBufferRegisters = 47;
 	inline constexpr float kMinimumWorldCameraOriginMagnitude = 1.0f;
 
-	// Field names and padding mirror package/Shaders/Common/DeferredContracts.hlsli and
-	// DFPrepass.hlsl one-for-one, so the layout can be audited against the HLSL by eye.
+	// Field names mirror the b12 members in package/Shaders/Common/DeferredContracts.hlsli and
+	// DFPrepass.hlsl, so the layout can be audited against the HLSL by eye.
 	// The trailing comment on each member is its b12 float4 register index.
 	struct alignas(16) FrameBuffer
 	{
-		DirectX::XMFLOAT4 cb12_pad_0_11[12];                    // 0-11
-		DirectX::XMFLOAT4 ViewToWorld[3];                       // 12-14
-		DirectX::XMFLOAT4 cb12_pad_15_19[5];                    // 15-19
-		DirectX::XMFLOAT4 FarReproj[4];                         // 20-23
-		DirectX::XMFLOAT4 NearReproj[4];                        // 24-27
-		DirectX::XMFLOAT4 cb12_pad_28_29[2];                    // 28-29
-		DirectX::XMFLOAT4 IblDesaturation;                      // 30
-		DirectX::XMFLOAT4 PreviousViewProjectionUnjittered[4];  // 31-34
-		DirectX::XMFLOAT4 CameraPosAdjust;                      // 35
-		DirectX::XMFLOAT4 CameraPreviousPosAdjust;              // 36
-		DirectX::XMFLOAT4 ViewProjectionUnjittered[4];          // 37-40
-		DirectX::XMFLOAT4 FogDistanceRamp;                      // 41
-		DirectX::XMFLOAT4 FogNearLowColorAndPower;              // 42
-		DirectX::XMFLOAT4 FogNearHighColorAndClamp;             // 43
-		DirectX::XMFLOAT4 FogFarLowColorAndDensity;             // 44
-		DirectX::XMFLOAT4 FogFarHighColor;                      // 45
-		DirectX::XMFLOAT4 FogHeightRamp;                        // 46
+		DirectX::XMFLOAT4 WorldToView[4];                 // 0-3
+		DirectX::XMFLOAT4 ViewToClip[4];                  // 4-7
+		DirectX::XMFLOAT4 WorldToClip[4];                 // 8-11
+		DirectX::XMFLOAT4 ViewToWorld[3];                 // 12-14
+		DirectX::XMFLOAT4 ViewToWorld_row3;               // 15
+		DirectX::XMFLOAT4 ClipToWorld[4];                 // 16-19
+		DirectX::XMFLOAT4 ClipToView[4];                  // 20-23
+		DirectX::XMFLOAT4 FirstPersonClipToView[4];       // 24-27
+		DirectX::XMFLOAT4 HairSpecularScaleAndPower;      // 28
+		DirectX::XMFLOAT4 HairSpecularShift;              // 29
+		DirectX::XMFLOAT4 WorldWetnessAndRainTransition;  // 30
+		DirectX::XMFLOAT4 PreviousWorldToClip[4];         // 31-34
+		DirectX::XMFLOAT4 PosAdjust;                      // 35
+		DirectX::XMFLOAT4 PreviousPosAdjust;              // 36
+		DirectX::XMFLOAT4 UnjitteredWorldToClip[4];       // 37-40
+		DirectX::XMFLOAT4 FogDistanceAndLowHeightRamps;   // 41
+		DirectX::XMFLOAT4 FogColor0;                      // 42
+		DirectX::XMFLOAT4 FogColor1;                      // 43
+		DirectX::XMFLOAT4 FogColor2;                      // 44
+		DirectX::XMFLOAT4 FogColor3;                      // 45
+		DirectX::XMFLOAT4 FogHeightRamps;                 // 46
 	};
 
 	inline constexpr std::size_t kFrameBufferRegisterSize = sizeof(DirectX::XMFLOAT4);
@@ -53,24 +57,24 @@ namespace cs::engine
 	static_assert(sizeof(FrameBuffer) == kFrameBufferRegisters * kFrameBufferRegisterSize);
 	static_assert(sizeof(FrameBuffer) == 752);
 	static_assert(offsetof(FrameBuffer, ViewToWorld) == 12 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, FarReproj) == 20 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, NearReproj) == 24 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, IblDesaturation) == 30 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, PreviousViewProjectionUnjittered) == 31 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, CameraPosAdjust) == 35 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, CameraPreviousPosAdjust) == 36 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, ViewProjectionUnjittered) == 37 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, FogDistanceRamp) == 41 * kFrameBufferRegisterSize);
-	static_assert(offsetof(FrameBuffer, FogHeightRamp) == 46 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, ClipToView) == 20 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, FirstPersonClipToView) == 24 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, WorldWetnessAndRainTransition) == 30 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, PreviousWorldToClip) == 31 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, PosAdjust) == 35 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, PreviousPosAdjust) == 36 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, UnjitteredWorldToClip) == 37 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, FogDistanceAndLowHeightRamps) == 41 * kFrameBufferRegisterSize);
+	static_assert(offsetof(FrameBuffer, FogHeightRamps) == 46 * kFrameBufferRegisterSize);
 
 	template <class Camera>
 	[[nodiscard]] inline DirectX::XMFLOAT3 CameraWorldOrigin(
 		const Camera& a_frameBuffer) noexcept
 	{
 		return {
-			a_frameBuffer.ViewToWorld[0].w + a_frameBuffer.CameraPosAdjust.x,
-			a_frameBuffer.ViewToWorld[1].w + a_frameBuffer.CameraPosAdjust.y,
-			a_frameBuffer.ViewToWorld[2].w + a_frameBuffer.CameraPosAdjust.z
+			a_frameBuffer.ViewToWorld[0].w + a_frameBuffer.PosAdjust.x,
+			a_frameBuffer.ViewToWorld[1].w + a_frameBuffer.PosAdjust.y,
+			a_frameBuffer.ViewToWorld[2].w + a_frameBuffer.PosAdjust.z
 		};
 	}
 
@@ -79,9 +83,9 @@ namespace cs::engine
 		const Camera& a_frameBuffer) noexcept
 	{
 		return {
-			a_frameBuffer.CameraPreviousPosAdjust.x,
-			a_frameBuffer.CameraPreviousPosAdjust.y,
-			a_frameBuffer.CameraPreviousPosAdjust.z
+			a_frameBuffer.PreviousPosAdjust.x,
+			a_frameBuffer.PreviousPosAdjust.y,
+			a_frameBuffer.PreviousPosAdjust.z
 		};
 	}
 
@@ -209,17 +213,17 @@ namespace cs::engine
 				return false;
 			}
 		}
-		return std::isfinite(a_frameBuffer.CameraPosAdjust.x) && std::isfinite(a_frameBuffer.CameraPosAdjust.y) && std::isfinite(a_frameBuffer.CameraPosAdjust.z);
+		return std::isfinite(a_frameBuffer.PosAdjust.x) && std::isfinite(a_frameBuffer.PosAdjust.y) && std::isfinite(a_frameBuffer.PosAdjust.z);
 	}
 
 	[[nodiscard]] inline bool HasFiniteWorldToClip(const FrameBuffer& a_frameBuffer) noexcept
 	{
-		for (const auto& row : a_frameBuffer.ViewProjectionUnjittered) {
+		for (const auto& row : a_frameBuffer.UnjitteredWorldToClip) {
 			if (!std::isfinite(row.x) || !std::isfinite(row.y) || !std::isfinite(row.z) || !std::isfinite(row.w)) {
 				return false;
 			}
 		}
-		return IsPerspectiveProjection(a_frameBuffer.ViewProjectionUnjittered[3]);
+		return IsPerspectiveProjection(a_frameBuffer.UnjitteredWorldToClip[3]);
 	}
 
 	[[nodiscard]] inline bool HasUsableWorldCamera(const FrameBuffer& a_frameBuffer) noexcept

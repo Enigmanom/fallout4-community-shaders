@@ -130,14 +130,10 @@ namespace cs::features
 		void DrawDelta(float a_baseline, float a_test)
 		{
 			const float delta = a_test - a_baseline;
-			float percent{};
-			if (a_baseline < a_test && a_baseline > 0.0f)
-				percent = 100.0f * (a_test - a_baseline) / a_baseline;
-			else if (a_test < a_baseline && a_test > 0.0f)
-				percent = 100.0f * (a_baseline - a_test) / a_test;
+			const float percent = a_baseline > 0.0f ? 100.0f * delta / a_baseline : 0.0f;
 			auto text = (delta > 0.0f ? "+" : "") + Milliseconds(delta);
-			if (percent >= performance_overlay::Settings::kPercentDisplayThreshold)
-				text += std::format(" (+{:.1f}%)", a_test < a_baseline ? -percent : percent);
+			if (std::abs(percent) >= performance_overlay::Settings::kPercentDisplayThreshold)
+				text += std::format(" ({:+.1f}%)", percent);
 			(void)dmui::DrawStyledText(host::HostClient::Get().Client(), text,
 				{ .tone = ComparisonTone(a_test, a_baseline) });
 		}

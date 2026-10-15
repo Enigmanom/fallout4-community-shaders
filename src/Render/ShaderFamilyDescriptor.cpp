@@ -521,7 +521,6 @@ namespace cs::engine
 			switch (family) {
 			case Family::kCubeIbl:
 				if ((d & 0x60U) == 0x20U) {
-					Define(a_defines, "COMPOSITE_CB12_COUNT", "31");
 					Define(a_defines, "COMPOSITE_FOG_STACK", "0");
 					Define(a_defines, "COMPOSITE_MATERIAL_EXCLUSION", "0");
 				}

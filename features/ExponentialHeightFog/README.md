@@ -1,13 +1,8 @@
 # Exponential Height Fog
 
-Uses the unchanged analytic and four-pass volumetric shaders from the shared pin (upstream
-`dc75702c7`), including the second fog layer, volumetric noise and the near/far volume split.
-This replaces the native-ramp extinction approximation.
-
 Set `load = true`, configure the relevant native shader ownership and restart.
-The framework `enabled` key beside `load` (default `false`) toggles the effect live; `volumetricFogEnabled` selects the volume pipeline.
-Generated defaults contain the upstream settings and ranges. RGBA colors use four-element
-TOML arrays. The Fog Factor debug view and telemetry remain available.
+The framework `enabled` key beside `load` (default `false`) toggles the effect live;
+`volumetricFogEnabled` selects the volume pipeline. RGBA colors use four-element TOML arrays.
 
 ## Weather profiles
 
@@ -25,17 +20,7 @@ volumetricFogEnabled = 1
 
 Restart after editing profiles. Omitted variables fall back to user settings.
 Float and RGBA values interpolate through FO4's weather transition; integer toggles
-switch above 0.5. Profiles accept only the upstream 30 weather variables, not grid/history
-controls. Fog density is independently authored; native near/far ramps are not fitted
-into an extinction model.
+switch above 0.5. Profiles accept only the 30 weather variables, not grid/history
+controls. Fog density is authored independently of the native near/far ramps.
 
-## Current limits
-
-Directional shadow scattering, analytic cubemap inscattering, CloudShadows and
-clustered local-light providers are pending. Terrain shadow scattering uses the existing
-validated heightfield when available, and sky-light scattering uses the Skylighting probe
-array and the Image Based Lighting spherical harmonics when those features are healthy.
-Native fog color is supplied by the reconstructed shader equations. The native weather uploader,
-fade brightness, sky-color mappings, map/reflection coverage and native godray coexistence are
-pending; see `docs\deviations\ExponentialHeightFog.md`.
-
+Unported upstream functionality is listed in `docs\deviations\ExponentialHeightFog.md`.
