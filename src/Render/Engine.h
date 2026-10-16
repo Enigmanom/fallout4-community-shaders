@@ -230,7 +230,9 @@ namespace cs::engine
 	}
 
 	// SAO_CS is the only rendered vanilla AO; the composite applies it while `applied` is set,
-	// whatever IsActive reports. Same layout on OG/NG/AE (sizeof 0x122).
+	// whatever IsActive reports. With `applied` clear it still runs its first five passes, which
+	// build the SSLR depth pyramid (logical 40); clearing `active` stops them. Same layout on
+	// OG/NG/AE (sizeof 0x122).
 	struct ScalableAOComputeState
 	{
 		bool* active;      // +0x08

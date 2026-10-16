@@ -160,7 +160,8 @@ namespace cs::features
 		const bool vanilla = !IsEnabled() || _settings.enableVanillaSSAO;
 		const bool applied = vanilla && *_vanillaSSAOSnapshot;
 		*state->applied = applied;
-		*state->active = vanilla && (*state->base || applied);
+		// Stays active: with applied clear, SAO_CS still builds the SSLR depth pyramid.
+		*state->active = *state->base || applied;
 		_vanillaSSAOApplied = applied;
 	}
 
