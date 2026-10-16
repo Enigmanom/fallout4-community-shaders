@@ -47,6 +47,14 @@ bool OutsideView(float3 ray)
 	       rcp(ray.z) >= TargetSizeNearFar.w;
 }
 
+#	ifdef DYNAMIC_CUBEMAPS
+// FO4: level k is targetSize >> (k - 1); scaling the level 4 count drifts at odd render sizes.
+float2 HiZCellCount(float2 targetSize, float level)
+{
+	return float2(uint2(targetSize) >> (uint)max(level - 1.0, 0.0));
+}
+#	endif
+
 float4 main(PS_INPUT input) : SV_Target0
 {
 #	ifdef DYNAMIC_CUBEMAPS
@@ -74,7 +82,11 @@ float4 main(PS_INPUT input) : SV_Target0
 			float3(input.TexCoord, rcp(surfaceDepth)) - origin;
 		float2 start = direction.xy * dither * 0.002 + input.TexCoord;
 		float level = 4.0;
+#	ifdef DYNAMIC_CUBEMAPS
+		float2 cellCount = HiZCellCount(targetSize, level);
+#	else
 		float2 cellCount = floor(targetSize * 0.125);
+#	endif
 		float2 cell = floor(start * cellCount);
 		float2 crossStep = step(0.0, direction.xy);
 		float2 crossSign = crossStep * 2.0 - 1.0;
@@ -104,7 +116,11 @@ float4 main(PS_INPUT input) : SV_Target0
 					level -= 1.0;
 					cell = cell * 2.0 +
 					       ((ray.xy - (cell + 0.5) * rcp(cellCount)) >= 0.0 ? 1.0 : 0.0);
+#	ifdef DYNAMIC_CUBEMAPS
+					cellCount = HiZCellCount(targetSize, level);
+#	else
 					cellCount *= 2.0;
+#	endif
 				}
 				else
 				{
@@ -125,14 +141,23 @@ float4 main(PS_INPUT input) : SV_Target0
 											   rcp(direction.z)) *
 							                   direction;
 							level -= 1.0;
+#	ifdef DYNAMIC_CUBEMAPS
+							cellCount = HiZCellCount(targetSize, level);
+#	else
 							cellCount *= 2.0;
+#	endif
 							cell = floor(ray.xy * cellCount);
 						}
 						else if (level != 4.0)
 						{
 							bool2 forward = stepDir >= 0.0;
+#	ifdef DYNAMIC_CUBEMAPS
+							level += 1.0;
+							cellCount = HiZCellCount(targetSize, level);
+#	else
 							cellCount = floor(cellCount * 0.5);
 							level += 1.0;
+#	endif
 							cell = cell * 0.5 + (forward ? 0.0 : -0.5);
 						}
 					}
