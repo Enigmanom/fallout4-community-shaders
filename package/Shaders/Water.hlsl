@@ -208,8 +208,6 @@ VS_OUTPUT main(VS_INPUT input)
 #		endif
 #		include "FO4/DynamicCubemaps/DynamicCubemaps.hlsli"
 SamplerState sampler3 : register(s3);
-// FO4: the host-rendered engine reflection cube, upstream's CubeMapTex.
-TextureCube<float3> CubeMapTex : register(t32);
 #	endif
 #	if defined(SKYLIGHTING) && defined(DYNAMIC_CUBEMAPS)
 #		define SKYLIGHTING_PROBE_REGISTER t50
@@ -441,20 +439,17 @@ float3 surfaceColor(
 	float slope,
 	float2 screenUv,
 	float3 reflectionDirection,
-	float cameraDistance,
 	float skylightingSpecular)
 {
 	float3 color = lerp(perMaterial[3].xyz, perMaterial[4].xyz, saturate(slope + 0.75));
 	color = lerp(color, perMaterial[5].xyz, saturate(slope * 1.9 + 0.35));
 #	if defined(REFLECTIONS)
 #		ifdef DYNAMIC_CUBEMAPS
-	if (FO4SharedData::EnabledDynamicCubemaps != 0) {
-		// FO4: without a fresh engine cube the sky gradient stays the reflection.
-		uint cubeWidth, cubeHeight;
-		CubeMapTex.GetDimensions(cubeWidth, cubeHeight);
-		if (cubeWidth != 0)
-			color = CubeMapTex.SampleLevel(sampler3, reflectionDirection, 0).xyz;
-
+	uint cubeWidth, cubeHeight, envWidth, envHeight;
+	DynamicCubemaps::EnvReflectionsTexture.GetDimensions(cubeWidth, cubeHeight);
+	DynamicCubemaps::EnvTexture.GetDimensions(envWidth, envHeight);
+	// FO4 translation: the engine cube has no LOD scenery, so the dynamic cube serves every distance.
+	if (FO4SharedData::EnabledDynamicCubemaps != 0 && cubeWidth != 0 && envWidth != 0) {
 		float3 dynamicCubemap;
 		if (SharedData::InInterior) {
 			dynamicCubemap = DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz;
@@ -470,17 +465,10 @@ float3 surfaceColor(
 			dynamicCubemap = Color::IrradianceToGamma(lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular));
 		}
 
-		float reflectionAmount = saturate(cameraDistance / 1024.0);
-
-		if (SharedData::HideSky)
-			reflectionAmount = 0.0;
-
 		float3 debugColor;
-		if (DynamicCubemaps::TryGetDebugEnvironment(reflectionDirection, sampler3, debugColor)) {
+		if (DynamicCubemaps::TryGetDebugEnvironment(reflectionDirection, sampler3, debugColor))
 			dynamicCubemap = debugColor;
-			reflectionAmount = 0.0;
-		}
-		color = lerp(dynamicCubemap, color, reflectionAmount);
+		color = dynamicCubemap;
 	}
 #		endif
 #		ifdef SSLR
@@ -594,7 +582,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 eyeDirection = normalize(input.eyeVector.xyz);
 	float3 reflectionDirection = reflect(eyeDirection, normal);
 	float slope = reflectionDirection.z;
-	float3 color = lerp(perMaterial[2].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, input.eyeVector.w, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), perMaterial[2].w) + lighting;
+	float3 color = lerp(perMaterial[2].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), perMaterial[2].w) + lighting;
 	float fogAlpha;
 	float3 fog = atmosphere(input.eyeToPosition, fogAlpha);
 	fog = lerp(fog, WATER_PER_GEOMETRY(3).xyz, sunGlare);
@@ -667,7 +655,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 reflectionDirection = reflect(eyeDirection, normal);
 	float slope = reflectionDirection.z;
 	float grazing = 1.0 - saturate(dot(-eyeDirection, -normal));
-	float3 water = lerp(perMaterial[0].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, input.eyeVector.w, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), 0.5);
+	float3 water = lerp(perMaterial[0].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), 0.5);
 	return float4(lerp(water, refraction, 1.0 - fresnelTerm(grazing)), 0.0);
 }
 
@@ -886,7 +874,6 @@ float4 main(PS_INPUT input) : SV_Target0
 		slope,
 		screenUv,
 		reflectionDirection,
-		input.eyeVector.w,
 		skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection));
 	float3 tinted = lerp(perMaterial[2].xyz, water, perMaterial[2].w);
 
@@ -919,7 +906,13 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 lighting = specular * perMaterial[1].w + ambient;
 #		endif
 
-	float3 color = lerp(refraction, water, fresnel * perMaterial[8].y);
+	float reflectionWeight = fresnel * perMaterial[8].y;
+#		if defined(REFLECTIONS) && defined(DYNAMIC_CUBEMAPS)
+	// FO4 translation: upstream weights reflections by fresnel alone, not the material amount.
+	if (FO4SharedData::EnabledDynamicCubemaps != 0)
+		reflectionWeight = fresnel;
+#		endif
+	float3 color = lerp(refraction, water, reflectionWeight);
 	color = lerp(tinted, color, WaterDistanceBlendFactor(fade));
 #		ifndef INTERIOR
 	color = color + lighting;

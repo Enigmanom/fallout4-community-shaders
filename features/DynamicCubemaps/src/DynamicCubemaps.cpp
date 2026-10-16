@@ -758,8 +758,7 @@ namespace cs::features
 					nullptr,
 				_cubemapValid[0].load(std::memory_order_acquire) ?
 					_environmentBC6H.srv.get() :
-					nullptr,
-				cs::engine::GetSkyReflectionCubeSRV()
+					nullptr
 			};
 			if (_debugVisualization.load(std::memory_order_acquire) ==
 				DebugVisualization::kEngineCube) {
