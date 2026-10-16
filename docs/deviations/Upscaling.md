@@ -4,7 +4,7 @@ Upscaling, FrameGeneration and MotionVectorFixes are maintained in-house, not as
 
 | Kind | Upstream | FO4 | Why |
 |---|---|---|---|
-| Forced | FrameBuffer-adjusted samples in `ISReflectionsRayTracing` | Unadjusted b4 clamp; the SSLR chain (prepass, raytracing, blur H/V) runs in one full-proxy pass at render resolution and is copied back for water and composite | FO4 has no previous-frame reflection sample, and under dynamic resolution the stock quad made reflections slide with camera rotation |
+| Forced | FrameBuffer-adjusted samples in `ISReflectionsRayTracing` | Unadjusted b4 clamp; the SSLR chain (prepass, raytracing, blur H/V) runs in one full-proxy pass at render resolution and is copied back for water and composite; the SSLR pass swaps in the static unit-UV fullscreen triangle | FO4 has no previous-frame reflection sample, and under dynamic resolution the baked dynamic triangle spans [0, ratio] of the proxy, which slid and dropped reflections |
 | Forced | Single non-inverted perspective depth | Depth partitioned between first-person and world projections | See [README](README.md) |
 | Pending | World-projection SDK depth (SR and FG) | Native partitioned depth is copied into typed R32_FLOAT, padded with sky=1; canonical t17 is not consumed | Typed storage does not reconcile projection partitions |
 | Forced | Depth/refraction resolve writes SAOCameraZ MRT1 | Writes RefractionNormals and SV_Depth without SAOCameraZ | FO4 has no SAOCameraZ attachment |

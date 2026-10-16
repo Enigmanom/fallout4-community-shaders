@@ -496,7 +496,7 @@ namespace cs::features
 				   renderTargetManager->GetDynamicHeightRatio() != 1.0f);
 	}
 
-	bool DynamicResolution::BeginProxyPass(std::initializer_list<RenderTarget> a_toProxy)
+	bool DynamicResolution::BeginProxyPass(std::initializer_list<RenderTarget> a_toProxy, ProxyTriangle a_triangle)
 	{
 		if (!ProxyPassAvailable()) {
 			return false;
@@ -509,6 +509,9 @@ namespace cs::features
 		OverrideRenderTargets(a_toProxy);
 		OverrideDepth(true);
 		cs::engine::SetDynamicResolution(1.0f, 1.0f, false);
+		if (a_triangle == ProxyTriangle::kUnit) {
+			_triangleSwap.Apply();
+		}
 		return true;
 	}
 
@@ -518,6 +521,7 @@ namespace cs::features
 			return;
 		}
 		_proxyPass = false;
+		_triangleSwap.Restore();
 		ResetRenderTargets(a_fromProxy);
 		ResetDepth();
 		if (_hasProxies) {
@@ -633,6 +637,7 @@ namespace cs::features
 		auto* renderTargetManager = cs::engine::GetRenderTargetManager();
 
 		// Unwind an in-progress override so no engine slot keeps pointing at a proxy.
+		_triangleSwap.Restore();
 		ForEachTarget([&](RenderTarget a_target) { RestoreEngineSlot(a_target); });
 		if (_renderTargetsOverridden) {
 			if (renderTargetManager) {

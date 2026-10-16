@@ -3,6 +3,7 @@
 #include "RE/B/BSGraphics.h"
 #include "RE/B/BSShader.h"
 #include "RE/B/BSShaderManager.h"
+#include "RE/B/BSTriShape.h"
 #include "RE/I/ImageSpaceEffect.h"
 #include "RE/I/ImageSpaceManager.h"
 #include "RE/I/Interface3D.h"
@@ -271,6 +272,35 @@ namespace cs::engine
 			renderTargetManager->SetDynamicResolutionState(a_widthRatio, a_heightRatio, a_activated);
 		}
 	}
+
+	// The dynamic triangle bakes UV = 2 * render ratio; passes over full render-size
+	// textures need the static unit-UV one.
+	class ImageSpaceTriangleSwap
+	{
+	public:
+		void Apply() noexcept
+		{
+			auto* manager = RE::ImageSpaceManager::GetSingleton();
+			if (_dynamic || !manager || !manager->dynamicScreenTriShape || !manager->screenTriShape) {
+				return;
+			}
+			_dynamic = manager->dynamicScreenTriShape;
+			manager->dynamicScreenTriShape = manager->screenTriShape;
+		}
+
+		void Restore() noexcept
+		{
+			auto* manager = RE::ImageSpaceManager::GetSingleton();
+			if (!_dynamic || !manager) {
+				return;
+			}
+			manager->dynamicScreenTriShape = _dynamic;
+			_dynamic.reset();
+		}
+
+	private:
+		RE::NiPointer<RE::BSTriShape> _dynamic;
+	};
 
 	// Previs accepts preselected objects on every face; bypass for real culling.
 	class ScopedPreCullBypass

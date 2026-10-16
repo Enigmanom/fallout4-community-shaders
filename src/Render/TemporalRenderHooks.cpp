@@ -425,8 +425,9 @@ namespace cs::render
 				using cs::engine::RenderTarget;
 				// Prepass reads normals and metadata; the ray pass reads the first composite.
 				upscaling->dynamicResolution.BeginProxyPass({ RenderTarget::kGbufferNormal,
-					RenderTarget::kGbufferMetadata,
-					RenderTarget::kMain });
+																RenderTarget::kGbufferMetadata,
+																RenderTarget::kMain },
+					cs::features::DynamicResolution::ProxyTriangle::kUnit);
 			});
 		}
 		func(a_this, a_slot, a_logicalID, a_mode);

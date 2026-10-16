@@ -42,7 +42,13 @@ namespace cs::features
 
 		// Ratio-1 draws into render-resolution proxies so stock TexCoord spans [0, 1].
 		[[nodiscard]] bool ProxyPassAvailable() const;
-		bool BeginProxyPass(std::initializer_list<cs::engine::RenderTarget> a_toProxy);
+		// kUnit: stock imagespace effects draw UV [0, 2] instead of the baked 2 * render ratio.
+		enum class ProxyTriangle : std::uint8_t
+		{
+			kEngine,
+			kUnit
+		};
+		bool BeginProxyPass(std::initializer_list<cs::engine::RenderTarget> a_toProxy, ProxyTriangle a_triangle = ProxyTriangle::kEngine);
 		// Copies only a_fromProxy back to the engine targets.
 		void EndProxyPass(std::initializer_list<cs::engine::RenderTarget> a_fromProxy);
 		// Pooled targets: the platform slot exists only between acquire and release.
@@ -94,6 +100,7 @@ namespace cs::features
 		bool _renderTargetsOverridden = false;
 		bool _depthOverridden = false;
 		bool _proxyPass = false;
+		cs::engine::ImageSpaceTriangleSwap _triangleSwap;
 		float _proxyPassWidthRatio = 1.0f;
 		float _proxyPassHeightRatio = 1.0f;
 	};
