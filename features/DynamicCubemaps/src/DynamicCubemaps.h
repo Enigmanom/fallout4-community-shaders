@@ -89,7 +89,7 @@ namespace cs::features
 		static constexpr std::uint32_t kPreviewWidth = 512;
 		static constexpr std::uint32_t kPreviewHeight = 256;
 		static constexpr std::uint32_t kDynamicCubemapPSSlot = 30;
-		static constexpr std::uint32_t kDynamicCubemapPSSlotCount = 2;
+		static constexpr std::uint32_t kDynamicCubemapPSSlotCount = 3;
 		static constexpr std::uint32_t kCompositionPSSlot = 34;
 		static constexpr std::uint32_t kCompositionPSSlotCount = 2;
 
