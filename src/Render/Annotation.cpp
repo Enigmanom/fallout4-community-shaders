@@ -48,9 +48,13 @@ namespace cs::render::annotation
 
 	void Initialize(ID3D11DeviceContext* a_context) noexcept
 	{
+		// Query GetStatus once before late hooks can replace the context vtable.
 		if (a_context && !annotation) {
-			std::ignore = a_context->QueryInterface(
-				IID_PPV_ARGS(annotation.put()));
+			winrt::com_ptr<ID3DUserDefinedAnnotation> candidate;
+			if (SUCCEEDED(a_context->QueryInterface(IID_PPV_ARGS(candidate.put()))) &&
+				candidate && candidate->GetStatus()) {
+				annotation = std::move(candidate);
+			}
 		}
 	}
 
@@ -63,7 +67,7 @@ namespace cs::render::annotation
 	ScopedEvent::ScopedEvent(std::string_view a_name, bool a_profile) noexcept
 	{
 		_profile = a_profile && beginPass && endPass && beginPass(a_name);
-		if (!annotation || !annotation->GetStatus())
+		if (!annotation)
 			return;
 
 		std::array<wchar_t, kWideNameCapacity> wideName{};
@@ -77,8 +81,7 @@ namespace cs::render::annotation
 		ID3D12GraphicsCommandList* a_commandList,
 		std::string_view a_name) noexcept
 	{
-		if (!annotation || !annotation->GetStatus() ||
-			!a_commandList || a_name.empty())
+		if (!annotation || !a_commandList || a_name.empty())
 			return;
 		std::array<wchar_t, kWideNameCapacity> wideName{};
 		const auto name = ToWide(a_name, wideName);
@@ -103,7 +106,7 @@ namespace cs::render::annotation
 
 	void SetMarker(std::string_view a_name) noexcept
 	{
-		if (!annotation || !annotation->GetStatus())
+		if (!annotation)
 			return;
 
 		std::array<wchar_t, kWideNameCapacity> wideName{};
@@ -115,8 +118,7 @@ namespace cs::render::annotation
 		ID3D12GraphicsCommandList* a_commandList,
 		std::string_view a_name) noexcept
 	{
-		if (!annotation || !annotation->GetStatus() ||
-			!a_commandList || a_name.empty())
+		if (!annotation || !a_commandList || a_name.empty())
 			return;
 		std::array<wchar_t, kWideNameCapacity> wideName{};
 		const auto name = ToWide(a_name, wideName);
