@@ -440,8 +440,11 @@ float skylightingSpecularVisibility(float3 positionMS, float3 normal, float3 eye
 float3 surfaceColor(
 	float slope,
 	float2 screenUv,
+	float3 eyeDirection,
+	float3 normal,
 	float3 reflectionDirection,
 	float cameraDistance,
+	float distanceFactor,
 	float skylightingSpecular)
 {
 	float3 color = lerp(perMaterial[3].xyz, perMaterial[4].xyz, saturate(slope + 0.75));
@@ -492,6 +495,20 @@ float3 surfaceColor(
 	float2 clamped = screenUv;
 #			else
 	float2 clamped = min(screenUv, perGeometry[1].xy);
+#			endif
+#			if defined(DYNAMIC_CUBEMAPS) && !defined(LOD)
+	if (FO4SharedData::EnabledDynamicCubemaps != 0) {
+		float pointingDirection = dot(eyeDirection, reflectionDirection) * 0.5 + 0.5;
+		float pointingAlignment = dot(reflect(eyeDirection, float3(0, 0, 1)), reflectionDirection) * 0.5 + 0.5;
+		float ssrAmount = sqrt(min(pointingAlignment, pointingDirection));
+		// FO4: t9 is raw and t10 blurred; the offset UV keeps the stock clamp.
+		float2 ssrReflectionUv = min(screenUv + 0.05 * normal.xy, perGeometry[1].xy);
+		float4 ssrReflectionColorBlurred = texture10.SampleLevel(sampler10, ssrReflectionUv, 0.0);
+		float4 ssrReflectionColorRaw = texture9.SampleLevel(sampler9, ssrReflectionUv, 0.0);
+		float4 ssrReflectionColor = lerp(ssrReflectionColorBlurred, ssrReflectionColorRaw, ssrAmount * 0.7);
+		float ssrFraction = saturate(ssrReflectionColor.w * distanceFactor * ssrAmount);
+		return lerp(color, max(0, ssrReflectionColor.xyz), ssrFraction);
+	}
 #			endif
 	float4 reflection = lerp(texture9.SampleLevel(sampler9, clamped, 0.0), texture10.SampleLevel(sampler10, clamped, 0.0), WATER_PER_GEOMETRY(7).x);
 	color = lerp(color, reflection.xyz, reflection.w);
@@ -597,7 +614,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 eyeDirection = normalize(input.eyeVector.xyz);
 	float3 reflectionDirection = reflect(eyeDirection, normal);
 	float slope = reflectionDirection.z;
-	float3 color = lerp(perMaterial[2].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, input.eyeVector.w, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), perMaterial[2].w) + lighting;
+	float3 color = lerp(perMaterial[2].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, eyeDirection, normal, reflectionDirection, input.eyeVector.w, 0.0, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), perMaterial[2].w) + lighting;
 	float fogAlpha;
 	float3 fog = atmosphere(input.eyeToPosition, fogAlpha);
 	fog = lerp(fog, WATER_PER_GEOMETRY(3).xyz, sunGlare);
@@ -670,7 +687,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 reflectionDirection = reflect(eyeDirection, normal);
 	float slope = reflectionDirection.z;
 	float grazing = 1.0 - saturate(dot(-eyeDirection, -normal));
-	float3 water = lerp(perMaterial[0].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, reflectionDirection, input.eyeVector.w, skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), 0.5);
+	float3 water = lerp(perMaterial[0].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, eyeDirection, normal, reflectionDirection, input.eyeVector.w, WaterDistanceBlendFactor(fade), skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), 0.5);
 	return float4(lerp(water, refraction, 1.0 - fresnelTerm(grazing)), 0.0);
 }
 
@@ -888,8 +905,11 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 water = surfaceColor(
 		slope,
 		screenUv,
+		eyeDirection,
+		normal,
 		reflectionDirection,
 		input.eyeVector.w,
+		WaterDistanceBlendFactor(fade),
 		skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection));
 	float3 tinted = lerp(perMaterial[2].xyz, water, perMaterial[2].w);
 
