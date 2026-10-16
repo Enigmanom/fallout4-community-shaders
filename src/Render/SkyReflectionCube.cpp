@@ -1,7 +1,6 @@
 #include "Render/SkyReflectionCube.h"
 
 #include "Log.h"
-#include "LogThrottle.h"
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
@@ -15,11 +14,9 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <exception>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -113,11 +110,6 @@ namespace cs::engine
 			std::atomic<std::uint64_t> skippedNoCamera{ 0 };
 			std::atomic<std::uint64_t> skippedNoTargets{ 0 };
 			std::atomic<std::uint64_t> skippedNoWorld{ 0 };
-			std::atomic<std::uint64_t> lodFlagsToggledLast{ 0 };
-			std::atomic<std::uint64_t> lodFlagsToggledTotal{ 0 };
-			std::atomic<std::uint64_t> lodFlagsNsLast{ 0 };
-			std::atomic<std::uint64_t> lodFlagsNsTotal{ 0 };
-			std::atomic<std::uint64_t> lodFlagsSkipped{ 0 };
 		};
 
 		std::vector<Consumer> g_consumers;
@@ -133,9 +125,6 @@ namespace cs::engine
 		std::uint32_t g_step = 0;
 		std::optional<RE::NiPoint3> g_lastEye;
 		std::optional<std::uint32_t> g_lastFrame;
-
-		std::mutex g_sceneMutex;
-		SkyReflectionCubeScene g_scene;
 
 		void Disable(const char* a_reason) noexcept
 		{
@@ -251,215 +240,6 @@ namespace cs::engine
 			}
 		}
 
-		[[nodiscard]] SkyReflectionCubeLodRoot SampleLodRoot(const RE::NiNode* a_root) noexcept
-		{
-			SkyReflectionCubeLodRoot root;
-			if (!a_root)
-				return root;
-			root.present = true;
-			root.appCulled = a_root->GetAppCulled();
-			std::size_t level = 0;
-			const auto* data = a_root->children.data();
-			for (std::size_t i = 0; i < a_root->children.capacity(); ++i) {
-				const auto* child = data[i].get();
-				if (!child)
-					continue;
-				++root.children;
-				if (child->GetAppCulled())
-					++root.culledChildren;
-				const auto* node = child->IsNode();
-				if (!node || level >= root.levelChildren.size())
-					continue;
-				const auto* grand = node->children.data();
-				for (std::size_t j = 0; j < node->children.capacity(); ++j) {
-					if (!grand[j])
-						continue;
-					++root.levelChildren[level];
-					if (grand[j]->GetAppCulled())
-						++root.levelCulled[level];
-				}
-				++level;
-			}
-			return root;
-		}
-
-		[[nodiscard]] std::uint8_t CullBits(const RE::BGSTerrainManager::CullState& a_state) noexcept
-		{
-			return static_cast<std::uint8_t>(
-				(a_state.cullRoot ? 1 : 0) | (a_state.cullLand ? 2 : 0) | (a_state.cullTrees ? 4 : 0) |
-				(a_state.cullObjects ? 8 : 0) | (a_state.cullInstanced ? 16 : 0));
-		}
-
-		// Read-only, once per cube cycle; must run before the pre-cull bypass.
-		void SampleScene() noexcept
-		{
-			SkyReflectionCubeScene scene;
-			scene.sampled = true;
-			scene.preCullEnabled = RE::BSPreCulledObjects::QEnabled();
-			scene.preCullTempDisabled = RE::BSPreCulledObjects::QTempDisabled();
-			scene.land = SampleLodRoot(RE::BGSTerrainManager::GetLandNode());
-			scene.objects = SampleLodRoot(RE::BGSTerrainManager::GetObjectsNode());
-			scene.trees = SampleLodRoot(RE::BGSTerrainManager::GetTreesNode());
-			const auto* tes = RE::TES::GetSingleton();
-			if (const auto* manager = tes && tes->worldSpace ? tes->worldSpace->terrainManager : nullptr) {
-				scene.terrainManager = true;
-				scene.savedCull = CullBits(manager->savedCullState);
-				scene.activeCull = CullBits(manager->activeCullState);
-				scene.cullActive = manager->cullActive;
-			}
-			const std::scoped_lock lock(g_sceneMutex);
-			g_scene = scene;
-		}
-
-		// Engine Update adds these only when the worldspace has a terrain manager.
-		void AddLodScenes(CubeCamera& a_camera)
-		{
-			for (auto* node : { RE::BGSTerrainManager::GetLandNode(),
-					 RE::BGSTerrainManager::GetObjectsNode(),
-					 RE::BGSTerrainManager::GetTreesNode() }) {
-				if (node)
-					a_camera.AddCubeMapScene(node);
-			}
-		}
-
-		// Forward Lighting ships no LOD bases (8, 9, 13, 18, 19).
-		constexpr std::array kLodFlags{
-			RE::BSShaderProperty::EShaderPropertyFlag::kLODLandscape,
-			RE::BSShaderProperty::EShaderPropertyFlag::kLODObjects,
-			RE::BSShaderProperty::EShaderPropertyFlag::kLODLandBlend
-		};
-		// Cleared with them: it would select the missing base 8.
-		constexpr auto kLandscapeBlendFlag = RE::BSShaderProperty::EShaderPropertyFlag::kMultiTextureLandscape;
-		constexpr std::uint32_t kMaxLodDepth = 16;
-
-		// Clearing the LOD flags makes mode 0 resolve the base technique.
-		class ScopedLodLightingFlags
-		{
-		public:
-			ScopedLodLightingFlags() noexcept
-			{
-				const auto start = std::chrono::steady_clock::now();
-				const auto* land = RE::BGSTerrainManager::GetLandNode();
-				const auto* objects = RE::BGSTerrainManager::GetObjectsNode();
-				if (!land && !objects) {
-					g_counters.lodFlagsSkipped.fetch_add(1, std::memory_order_relaxed);
-					CS_LOG_ONCE(L, spdlog::level::warn, "No LOD land or objects root; LOD flags stay as authored.");
-					return;
-				}
-				try {
-					Visit(land, 0);
-					Visit(objects, 0);
-				} catch (...) {
-					Restore();
-					g_counters.lodFlagsSkipped.fetch_add(1, std::memory_order_relaxed);
-					CS_LOG_ONCE(L, spdlog::level::warn, "LOD flag clearing failed; flags were restored.");
-				}
-				_toggleNs = Elapsed(start);
-			}
-
-			~ScopedLodLightingFlags()
-			{
-				const auto start = std::chrono::steady_clock::now();
-				const auto toggled = _changes.size();
-				Restore();
-				const auto ns = _toggleNs + Elapsed(start);
-				g_counters.lodFlagsToggledLast.store(toggled, std::memory_order_relaxed);
-				g_counters.lodFlagsToggledTotal.fetch_add(toggled, std::memory_order_relaxed);
-				g_counters.lodFlagsNsLast.store(ns, std::memory_order_relaxed);
-				g_counters.lodFlagsNsTotal.fetch_add(ns, std::memory_order_relaxed);
-			}
-
-			ScopedLodLightingFlags(const ScopedLodLightingFlags&) = delete;
-			ScopedLodLightingFlags& operator=(const ScopedLodLightingFlags&) = delete;
-
-		private:
-			struct Change
-			{
-				RE::NiPointer<RE::BSShaderProperty> property;
-				std::uint64_t bits;
-			};
-
-			[[nodiscard]] static std::uint64_t Elapsed(std::chrono::steady_clock::time_point a_start) noexcept
-			{
-				return static_cast<std::uint64_t>(
-					std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - a_start).count());
-			}
-
-			void Visit(const RE::NiNode* a_node, std::uint32_t a_depth)
-			{
-				if (!a_node || a_depth > kMaxLodDepth)
-					return;
-				const auto* data = a_node->children.data();
-				for (std::size_t i = 0; i < a_node->children.capacity(); ++i) {
-					auto* child = data[i].get();
-					if (!child || child->GetAppCulled())
-						continue;
-					if (const auto* node = child->IsNode()) {
-						Visit(node, a_depth + 1);
-					} else if (auto* geometry = child->IsGeometry()) {
-						Clear(geometry);
-					}
-				}
-			}
-
-			void Clear(RE::BSGeometry* a_geometry)
-			{
-				auto* property = netimmerse_cast<RE::BSLightingShaderProperty*>(a_geometry->properties[1].get());
-				if (!property)
-					return;
-				using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
-				if (!property->flags.any(Flag::kLODLandscape, Flag::kLODObjects, Flag::kLODLandBlend))
-					return;
-				std::uint64_t bits = 0;
-				for (const auto flag : kLodFlags) {
-					if (property->flags.any(flag))
-						bits |= static_cast<std::uint64_t>(flag);
-				}
-				if (property->flags.any(kLandscapeBlendFlag))
-					bits |= static_cast<std::uint64_t>(kLandscapeBlendFlag);
-				_changes.push_back({ RE::NiPointer<RE::BSShaderProperty>(property), bits });
-				SetBits(*property, bits, false);
-			}
-
-			static void SetBits(RE::BSShaderProperty& a_property, std::uint64_t a_bits, bool a_value)
-			{
-				for (std::uint64_t bit = 1; bit != 0; bit <<= 1) {
-					if (a_bits & bit)
-						a_property.SetFlag(static_cast<RE::BSShaderProperty::EShaderPropertyFlag>(bit), a_value);
-				}
-			}
-
-			void Restore() noexcept
-			{
-				for (auto& change : _changes)
-					SetBits(*change.property, change.bits, true);
-				_changes.clear();
-			}
-
-			std::vector<Change> _changes;
-			std::uint64_t _toggleNs = 0;
-		};
-
-		// Faces leave cube mode set; end it so no later draw lands in the cube.
-		class ScopedCubeModeExit
-		{
-		public:
-			explicit ScopedCubeModeExit(RE::BSGraphics::RenderTargetManager& a_manager) noexcept :
-				_manager(a_manager)
-			{}
-
-			~ScopedCubeModeExit()
-			{
-				_manager.SetCurrentCubeMapRenderTarget(-1, RE::BSGraphics::SetRenderTargetMode::kNoClear, 0);
-			}
-
-			ScopedCubeModeExit(const ScopedCubeModeExit&) = delete;
-			ScopedCubeModeExit& operator=(const ScopedCubeModeExit&) = delete;
-
-		private:
-			RE::BSGraphics::RenderTargetManager& _manager;
-		};
-
 		[[nodiscard]] bool EnsureCamera()
 		{
 			if (g_camera)
@@ -483,6 +263,26 @@ namespace cs::engine
 			a_camera.SetViewFrustum(frustum);
 		}
 
+		// Faces leave cube mode set; end it so no later draw lands in the cube.
+		class ScopedCubeModeExit
+		{
+		public:
+			explicit ScopedCubeModeExit(RE::BSGraphics::RenderTargetManager& a_manager) noexcept :
+				_manager(a_manager)
+			{}
+
+			~ScopedCubeModeExit()
+			{
+				_manager.SetCurrentCubeMapRenderTarget(-1, RE::BSGraphics::SetRenderTargetMode::kNoClear, 0);
+			}
+
+			ScopedCubeModeExit(const ScopedCubeModeExit&) = delete;
+			ScopedCubeModeExit& operator=(const ScopedCubeModeExit&) = delete;
+
+		private:
+			RE::BSGraphics::RenderTargetManager& _manager;
+		};
+
 		void RenderFaces(
 			CubeCamera& a_camera,
 			RE::BSMultiBoundNode& a_skyRoot,
@@ -493,11 +293,6 @@ namespace cs::engine
 			const ScopedSkyRootCubeFlag skyFlag(a_skyRoot);
 			const ScopedClearColor clearColor(a_state, a_clear);
 			const ScopedCubeModeExit cubeMode(a_manager);
-			if (g_step == 0)
-				SampleScene();
-			const ScopedPreCullBypass preCull;
-			const ScopedLodLightingFlags lodFlags;
-			AddLodScenes(a_camera);
 			a_camera.AddCubeMapScene(&a_skyRoot);
 			const std::array<std::uint32_t, kFacesPerUpdate> faces{ g_step, 5 - g_step };
 			for (std::size_t i = 0; i < faces.size(); ++i) {
@@ -635,12 +430,6 @@ namespace cs::engine
 		return cube ? reinterpret_cast<ID3D11ShaderResourceView*>(cube->srView) : nullptr;
 	}
 
-	SkyReflectionCubeScene GetSkyReflectionCubeScene()
-	{
-		const std::scoped_lock lock(g_sceneMutex);
-		return g_scene;
-	}
-
 	SkyReflectionCubeStatus GetSkyReflectionCubeStatus() noexcept
 	{
 		SkyReflectionCubeStatus status;
@@ -660,11 +449,6 @@ namespace cs::engine
 		status.skippedNoCamera = g_counters.skippedNoCamera.load(std::memory_order_relaxed);
 		status.skippedNoTargets = g_counters.skippedNoTargets.load(std::memory_order_relaxed);
 		status.skippedNoWorld = g_counters.skippedNoWorld.load(std::memory_order_relaxed);
-		status.lodFlagsToggledLast = g_counters.lodFlagsToggledLast.load(std::memory_order_relaxed);
-		status.lodFlagsToggledTotal = g_counters.lodFlagsToggledTotal.load(std::memory_order_relaxed);
-		status.lodFlagsNsLast = g_counters.lodFlagsNsLast.load(std::memory_order_relaxed);
-		status.lodFlagsNsTotal = g_counters.lodFlagsNsTotal.load(std::memory_order_relaxed);
-		status.lodFlagsSkipped = g_counters.lodFlagsSkipped.load(std::memory_order_relaxed);
 		return status;
 	}
 }
