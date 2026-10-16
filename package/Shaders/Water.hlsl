@@ -208,6 +208,8 @@ VS_OUTPUT main(VS_INPUT input)
 #		endif
 #		include "FO4/DynamicCubemaps/DynamicCubemaps.hlsli"
 SamplerState sampler3 : register(s3);
+// FO4: the host-rendered engine reflection cube, upstream's CubeMapTex.
+TextureCube<float3> CubeMapTex : register(t32);
 #	endif
 #	if defined(SKYLIGHTING) && defined(DYNAMIC_CUBEMAPS)
 #		define SKYLIGHTING_PROBE_REGISTER t50
@@ -447,22 +449,28 @@ float3 surfaceColor(
 #	if defined(REFLECTIONS)
 #		ifdef DYNAMIC_CUBEMAPS
 	if (FO4SharedData::EnabledDynamicCubemaps != 0) {
-		float3 dynamicLinear;
-		float skyShare = 0.0;
-		if (SharedData::InInterior) {
-			dynamicLinear = Color::IrradianceToLinear(DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz);
-		} else {
-			float3 specularIrradiance = Color::IrradianceToLinear(DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz);
-			float3 specularIrradianceReflections = Color::IrradianceToLinear(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz);
-			dynamicLinear = lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular);
-			// FO4: the sky is the reflections cube minus the scene-only cube.
-			float3 skyIrradiance = max(0.0, specularIrradianceReflections - specularIrradiance) * skylightingSpecular;
-			skyShare = saturate(Color::RGBToLuminance(skyIrradiance) / max(Color::RGBToLuminance(dynamicLinear), 0.001));
-		}
-		float3 dynamicCubemap = Color::IrradianceToGamma(dynamicLinear);
+		// FO4: without a fresh engine cube the sky gradient stays the reflection.
+		uint cubeWidth, cubeHeight;
+		CubeMapTex.GetDimensions(cubeWidth, cubeHeight);
+		if (cubeWidth != 0)
+			color = CubeMapTex.SampleLevel(sampler3, reflectionDirection, 0).xyz;
 
-		// FO4: only the scene capture fades out with distance; the sky stays live.
-		float reflectionAmount = saturate(cameraDistance / 1024.0) * (1.0 - skyShare);
+		float3 dynamicCubemap;
+		if (SharedData::InInterior) {
+			dynamicCubemap = DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz;
+		} else {
+			float3 specularIrradiance = 1.0;
+			if (skylightingSpecular < 1.0)
+				specularIrradiance = Color::IrradianceToLinear(DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz);
+
+			float3 specularIrradianceReflections = 1.0;
+			if (skylightingSpecular > 0.0)
+				specularIrradianceReflections = Color::IrradianceToLinear(DynamicCubemaps::EnvReflectionsTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz);
+
+			dynamicCubemap = Color::IrradianceToGamma(lerp(specularIrradiance, specularIrradianceReflections, skylightingSpecular));
+		}
+
+		float reflectionAmount = saturate(cameraDistance / 1024.0);
 
 		if (SharedData::HideSky)
 			reflectionAmount = 0.0;
@@ -472,7 +480,6 @@ float3 surfaceColor(
 			dynamicCubemap = debugColor;
 			reflectionAmount = 0.0;
 		}
-		// FO4 reflection permutations shade the sky gradient instead of sampling a reflection cube.
 		color = lerp(dynamicCubemap, color, reflectionAmount);
 	}
 #		endif

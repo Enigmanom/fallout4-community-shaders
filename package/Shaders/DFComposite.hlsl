@@ -14,14 +14,18 @@
 #ifdef DYNAMIC_CUBEMAPS
 #	include "FO4/DynamicCubemaps/Composite.hlsli"
 #	define SAMPLE_MATERIAL_ENVIRONMENT(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular, nativeWeight) \
-		DynamicCubemaps::GetMaterialEnvironment(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular, nativeWeight)
+		DynamicCubemaps::GetMaterialEnvironment(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, FO4_PROBE_ARGS(skylightingSpecular, nativeWeight))
 #else
 #	define SAMPLE_MATERIAL_ENVIRONMENT(cube, probeSampler, direction, slice, lod, glossiness, nativeRain, skylightingSpecular, nativeWeight) \
 		cube.SampleLevel(probeSampler, float4(direction, slice), lod).xyz
 #endif
 
-// FO4: the site's light sum; the live probe divides it out.
-#define FO4_PROBE_WEIGHT(weight) (weight)
+// FO4: the site's light sum; only IBL divides radiance terms by it.
+#ifdef IBL
+#	define FO4_PROBE_WEIGHT(weight) (weight)
+#else
+#	define FO4_PROBE_WEIGHT(weight) 0
+#endif
 
 #ifdef BSDFCOMPOSITE_PS_AMBIENT_IBL_CB31_FAMILY
 
@@ -495,7 +499,7 @@ struct PS_OUTPUT
 	float4 color: SV_Target0;
 };
 
-#	ifdef DYNAMIC_CUBEMAPS
+#	ifdef IBL
 float3 AmbientPairWeight(float2 uv)
 {
 	float3 ambientPair = g_tAmbientDiffuseA.SampleLevel(g_sAmbientDiffuseA, uv, 0).xyz;
@@ -2367,7 +2371,7 @@ struct PSInput
 #	endif
 };
 
-#	ifdef DYNAMIC_CUBEMAPS
+#	ifdef IBL
 float3 CubeDiffuseWeight(float2 uv)
 {
 	float3 diffuse = diffuseTexture.SampleLevel(diffuseSampler, uv, 0.0).xyz;
