@@ -34,13 +34,16 @@ cbuffer PrepareData : register(b0)
 		return;
 
 	float2 sampleUV = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(uv);
-	float depth = DepthTexture.SampleLevel(LinearSampler, sampleUV, 0);
+	// FO4: the footprint also rejects first person, which bilinear depth blends into world.
+	float4 depths = DepthTexture.GatherRed(LinearSampler, sampleUV);
 #if defined(REFLECTIONS)
-	if (FO4Depth::IsFirstPerson(depth))
+	bool excludeSky = false;
 #else
-	if (depth == 1.0 || FO4Depth::IsFirstPerson(depth))
+	bool excludeSky = true;
 #endif
+	if ((excludeSky && any(depths >= 1.0)) || FO4Depth::AnyFirstPerson(depths))
 		return;
+	float depth = DepthTexture.SampleLevel(LinearSampler, sampleUV, 0);
 
 	float3 positionView;
 	// FO4's infinite far projection needs a finite sky position for upstream capture history.

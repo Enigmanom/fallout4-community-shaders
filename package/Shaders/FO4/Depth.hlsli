@@ -4,6 +4,7 @@
 namespace FO4Depth
 {
 	bool IsFirstPerson(float depth) { return depth <= 0.01; }
+	bool AnyFirstPerson(float4 depths) { return any(depths <= 0.01); }
 	float ProjectionDepth(float depth, bool firstPerson)
 	{
 		return firstPerson ? depth * 100.0 : mad(depth, 1.01, -0.01);
