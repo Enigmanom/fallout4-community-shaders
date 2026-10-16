@@ -6,17 +6,17 @@
 
 struct VS_INPUT
 {
-	float4 Position : POSITION0;
-	float2 TexCoord : TEXCOORD0;
+	float4 Position: POSITION0;
+	float2 TexCoord: TEXCOORD0;
 };
 
 struct VS_OUTPUT
 {
-	float4 Position : SV_POSITION;
-	float2 TexCoord : TEXCOORD0;
+	float4 Position: SV_POSITION;
+	float2 TexCoord: TEXCOORD0;
 // Only widens the output signature; the stock shader never writes it.
 #ifdef IMAGESPACE_PASSTHROUGH_TEXCOORD1
-	float4 TexCoord1 : TEXCOORD1;
+	float4 TexCoord1: TEXCOORD1;
 #endif
 };
 
