@@ -173,7 +173,11 @@ float4 main(PS_INPUT input) : SV_Target0
 		confidence *= saturate(1.0 + rcp(TargetSizeNearFar.w -
 										 TargetSizeNearFar.z) *
 										 -25.0 * (cellDepth - startDepth));
+#	ifndef DYNAMIC_CUBEMAPS
 		confidence *= confidence;
+#	else
+		// FO4: upstream confidence is linear; stock squares it.
+#	endif
 		if (!(OutsideView(ray) || iterations == 32 || blocked)) {
 			color = float4(
 				SceneColor.SampleLevel(SceneColorSampler, ray.xy, 0).xyz,

@@ -14,6 +14,7 @@
 | Divergence | `CreateCubemapRenderTarget_Reflections` and `CreateDepthStencil_Reflections` shrink the engine cube and its depth to 256 | Only the cube color target is 256; depth 7 stays 512 | Depth 7 is shared with Interface3D container and workbench |
 | Divergence | `activeReflections` from Skyrim's reflections prepass | Exterior water always uses the reflections variant | Fixed exterior-water policy |
 | Divergence | Loaded DC defines `ENABLESSR` for water | Live `enabled_ssr` gates all SSLR while DC is enabled | Avoids recompilation; SSLR feeds surfaces and water |
+| Divergence | SSLR confidence is linear | FO4 squares it; linear while DC is loaded | Stock bytes stay identical without DC |
 | N/A | Forward `Lighting.hlsl` sentinel path | | FO4 world and first-person emit no forward BSLighting passes |
 | Pending | Authored per-material selection and TruePBR/complex material reflectance | Needs an FO4 reflectance/selection contract and authored assets | |
 | Pending | Material authoring/export workflow replacing the Creator sentinel DDS export | Needs the selection contract first; 1x1 sentinel cubes cannot select native deferred materials | |
