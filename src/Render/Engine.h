@@ -230,10 +230,8 @@ namespace cs::engine
 		return manager && index < manager->effectList.size() ? manager->effectList[index] : nullptr;
 	}
 
-	// SAO_CS is the only rendered vanilla AO; the composite applies it while `applied` is set,
-	// whatever IsActive reports. With `applied` clear it still runs its first five passes, which
-	// build the SSLR depth pyramid (logical 40); clearing `active` stops them. Same layout on
-	// OG/NG/AE (sizeof 0x122).
+	// SAO_CS: `applied` gates the composite; `active` also gates the SSLR Hi-Z passes.
+	// Same layout on OG/NG/AE (sizeof 0x122).
 	struct ScalableAOComputeState
 	{
 		bool* active;      // +0x08
@@ -273,8 +271,7 @@ namespace cs::engine
 		}
 	}
 
-	// The dynamic triangle bakes UV = 2 * render ratio; passes over full render-size
-	// textures need the static unit-UV one.
+	// Dynamic triangle UV is 2 * render ratio; full-size passes need the unit one.
 	class ImageSpaceTriangleSwap
 	{
 	public:

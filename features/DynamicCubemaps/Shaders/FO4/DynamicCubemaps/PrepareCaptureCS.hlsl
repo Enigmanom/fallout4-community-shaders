@@ -34,7 +34,7 @@ cbuffer PrepareData : register(b0)
 		return;
 
 	float2 sampleUV = FrameBuffer::GetDynamicResolutionAdjustedScreenPosition(uv);
-	// FO4: the footprint also rejects first person, which bilinear depth blends into world.
+	// FO4: reject the footprint; bilinear depth blends first person into world.
 	float4 depths = DepthTexture.GatherRed(LinearSampler, sampleUV);
 #if defined(REFLECTIONS)
 	bool excludeSky = false;

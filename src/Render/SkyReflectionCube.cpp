@@ -39,9 +39,6 @@ namespace cs::engine
 		using FaceFlags = CubeCamera::FaceEnableFlags;
 
 		constexpr std::uint32_t kAllFaces = 0x3F;
-		// Engine cadence: two faces per update, the full cube every third.
-		constexpr std::uint32_t kFacesPerUpdate = 2;
-		constexpr std::uint32_t kUpdatesPerCube = 3;
 		// Beyond this the eye has left the dome the faces came from.
 		constexpr float kEyeJumpLimit = 512.0f;
 		constexpr std::uint32_t kSideFaces = 0xF;
@@ -348,9 +345,7 @@ namespace cs::engine
 			{
 				if (!a_node || a_depth > kMaxLodDepth)
 					return;
-				const auto* data = a_node->children.data();
-				for (std::size_t i = 0; i < a_node->children.capacity(); ++i) {
-					auto* child = data[i].get();
+				for (const auto& child : a_node->children) {
 					if (!child || child->GetAppCulled())
 						continue;
 					if (const auto* node = child->IsNode()) {

@@ -48,7 +48,7 @@ bool OutsideView(float3 ray)
 }
 
 #	ifdef DYNAMIC_CUBEMAPS
-// FO4: level k is targetSize >> (k - 1); scaling the level 4 count drifts at odd render sizes.
+// FO4: level k is targetSize >> (k - 1); scaled counts drift at odd sizes.
 float2 HiZCellCount(float2 targetSize, float level)
 {
 	return float2(uint2(targetSize) >> (uint)max(level - 1.0, 0.0));

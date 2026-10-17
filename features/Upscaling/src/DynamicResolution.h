@@ -42,7 +42,7 @@ namespace cs::features
 
 		// Ratio-1 draws into render-resolution proxies so stock TexCoord spans [0, 1].
 		[[nodiscard]] bool ProxyPassAvailable() const;
-		// kUnit: stock imagespace effects draw UV [0, 2] instead of the baked 2 * render ratio.
+		// kUnit: stock imagespace UV spans [0, 2], not the baked 2 * render ratio.
 		enum class ProxyTriangle : std::uint8_t
 		{
 			kEngine,
