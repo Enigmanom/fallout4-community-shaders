@@ -298,6 +298,46 @@ namespace cs::features
 			}
 		}
 
+		if (const ui::Section section{ "upscaling-reflex", "NVIDIA Reflex" }; section) {
+			const auto& latency = status.latency;
+			if (!latency.available) {
+				dmui::ui::TextDisabled("Reflex is unavailable on this GPU or driver.");
+			} else if (
+				status.effective.frameGenerationEnabled &&
+				status.effective.frameGeneration ==
+					render::temporal::FrameGenerationMethod::kDLSSG) {
+				dmui::ui::TextDisabled(
+					"Low Latency forced on by DLSS Frame Generation");
+			}
+			dmui::ui::BeginDisabled(!latency.available);
+			changed |= edit.Discrete(dmui::ui::Checkbox(
+				"Low Latency Mode", &settings.reflexLowLatencyMode));
+			ui::Tooltip("Reduces input latency by pacing CPU work against the GPU.");
+			dmui::ui::BeginDisabled(!settings.reflexLowLatencyMode);
+			changed |= edit.Discrete(dmui::ui::Checkbox(
+				"Low Latency Boost", &settings.reflexLowLatencyBoost));
+			ui::Tooltip("Keeps the GPU clocks high to cut latency further at the cost of power.");
+			dmui::ui::EndDisabled();
+			dmui::ui::BeginDisabled(!latency.markersAvailable);
+			changed |= edit.Discrete(dmui::ui::Checkbox(
+				"Use Markers To Optimize", &settings.reflexUseMarkersToOptimize));
+			ui::Tooltip("Lets Reflex tune pacing from frame markers; only helps in specific cases.");
+			dmui::ui::EndDisabled();
+			changed |= edit.Discrete(dmui::ui::Checkbox(
+				"Use FPS Limit", &settings.reflexUseFpsLimit));
+			ui::Tooltip("Caps the frame rate through Reflex for steadier frame times.");
+			dmui::ui::BeginDisabled(!settings.reflexUseFpsLimit);
+			const auto fpsRange = render::temporal::kSchema.EditRange(&Settings::reflexFpsLimit);
+			changed |= edit.Continuous(dmui::ui::SliderScalar(
+				"FPS Limit",
+				&settings.reflexFpsLimit,
+				&fpsRange.min,
+				&fpsRange.max,
+				"%.0f"));
+			dmui::ui::EndDisabled();
+			dmui::ui::EndDisabled();
+		}
+
 		if (changed) {
 			pipeline.SubmitLiveConfiguration();
 		}
@@ -422,6 +462,20 @@ namespace cs::features
 		const auto capabilities =
 			render::TemporalPipeline::Get()
 				.GetFidelityFXCapabilities();
+		const auto latency = render::TemporalPipeline::Get().GetStatus().latency;
+		a_sink
+			.Field("reflex_available", latency.available)
+			.Field("reflex_low_latency_available", latency.lowLatencyAvailable)
+			.Field("reflex_latency_report_available", latency.latencyReportAvailable)
+			.Field("reflex_mode", static_cast<std::uint8_t>(latency.effective.mode))
+			.Field("reflex_frame_limit_us", latency.effective.frameLimitUs)
+			.Field("reflex_use_markers", latency.effective.useMarkers)
+			.Field("reflex_sleep_calls", latency.sleepCalls)
+			.Field("reflex_sleep_failures", latency.sleepFailures)
+			.Field("reflex_marker_failures", latency.markerFailures)
+			.Field("reflex_report_frame", latency.reportFrame)
+			.Field("reflex_simulation_to_present_us", latency.simulationToPresentUs)
+			.Field("reflex_gpu_frame_time_us", latency.gpuFrameTimeUs);
 		a_sink
 			.Field("fsr4_capability",
 				static_cast<std::uint8_t>(
