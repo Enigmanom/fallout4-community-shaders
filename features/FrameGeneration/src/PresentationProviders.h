@@ -53,11 +53,6 @@ namespace cs::features
 		ConsumePresentedFrameCount() noexcept override;
 		[[nodiscard]] std::optional<render::temporal::GpuCompletionDependency>
 		ConsumePresentInputCompletionDependency() noexcept override;
-		[[nodiscard]] render::temporal::ProviderResult
-		Sleep(std::uint32_t a_frame) override;
-		[[nodiscard]] render::temporal::ProviderResult
-		SetLatencyMarker(render::temporal::LatencyMarker a_marker,
-			std::uint32_t a_frame) override;
 		[[nodiscard]] render::temporal::ProviderResult Quiesce() override;
 		[[nodiscard]] render::temporal::ProviderResult
 		ReleaseDisplayResources() noexcept override;

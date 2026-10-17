@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <optional>
 
 #define NV_WINDOWS
@@ -24,7 +25,7 @@
 
 namespace cs::features
 {
-	class Streamline
+	class Streamline final : public render::temporal::ILatencyProvider
 	{
 	public:
 		static constexpr const wchar_t* PluginDir = L"Data\\Shaders\\Upscaling\\Streamline";
@@ -59,6 +60,7 @@ namespace cs::features
 		PFun_slGetNewFrameToken* slGetNewFrameToken{};
 		PFun_slSetD3DDevice* slSetD3DDevice{};
 		PFun_slPCLSetMarker* slPCLSetMarker{};
+		PFun_slReflexGetState* slReflexGetState{};
 		PFun_slReflexSleep* slReflexSleep{};
 		PFun_slReflexSetOptions* slReflexSetOptions{};
 
@@ -128,10 +130,17 @@ namespace cs::features
 		ValidateFSRGAlgorithm(sl::FSRGAlgorithm a_algorithm) const;
 		[[nodiscard]] render::temporal::FidelityFXCapabilities
 		GetFidelityFXCapabilities() const noexcept;
-		bool Sleep(std::uint32_t a_frameIndex);
-		bool SetLatencyMarker(
-			sl::PCLMarker a_marker,
-			std::uint32_t a_frameIndex);
+
+		[[nodiscard]] render::temporal::ProviderResult Configure(
+			const render::temporal::LatencyOptions& a_options) override;
+		[[nodiscard]] render::temporal::ProviderResult
+		Sleep(std::uint32_t a_frame) override;
+		[[nodiscard]] render::temporal::ProviderResult SetLatencyMarker(
+			render::temporal::LatencyMarker a_marker,
+			std::uint32_t a_frame) override;
+		[[nodiscard]] render::temporal::LatencyDiagnostics
+		GetLatencyDiagnostics() const noexcept override;
+		[[nodiscard]] bool IsAvailable() const noexcept override;
 		bool ConfigureDLSSG(
 			bool a_enabled,
 			const render::temporal::FrameGenerationConfiguration&
@@ -235,7 +244,25 @@ namespace cs::features
 		float _constantsJitterX = 0.0f;
 		float _constantsJitterY = 0.0f;
 		render::temporal::FrameGenerationCamera _constantsCamera{};
-		bool _latencyFeaturesRequested = false;
+		[[nodiscard]] render::temporal::LatencyOptions
+		ResolveLatencyOptions() const noexcept;
+		bool ApplyLatencyOptions() noexcept;
+		bool SetLatencyConstraint(bool& a_flag, bool a_value) noexcept;
+		void PollReflexState() noexcept;
+		bool _dlssGFeatureRequested = false;
+		mutable std::mutex _latencyMutex;
+		render::temporal::LatencyOptions _latencyRequested;
+		std::optional<render::temporal::LatencyOptions> _latencyApplied;
+		bool _dlssGForcesLatency = false;
+		bool _fsrGForcesLatencyOff = false;
+		std::atomic_uint64_t _latencySleepCalls{ 0 };
+		std::atomic_uint64_t _latencySleepFailures{ 0 };
+		std::atomic_uint64_t _latencyMarkerFailures{ 0 };
+		std::atomic_bool _reflexLowLatencyAvailable{ false };
+		std::atomic_bool _reflexReportAvailable{ false };
+		std::atomic_uint64_t _reflexReportFrame{ 0 };
+		std::atomic_uint64_t _reflexSimulationToPresentUs{ 0 };
+		std::atomic_uint32_t _reflexGpuFrameTimeUs{ 0 };
 		render::temporal::PresentedFrameAccumulator _dlssGPresentedFrames;
 		render::temporal::PresentedFrameAccumulator _dlssGGeneratedFrames;
 		std::optional<render::temporal::GpuCompletionDependency>

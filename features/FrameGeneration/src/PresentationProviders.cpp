@@ -363,44 +363,6 @@ namespace cs::features
 		return _runtime.ConsumeFSRGInputCompletionDependency();
 	}
 
-	ProviderResult StreamlinePresentation::Sleep(std::uint32_t a_frame)
-	{
-		return _method != Method::kDLSSG || _runtime.Sleep(a_frame) ? Success() : Failure("Reflex sleep failed.");
-	}
-
-	ProviderResult StreamlinePresentation::SetLatencyMarker(
-		render::temporal::LatencyMarker a_marker, std::uint32_t a_frame)
-	{
-		if (_method != Method::kDLSSG) {
-			return Success();
-		}
-		sl::PCLMarker marker = sl::PCLMarker::eSimulationStart;
-		switch (a_marker) {
-		case render::temporal::LatencyMarker::kInputSample:
-			marker = sl::PCLMarker::eControllerInputSample;
-			break;
-		case render::temporal::LatencyMarker::kSimulationStart:
-			marker = sl::PCLMarker::eSimulationStart;
-			break;
-		case render::temporal::LatencyMarker::kSimulationEnd:
-			marker = sl::PCLMarker::eSimulationEnd;
-			break;
-		case render::temporal::LatencyMarker::kRenderSubmitStart:
-			marker = sl::PCLMarker::eRenderSubmitStart;
-			break;
-		case render::temporal::LatencyMarker::kRenderSubmitEnd:
-			marker = sl::PCLMarker::eRenderSubmitEnd;
-			break;
-		case render::temporal::LatencyMarker::kPresentStart:
-			marker = sl::PCLMarker::ePresentStart;
-			break;
-		case render::temporal::LatencyMarker::kPresentEnd:
-			marker = sl::PCLMarker::ePresentEnd;
-			break;
-		}
-		return _runtime.SetLatencyMarker(marker, a_frame) ? Success() : Failure("PCL marker failed.");
-	}
-
 	ProviderResult StreamlinePresentation::ReleaseDisplayResources() noexcept
 	{
 		const auto destroy = _method == Method::kDLSSG ? _runtime.DestroyDLSSGResources() : _runtime.DestroyFSRGResources();
@@ -426,8 +388,7 @@ namespace cs::features
 
 	bool StreamlinePresentation::IsAvailable() const noexcept
 	{
-		return _method == Method::kDLSSG ? _runtime.featureDLSSG && _runtime.featurePCL &&
-		                                       _runtime.featureReflex &&
+		return _method == Method::kDLSSG ? _runtime.featureDLSSG && _runtime.IsAvailable() &&
 		                                       _runtime.slSetFeatureLoaded &&
 		                                       _runtime.slDLSSGSetOptions &&
 		                                       _runtime.slDLSSGGetState :

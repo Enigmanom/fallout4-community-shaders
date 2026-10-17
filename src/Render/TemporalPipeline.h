@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -72,6 +73,7 @@ namespace cs::render
 		bool d3d11Ready = false;
 		bool latencyHooksInstalled = false;
 		bool latencySdkActive = false;
+		temporal::LatencyDiagnostics latency;
 		temporal::LatencyPhase latencyPhase = temporal::LatencyPhase::kIdle;
 		temporal::FramePhase framePhase = temporal::FramePhase::kIdle;
 		std::uint64_t realFrame = 0;
@@ -251,6 +253,11 @@ namespace cs::render
 			ID3D11Device** a_device,
 			IDXGISwapChain** a_swapChain);
 		bool InstallLatencyHooks() noexcept;
+		[[nodiscard]] bool LatencyActive() const noexcept;
+		void EmitLatencyMarkers(
+			std::initializer_list<temporal::LatencyMarker> a_markers,
+			std::uint64_t a_frame) noexcept;
+		void ReportLatencyResult(const temporal::ProviderResult& a_result) noexcept;
 		void ApplyPendingConfiguration();
 
 		struct Impl;

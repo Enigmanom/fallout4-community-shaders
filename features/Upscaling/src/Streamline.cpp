@@ -138,7 +138,7 @@ namespace cs::features
 		bool a_loadFsrG)
 	{
 		triedInitialization = true;
-		_latencyFeaturesRequested = a_loadDlssG;
+		_dlssGFeatureRequested = a_loadDlssG;
 		_fsrFeatureRequested = a_loadFsr;
 		_fsrGFeatureRequested = a_loadFsrG;
 
@@ -167,9 +167,9 @@ namespace cs::features
 		}
 		if (a_loadDlssG) {
 			featuresToLoad[featureCount++] = sl::kFeatureDLSS_G;
-			featuresToLoad[featureCount++] = sl::kFeaturePCL;
-			featuresToLoad[featureCount++] = sl::kFeatureReflex;
 		}
+		featuresToLoad[featureCount++] = sl::kFeaturePCL;
+		featuresToLoad[featureCount++] = sl::kFeatureReflex;
 		if (a_loadFsrG) {
 			featuresToLoad[featureCount++] = sl::kFeatureFSR_G;
 		}
@@ -392,10 +392,10 @@ namespace cs::features
 		if (_fsrFeatureRequested) {
 			checkFeatureAvailability(sl::kFeatureFSR, "FSR", featureFSR);
 		}
-		if (_latencyFeaturesRequested) {
+		checkFeatureAvailability(sl::kFeaturePCL, "PCL", featurePCL);
+		checkFeatureAvailability(sl::kFeatureReflex, "Reflex", featureReflex);
+		if (_dlssGFeatureRequested) {
 			checkFeatureAvailability(sl::kFeatureDLSS_G, "DLSS-G", featureDLSSG);
-			checkFeatureAvailability(sl::kFeaturePCL, "PCL", featurePCL);
-			checkFeatureAvailability(sl::kFeatureReflex, "Reflex", featureReflex);
 			_dlssGAvailability.store(
 				featureDLSSG ? render::temporal::CapabilityAvailability::kSupported : render::temporal::CapabilityAvailability::kUnsupported,
 				std::memory_order_release);
@@ -525,15 +525,12 @@ namespace cs::features
 				sl::kFeatureReflex,
 				"slReflexSetOptions",
 				(void*&)slReflexSetOptions);
-			if (slReflexSetOptions) {
-				sl::ReflexOptions options;
-				options.mode = sl::ReflexMode::eOff;
-				if (SL_FAILED(result, slReflexSetOptions(options))) {
-					L->warn(
-						"Could not initialize Reflex options: {}",
-						magic_enum::enum_name(result));
-				}
-			}
+			slGetFeatureFunction(
+				sl::kFeatureReflex,
+				"slReflexGetState",
+				(void*&)slReflexGetState);
+			std::scoped_lock lock(_latencyMutex);
+			_latencyApplied.reset();
 		}
 
 		if (featureFSR && slFSRGetCapabilities) {
@@ -591,45 +588,6 @@ namespace cs::features
 					result, capabilities.available),
 				std::memory_order_release);
 		}
-	}
-
-	bool Streamline::Sleep(std::uint32_t a_frameIndex)
-	{
-		if (!featureReflex || !slReflexSleep ||
-			!EnsureFrameToken(a_frameIndex)) {
-			return false;
-		}
-		if (SL_FAILED(result, slReflexSleep(*frameToken))) {
-			CS_LOG_EVERY_MS(
-				L,
-				2000,
-				spdlog::level::warn,
-				"Reflex sleep failed: {}",
-				magic_enum::enum_name(result));
-			return false;
-		}
-		return true;
-	}
-
-	bool Streamline::SetLatencyMarker(
-		sl::PCLMarker a_marker,
-		std::uint32_t a_frameIndex)
-	{
-		if (!featurePCL || !slPCLSetMarker ||
-			!EnsureFrameToken(a_frameIndex)) {
-			return false;
-		}
-		if (SL_FAILED(result, slPCLSetMarker(a_marker, *frameToken))) {
-			CS_LOG_EVERY_MS(
-				L,
-				2000,
-				spdlog::level::warn,
-				"PCL marker {} failed: {}",
-				static_cast<std::uint32_t>(a_marker),
-				magic_enum::enum_name(result));
-			return false;
-		}
-		return true;
 	}
 
 	bool Streamline::EnsureFrameToken(std::uint32_t a_frameIndex)
@@ -1196,19 +1154,9 @@ namespace cs::features
 			!ValidateDLSSGConfiguration(a_configuration).Succeeded()) {
 			return false;
 		}
-		if (a_enabled) {
-			if (!featureReflex || !slReflexSetOptions) {
-				return false;
-			}
-			sl::ReflexOptions reflex{};
-			reflex.mode = sl::ReflexMode::eLowLatency;
-			reflex.useMarkersToOptimize = false;
-			if (SL_FAILED(result, slReflexSetOptions(reflex))) {
-				L->error(
-					"Could not enable Reflex for DLSS-G: {}",
-					magic_enum::enum_name(result));
-				return false;
-			}
+		if (a_enabled && !SetLatencyConstraint(_dlssGForcesLatency, true)) {
+			L->error("Could not enable Reflex for DLSS-G");
+			return false;
 		}
 		const auto options = streamline_fg::BuildOptions(
 			a_enabled, a_configuration, a_renderWidth, a_renderHeight,
@@ -1219,6 +1167,9 @@ namespace cs::features
 				"Could not configure DLSS-G: {}",
 				magic_enum::enum_name(result));
 			return false;
+		}
+		if (!a_enabled) {
+			(void)SetLatencyConstraint(_dlssGForcesLatency, false);
 		}
 		_dlssGGenerationEnabled.store(
 			a_enabled, std::memory_order_relaxed);
@@ -1256,12 +1207,18 @@ namespace cs::features
 		sl::FSRGAlgorithmOptions algorithmOptions{};
 		streamline_fidelityfx::SelectAlgorithm(
 			options, algorithmOptions, a_algorithm);
+		if (a_enabled) {
+			(void)SetLatencyConstraint(_fsrGForcesLatencyOff, true);
+		}
 		if (SL_FAILED(result, slFSRGSetOptions(viewport, options))) {
 			L->error(
 				"Could not configure {}: {}",
 				a_algorithm == sl::FSRGAlgorithm::eFSR4 ? "FSR 4 ML frame generation" : "FSR 3 frame generation",
 				magic_enum::enum_name(result));
 			return false;
+		}
+		if (!a_enabled) {
+			(void)SetLatencyConstraint(_fsrGForcesLatencyOff, false);
 		}
 		_fsrGResourcesConfigured = true;
 		return true;
@@ -1937,6 +1894,7 @@ namespace cs::features
 		_dlssGGenerationEnabled.store(
 			false, std::memory_order_relaxed);
 		_dlssGStatus = sl::DLSSGStatus::eOk;
+		(void)SetLatencyConstraint(_dlssGForcesLatency, false);
 		_dlssGResourcesConfigured = false;
 		return {
 			.code =
@@ -1997,6 +1955,7 @@ namespace cs::features
 			};
 		}
 		_fsrGInputCompletionDependency.reset();
+		(void)SetLatencyConstraint(_fsrGForcesLatencyOff, false);
 		_fsrGResourcesConfigured = false;
 		return {
 			.code =
