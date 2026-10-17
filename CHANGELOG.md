@@ -2,6 +2,7 @@
 
 ## 0.3.2
 
+- Upscaling: added NVIDIA Reflex controls (Low Latency Mode, Boost, Use Markers To Optimize, FPS Limit) as in Skyrim CS; Low Latency is on by default and always forced on under DLSS Frame Generation, off under FSR Frame Generation.
 - Upscaling: fixed a faint vertical seam at DLSS/FSR Quality.
 - Unified Water: ported Skyrim CS's distance-unified water and distant terrain water tiles with per-cell water types; off until loaded; placed water keeps vanilla distance rendering.
 - Frame Generation: updated Streamline to fix a black screen when loading a save with FSR 4 frame generation enabled and Gamma 2.2 color inputs.
