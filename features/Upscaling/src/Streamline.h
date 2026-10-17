@@ -25,7 +25,7 @@
 
 namespace cs::features
 {
-	class Streamline final : public render::temporal::ILatencyProvider
+	class Streamline final
 	{
 	public:
 		static constexpr const wchar_t* PluginDir = L"Data\\Shaders\\Upscaling\\Streamline";
@@ -131,16 +131,16 @@ namespace cs::features
 		[[nodiscard]] render::temporal::FidelityFXCapabilities
 		GetFidelityFXCapabilities() const noexcept;
 
-		[[nodiscard]] render::temporal::ProviderResult Configure(
-			const render::temporal::LatencyOptions& a_options) override;
+		[[nodiscard]] render::temporal::ProviderResult ConfigureLatency(
+			const render::temporal::LatencyOptions& a_options);
 		[[nodiscard]] render::temporal::ProviderResult
-		Sleep(std::uint32_t a_frame) override;
+		SleepLatency(std::uint32_t a_frame);
 		[[nodiscard]] render::temporal::ProviderResult SetLatencyMarker(
 			render::temporal::LatencyMarker a_marker,
-			std::uint32_t a_frame) override;
+			std::uint32_t a_frame);
 		[[nodiscard]] render::temporal::LatencyDiagnostics
-		GetLatencyDiagnostics() const noexcept override;
-		[[nodiscard]] bool IsAvailable() const noexcept override;
+		GetLatencyDiagnostics() const noexcept;
+		[[nodiscard]] bool IsLatencyAvailable() const noexcept;
 		bool ConfigureDLSSG(
 			bool a_enabled,
 			const render::temporal::FrameGenerationConfiguration&
@@ -246,7 +246,7 @@ namespace cs::features
 		render::temporal::FrameGenerationCamera _constantsCamera{};
 		[[nodiscard]] render::temporal::LatencyOptions
 		ResolveLatencyOptions() const noexcept;
-		bool ApplyLatencyOptions() noexcept;
+		sl::Result ApplyLatencyOptions() noexcept;
 		bool SetLatencyConstraint(bool& a_flag, bool a_value) noexcept;
 		void PollReflexState() noexcept;
 		bool _dlssGFeatureRequested = false;
@@ -422,5 +422,27 @@ namespace cs::features
 		std::atomic_uint32_t _fsr4SwapchainVersionMinor{ 0 };
 		std::atomic_uint32_t _fsr4SwapchainVersionPatch{ 0 };
 		FidelityFXRuntimeDiagnosticsCache _fsr4FgRuntimeDiagnostics;
+	};
+
+	class StreamlineLatency final : public render::temporal::ILatencyProvider
+	{
+	public:
+		explicit StreamlineLatency(Streamline& a_runtime) noexcept :
+			_runtime(a_runtime)
+		{}
+
+		[[nodiscard]] render::temporal::ProviderResult
+		Configure(const render::temporal::LatencyOptions& a_options) override;
+		[[nodiscard]] render::temporal::ProviderResult
+		Sleep(std::uint32_t a_frame) override;
+		[[nodiscard]] render::temporal::ProviderResult SetLatencyMarker(
+			render::temporal::LatencyMarker a_marker,
+			std::uint32_t a_frame) override;
+		[[nodiscard]] render::temporal::LatencyDiagnostics
+		GetLatencyDiagnostics() const noexcept override;
+		[[nodiscard]] bool IsAvailable() const noexcept override;
+
+	private:
+		Streamline& _runtime;
 	};
 }

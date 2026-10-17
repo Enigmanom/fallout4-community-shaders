@@ -4,32 +4,6 @@
 
 namespace cs::features
 {
-	namespace
-	{
-		render::temporal::ProviderResult Success(
-			render::temporal::ProviderWorkState a_workState =
-				render::temporal::ProviderWorkState::kNone,
-			bool a_outputDependencyEstablished = false)
-		{
-			return { .code = render::temporal::ProviderResultCode::kSuccess,
-				.workState = a_workState,
-				.outputDependencyEstablished = a_outputDependencyEstablished };
-		}
-
-		render::temporal::ProviderResult Failure(
-			std::string a_message,
-			render::temporal::FailureDomain a_domain =
-				render::temporal::FailureDomain::kSuperResolution)
-		{
-			return {
-				.code = render::temporal::ProviderResultCode::kFailure,
-				.message = std::move(a_message),
-				.failureDomain = a_domain
-			};
-		}
-
-	}
-
 	StreamlineSuperResolution::StreamlineSuperResolution(
 		Streamline& a_runtime, Method a_method) noexcept :
 		_runtime(a_runtime),
@@ -56,7 +30,7 @@ namespace cs::features
 		const auto* device12 =
 			std::get_if<ID3D12Device*>(&a_context.device);
 		if (!device12 || !*device12) {
-			return Failure(
+			return render::temporal::ProviderResult::Fail(
 				"Streamline super-resolution is unavailable for the requested "
 				"graphics API.",
 				render::temporal::FailureDomain::kStreamline);
@@ -64,8 +38,8 @@ namespace cs::features
 		if (_method == Method::kDLSS) {
 			return _runtime.featureDLSS &&
 			               _runtime.slDLSSGetOptimalSettings ?
-			           Success() :
-			           Failure(
+			           render::temporal::ProviderResult::Ok() :
+			           render::temporal::ProviderResult::Fail(
 						   "DLSS super-resolution is unavailable in this Streamline "
 						   "session.",
 						   render::temporal::FailureDomain::kStreamline);

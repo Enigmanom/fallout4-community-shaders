@@ -265,6 +265,8 @@ namespace cs::render
 		std::atomic_bool detailedTracing{ false };
 		FrameGenerationCpuTimingCollector<> frameGenerationCpuTimings;
 		features::Streamline streamline;
+		features::StreamlineLatency streamlineLatency{ streamline };
+		temporal::ILatencyProvider* latencyProvider = &streamlineLatency;
 		features::StreamlineSuperResolution dlssProvider{
 			streamline,
 			features::StreamlineSuperResolution::Method::kDLSS
@@ -824,7 +826,7 @@ namespace cs::render
 	bool TemporalPipeline::LatencyActive() const noexcept
 	{
 		return _impl->latencyHooksInstalled.load(std::memory_order_acquire) &&
-		       _impl->streamline.IsAvailable();
+		       _impl->latencyProvider->IsAvailable();
 	}
 
 	void TemporalPipeline::ReportLatencyResult(
@@ -854,7 +856,7 @@ namespace cs::render
 			return;
 		}
 		for (const auto marker : a_markers) {
-			ReportLatencyResult(_impl->streamline.SetLatencyMarker(
+			ReportLatencyResult(_impl->latencyProvider->SetLatencyMarker(
 				marker, static_cast<std::uint32_t>(a_frame)));
 		}
 	}
@@ -891,11 +893,11 @@ namespace cs::render
 		cs::engine::RefreshFrameBufferContextHooks();
 		if (LatencyActive()) {
 			ReportLatencyResult(
-				_impl->streamline.Configure(ToLatencyOptions(renderSettings)));
+				_impl->latencyProvider->Configure(ToLatencyOptions(renderSettings)));
 			const auto result = [&] {
 				auto timing = MeasureFrameGenerationCpuPhase(
 					FrameGenerationCpuPhase::kLatencySleep);
-				return _impl->streamline.Sleep(
+				return _impl->latencyProvider->Sleep(
 					static_cast<std::uint32_t>(frame));
 			}();
 			ReportLatencyResult(result);
@@ -1769,7 +1771,7 @@ namespace cs::render
 		status.latencyHooksInstalled =
 			_impl->latencyHooksInstalled.load(std::memory_order_acquire);
 		status.latencySdkActive = LatencyActive();
-		status.latency = _impl->streamline.GetLatencyDiagnostics();
+		status.latency = _impl->latencyProvider->GetLatencyDiagnostics();
 		status.latencyPhase = _impl->latency.Phase();
 		const auto& frame = _impl->frames[_impl->currentFrameSlot];
 		status.framePhase = frame.Phase();

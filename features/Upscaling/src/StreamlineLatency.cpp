@@ -19,19 +19,12 @@ namespace cs::features
 		using render::temporal::ProviderResult;
 		using render::temporal::ProviderResultCode;
 
-		ProviderResult Success() noexcept
-		{
-			return { .code = ProviderResultCode::kSuccess };
-		}
-
 		ProviderResult Failure(sl::Result a_result, const char* a_message)
 		{
-			return {
-				.code = ProviderResultCode::kFailure,
-				.sdkResult = static_cast<std::int64_t>(a_result),
-				.message = a_message,
-				.failureDomain = render::temporal::FailureDomain::kStreamline
-			};
+			return ProviderResult::Fail(
+				a_message,
+				render::temporal::FailureDomain::kStreamline,
+				static_cast<std::int64_t>(a_result));
 		}
 
 		sl::ReflexMode ToReflexMode(LatencyMode a_mode) noexcept
@@ -69,7 +62,7 @@ namespace cs::features
 		}
 	}
 
-	bool Streamline::IsAvailable() const noexcept
+	bool Streamline::IsLatencyAvailable() const noexcept
 	{
 		return initialized && deviceRegistered && featureReflex && featurePCL &&
 		       slReflexSetOptions && slReflexSleep && slPCLSetMarker;
@@ -90,14 +83,14 @@ namespace cs::features
 		return options;
 	}
 
-	bool Streamline::ApplyLatencyOptions() noexcept
+	sl::Result Streamline::ApplyLatencyOptions() noexcept
 	{
-		if (!IsAvailable()) {
-			return false;
+		if (!IsLatencyAvailable()) {
+			return sl::Result::eErrorFeatureMissing;
 		}
 		const auto effective = ResolveLatencyOptions();
 		if (_latencyApplied == effective) {
-			return true;
+			return sl::Result::eOk;
 		}
 		sl::ReflexOptions options{};
 		options.mode = ToReflexMode(effective.mode);
@@ -110,32 +103,35 @@ namespace cs::features
 				spdlog::level::err,
 				"Reflex options were rejected: {}",
 				magic_enum::enum_name(result));
-			return false;
+			return result;
 		}
 		_latencyApplied = effective;
-		return true;
+		return sl::Result::eOk;
 	}
 
 	bool Streamline::SetLatencyConstraint(bool& a_flag, bool a_value) noexcept
 	{
 		std::scoped_lock lock(_latencyMutex);
 		a_flag = a_value;
-		return ApplyLatencyOptions();
+		return ApplyLatencyOptions() == sl::Result::eOk;
 	}
 
-	ProviderResult Streamline::Configure(const LatencyOptions& a_options)
+	ProviderResult Streamline::ConfigureLatency(const LatencyOptions& a_options)
 	{
-		if (!IsAvailable()) {
+		if (!IsLatencyAvailable()) {
 			return { .code = ProviderResultCode::kUnavailable };
 		}
 		std::scoped_lock lock(_latencyMutex);
 		_latencyRequested = a_options;
-		return ApplyLatencyOptions() ? Success() : Failure(sl::Result::eErrorInvalidParameter, "Reflex options were rejected.");
+		const auto result = ApplyLatencyOptions();
+		return result == sl::Result::eOk ?
+		           ProviderResult::Ok() :
+		           Failure(result, "Reflex options were rejected.");
 	}
 
-	ProviderResult Streamline::Sleep(std::uint32_t a_frame)
+	ProviderResult Streamline::SleepLatency(std::uint32_t a_frame)
 	{
-		if (!IsAvailable()) {
+		if (!IsLatencyAvailable()) {
 			return { .code = ProviderResultCode::kUnavailable };
 		}
 		if (!EnsureFrameToken(a_frame)) {
@@ -156,13 +152,13 @@ namespace cs::features
 		if (calls % kReflexStatePollInterval == 1) {
 			PollReflexState();
 		}
-		return Success();
+		return ProviderResult::Ok();
 	}
 
 	ProviderResult Streamline::SetLatencyMarker(
 		LatencyMarker a_marker, std::uint32_t a_frame)
 	{
-		if (!IsAvailable()) {
+		if (!IsLatencyAvailable()) {
 			return { .code = ProviderResultCode::kUnavailable };
 		}
 		if (!EnsureFrameToken(a_frame)) {
@@ -180,7 +176,7 @@ namespace cs::features
 				magic_enum::enum_name(result));
 			return Failure(result, "PCL marker failed.");
 		}
-		return Success();
+		return ProviderResult::Ok();
 	}
 
 	void Streamline::PollReflexState() noexcept
@@ -218,7 +214,7 @@ namespace cs::features
 	Streamline::GetLatencyDiagnostics() const noexcept
 	{
 		render::temporal::LatencyDiagnostics diagnostics;
-		diagnostics.available = IsAvailable();
+		diagnostics.available = IsLatencyAvailable();
 		diagnostics.markersAvailable = featurePCL && slPCLSetMarker;
 		{
 			std::scoped_lock lock(_latencyMutex);
@@ -233,5 +229,32 @@ namespace cs::features
 		diagnostics.simulationToPresentUs = _reflexSimulationToPresentUs.load(std::memory_order_relaxed);
 		diagnostics.gpuFrameTimeUs = _reflexGpuFrameTimeUs.load(std::memory_order_relaxed);
 		return diagnostics;
+	}
+
+	ProviderResult StreamlineLatency::Configure(const LatencyOptions& a_options)
+	{
+		return _runtime.ConfigureLatency(a_options);
+	}
+
+	ProviderResult StreamlineLatency::Sleep(std::uint32_t a_frame)
+	{
+		return _runtime.SleepLatency(a_frame);
+	}
+
+	ProviderResult StreamlineLatency::SetLatencyMarker(
+		LatencyMarker a_marker, std::uint32_t a_frame)
+	{
+		return _runtime.SetLatencyMarker(a_marker, a_frame);
+	}
+
+	render::temporal::LatencyDiagnostics
+	StreamlineLatency::GetLatencyDiagnostics() const noexcept
+	{
+		return _runtime.GetLatencyDiagnostics();
+	}
+
+	bool StreamlineLatency::IsAvailable() const noexcept
+	{
+		return _runtime.IsLatencyAvailable();
 	}
 }

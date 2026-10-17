@@ -1156,6 +1156,7 @@ namespace cs::features
 		}
 		if (a_enabled && !SetLatencyConstraint(_dlssGForcesLatency, true)) {
 			L->error("Could not enable Reflex for DLSS-G");
+			(void)SetLatencyConstraint(_dlssGForcesLatency, false);
 			return false;
 		}
 		const auto options = streamline_fg::BuildOptions(
@@ -1166,6 +1167,7 @@ namespace cs::features
 			L->error(
 				"Could not configure DLSS-G: {}",
 				magic_enum::enum_name(result));
+			(void)SetLatencyConstraint(_dlssGForcesLatency, false);
 			return false;
 		}
 		if (!a_enabled) {
@@ -1215,6 +1217,7 @@ namespace cs::features
 				"Could not configure {}: {}",
 				a_algorithm == sl::FSRGAlgorithm::eFSR4 ? "FSR 4 ML frame generation" : "FSR 3 frame generation",
 				magic_enum::enum_name(result));
+			(void)SetLatencyConstraint(_fsrGForcesLatencyOff, false);
 			return false;
 		}
 		if (!a_enabled) {

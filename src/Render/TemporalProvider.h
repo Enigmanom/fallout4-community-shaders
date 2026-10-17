@@ -60,6 +60,25 @@ namespace cs::render::temporal
 		bool globalDrainCompleted = false;
 		std::uint64_t globalDrainCpuMicroseconds = 0;
 
+		[[nodiscard]] static ProviderResult Ok(
+			ProviderWorkState a_workState = ProviderWorkState::kNone,
+			bool a_outputDependency = false)
+		{
+			return { .code = ProviderResultCode::kSuccess,
+				.workState = a_workState,
+				.outputDependencyEstablished = a_outputDependency };
+		}
+
+		[[nodiscard]] static ProviderResult Fail(
+			std::string a_message, FailureDomain a_domain,
+			std::int64_t a_sdkResult = 0)
+		{
+			return { .code = ProviderResultCode::kFailure,
+				.sdkResult = a_sdkResult,
+				.message = std::move(a_message),
+				.failureDomain = a_domain };
+		}
+
 		[[nodiscard]] bool Succeeded() const noexcept
 		{
 			return code == ProviderResultCode::kSuccess;

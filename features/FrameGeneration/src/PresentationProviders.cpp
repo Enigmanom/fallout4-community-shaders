@@ -13,17 +13,11 @@ namespace cs::features
 		using render::temporal::ProviderResult;
 		using render::temporal::ProviderResultCode;
 
-		ProviderResult Success() { return { .code = ProviderResultCode::kSuccess }; }
-
-		ProviderResult Failure(
-			std::string a_message, std::int64_t a_result = 0,
-			render::temporal::FailureDomain a_domain =
-				render::temporal::FailureDomain::kFrameGeneration)
+		ProviderResult Failure(std::string a_message)
 		{
-			return { .code = ProviderResultCode::kFailure,
-				.sdkResult = a_result,
-				.message = std::move(a_message),
-				.failureDomain = a_domain };
+			return ProviderResult::Fail(
+				std::move(a_message),
+				render::temporal::FailureDomain::kFrameGeneration);
 		}
 
 		ProviderResult FailureHresult(std::string a_message, HRESULT a_result)
@@ -55,13 +49,13 @@ namespace cs::features
 
 	ProviderResult StreamlinePresentation::PrepareDevice(ID3D12Device** a_device)
 	{
-		return _runtime.PrepareD3D12Device(a_device) ? Success() : Failure("Streamline could not upgrade and bind the D3D12 device.");
+		return _runtime.PrepareD3D12Device(a_device) ? ProviderResult::Ok() : Failure("Streamline could not upgrade and bind the D3D12 device.");
 	}
 
 	ProviderResult
 	StreamlinePresentation::PrepareFactory(IDXGIFactory4** a_factory)
 	{
-		return _runtime.PrepareDXGIFactory(a_factory) ? Success() : Failure("Streamline could not upgrade the DXGI factory.");
+		return _runtime.PrepareDXGIFactory(a_factory) ? ProviderResult::Ok() : Failure("Streamline could not upgrade the DXGI factory.");
 	}
 
 	ProviderResult StreamlinePresentation::CreatePresentation(
@@ -95,7 +89,7 @@ namespace cs::features
 		}
 		_presentQueue.copy_from(a_context.queue);
 		_presentationActive = true;
-		return Success();
+		return ProviderResult::Ok();
 	}
 
 	ProviderResult
@@ -148,7 +142,7 @@ namespace cs::features
 				_runtime.ConfigureFSRG(false, request, algorithm) &&
 				_runtime.CheckFSRGCompletionCapability(algorithm);
 		}
-		return _ready ? Success() : Failure(std::string(Name()) + " display-resource preflight failed.");
+		return _ready ? ProviderResult::Ok() : Failure(std::string(Name()) + " display-resource preflight failed.");
 	}
 
 	ProviderResult StreamlinePresentation::PrepareFrame(
@@ -173,12 +167,12 @@ namespace cs::features
 			return _runtime.ClearFrameGenerationTags(
 					   static_cast<std::uint32_t>(a_request.realFrame),
 					   a_request.recording.commandList) ?
-			           Success() :
+			           ProviderResult::Ok() :
 			           Failure(std::string(Name()) +
 							   " invalid input tags could not be cleared.");
 		}
 		const bool tagged = _method == Method::kDLSSG ? _runtime.TagDLSSGFrame(a_request) : _runtime.TagFSRGFrame(a_request);
-		return tagged ? Success() : Failure(std::string(Name()) + " input preparation failed.");
+		return tagged ? ProviderResult::Ok() : Failure(std::string(Name()) + " input preparation failed.");
 	}
 
 	ProviderResult StreamlinePresentation::CancelFrame(
@@ -203,7 +197,7 @@ namespace cs::features
 			return Failure(std::string(Name()) +
 						   " cancellation could not invalidate the frame tags.");
 		}
-		return disabled ? Success() : Failure(std::string(Name()) + " cancellation could not disable the SDK.");
+		return disabled ? ProviderResult::Ok() : Failure(std::string(Name()) + " cancellation could not disable the SDK.");
 	}
 
 	ProviderResult StreamlinePresentation::SetGenerationEnabled(bool a_enabled)
@@ -217,7 +211,7 @@ namespace cs::features
 				 !_runtime.HasDLSSGResources()) ||
 				(_method != Method::kDLSSG && !_ready))) {
 			_enabled = false;
-			return Success();
+			return ProviderResult::Ok();
 		}
 		_enabled = a_enabled;
 		if (!a_enabled && !_runtime.ClearCurrentFrameGenerationTags()) {
@@ -227,7 +221,7 @@ namespace cs::features
 		if (_method == Method::kDLSSG) {
 			return _runtime.ConfigureDLSSG(a_enabled, _configuration,
 					   _width, _height, _width, _height, _bufferCount, true) ?
-			           Success() :
+			           ProviderResult::Ok() :
 			           Failure("DLSS-G enablement change failed.");
 		}
 		render::temporal::FrameGenerationRequest request;
@@ -249,7 +243,7 @@ namespace cs::features
 		};
 		return _runtime.ConfigureFSRG(a_enabled, request,
 				   _method == Method::kFSR4 ? sl::FSRGAlgorithm::eFSR4 : sl::FSRGAlgorithm::eFSR3) ?
-		           Success() :
+		           ProviderResult::Ok() :
 		           Failure(std::string(Name()) +
 						   " enablement change failed.");
 	}
@@ -264,7 +258,7 @@ namespace cs::features
 		}
 		if (_method == Method::kDLSSG) {
 			if (!_runtime.HasDLSSGResources()) {
-				return Success();
+				return ProviderResult::Ok();
 			}
 			if (!_runtime.ConfigureDLSSG(false, _configuration,
 					_width, _height, _width, _height, _bufferCount, true)) {
@@ -295,7 +289,7 @@ namespace cs::features
 			}
 		}
 
-		return Success();
+		return ProviderResult::Ok();
 	}
 
 	ProviderResult
@@ -304,10 +298,10 @@ namespace cs::features
 	{
 		if (!render::temporal::ShouldObservePresentStatus(a_presentFlags,
 				a_presentResult)) {
-			return Success();
+			return ProviderResult::Ok();
 		}
 		if (_method == Method::kDLSSG ? _runtime.LastDLSSGStateSucceeded() : _runtime.PollFSRGState(_method == Method::kFSR4 ? sl::FSRGAlgorithm::eFSR4 : sl::FSRGAlgorithm::eFSR3)) {
-			return Success();
+			return ProviderResult::Ok();
 		}
 		return Failure(
 			std::string(Name()) + " reported a post-Present failure.");
@@ -321,7 +315,7 @@ namespace cs::features
 											   a_configuration) :
 		       _method == Method::kFSR4  ? _runtime.ValidateFSRGAlgorithm(
 											   sl::FSRGAlgorithm::eFSR4) :
-		                                   Success();
+		                                   ProviderResult::Ok();
 	}
 
 	render::temporal::FrameGenerationCapabilities
@@ -371,7 +365,7 @@ namespace cs::features
 		}
 		_ready = false;
 		_enabled = false;
-		return Success();
+		return ProviderResult::Ok();
 	}
 
 	ProviderResult StreamlinePresentation::DestroyAfterDrain() noexcept
@@ -383,12 +377,13 @@ namespace cs::features
 		_ready = false;
 		_enabled = false;
 		_presentQueue = nullptr;
-		return Success();
+		return ProviderResult::Ok();
 	}
 
 	bool StreamlinePresentation::IsAvailable() const noexcept
 	{
-		return _method == Method::kDLSSG ? _runtime.featureDLSSG && _runtime.IsAvailable() &&
+		return _method == Method::kDLSSG ? _runtime.featureDLSSG && _runtime.featurePCL &&
+		                                       _runtime.featureReflex &&
 		                                       _runtime.slSetFeatureLoaded &&
 		                                       _runtime.slDLSSGSetOptions &&
 		                                       _runtime.slDLSSGGetState :
