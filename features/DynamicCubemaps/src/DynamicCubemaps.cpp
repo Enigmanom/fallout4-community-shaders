@@ -249,6 +249,7 @@ namespace cs::features
 	{
 		_enabledSSR.store(_settings.enabledSSR, std::memory_order_release);
 		_materialReflections.store(_settings.materialReflections, std::memory_order_release);
+		_engineCubeLod.store(_settings.engineCubeLod, std::memory_order_release);
 	}
 
 	bool DynamicCubemaps::SaveSettings()
@@ -267,11 +268,9 @@ namespace cs::features
 		}
 
 		// FO4 vanilla never renders the reflections cube; the host does.
-		if (!cs::engine::RegisterSkyReflectionCubeConsumer("DynamicCubemaps", [this] {
-				return IsEnabled() &&
-			           _resourcesReady.load(std::memory_order_acquire) &&
-			           _injectionsOperational.load(std::memory_order_acquire);
-			})) {
+		if (!cs::engine::RegisterSkyReflectionCubeConsumer("DynamicCubemaps", [this] { return IsEnabled() &&
+			                                                                                  _resourcesReady.load(std::memory_order_acquire) &&
+			                                                                                  _injectionsOperational.load(std::memory_order_acquire); }, [this] { return _engineCubeLod.load(std::memory_order_acquire); })) {
 			L->warn("Sky reflection cube unavailable; reflections capture the sky from the scene.");
 		}
 
@@ -1340,6 +1339,11 @@ namespace cs::features
 			changed |= edit.Discrete(dmui::ui::Checkbox("Enable Screen Space Reflections", &_settings.enabledSSR));
 			if (dmui::ui::IsItemHovered())
 				dmui::ui::SetTooltip("Enable all screen-space reflections, including water.");
+		}
+		if (const ui::Section section{ "dynamic-cubemaps-engine-cube", "Engine Reflection Cube" }; section) {
+			changed |= edit.Discrete(dmui::ui::Checkbox("Engine Cube LOD", &_settings.engineCubeLod));
+			if (dmui::ui::IsItemHovered())
+				dmui::ui::SetTooltip("Draw LOD land, objects and trees into the engine reflection cube that far water blends toward.");
 		}
 		if (const ui::Section section{ "dynamic-cubemaps-material", "Material Reflections" }; section) {
 			const auto range = dynamic_cubemaps::kSchema.EditRange(&Settings::materialReflections);

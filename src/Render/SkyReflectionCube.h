@@ -11,9 +11,11 @@ namespace cs::engine
 	// The host renders the sky into the engine reflection cube for consumers.
 
 	// Call during Load or OnPostPostLoad; false keeps the consumer's fallback.
+	// a_wantsLod (optional) asks for LOD land, objects and trees on the side faces.
 	[[nodiscard]] bool RegisterSkyReflectionCubeConsumer(
 		std::string_view a_name,
-		std::function<bool()> a_wantsCube);
+		std::function<bool()> a_wantsCube,
+		std::function<bool()> a_wantsLod = {});
 
 	// Render thread. Null unless all six faces are fresh.
 	[[nodiscard]] ID3D11ShaderResourceView* GetSkyReflectionCubeSRV() noexcept;
@@ -27,6 +29,7 @@ namespace cs::engine
 		std::uint32_t consumers = 0;
 		std::uint64_t renders = 0;
 		std::uint64_t faces = 0;
+		std::uint64_t lodFaces = 0;
 		std::uint64_t invalidations = 0;
 		std::uint64_t unboundTargets = 0;
 		std::uint64_t skippedNoDemand = 0;

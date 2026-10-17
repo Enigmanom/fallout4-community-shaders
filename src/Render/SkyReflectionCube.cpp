@@ -1,6 +1,7 @@
 #include "Render/SkyReflectionCube.h"
 
 #include "Log.h"
+#include "LogThrottle.h"
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
@@ -8,12 +9,14 @@
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "World/Sky.h"
+#include "World/Weather.h"
 
 #include <d3d11.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -41,6 +44,10 @@ namespace cs::engine
 		constexpr std::uint32_t kUpdatesPerCube = 3;
 		// Beyond this the eye has left the dome the faces came from.
 		constexpr float kEyeJumpLimit = 512.0f;
+		constexpr std::uint32_t kSideFaces = 0xF;
+		constexpr std::uint32_t kPolarFirstFace = 4;
+		// With LOD, a side face redraws only this often unless the scene changed.
+		constexpr std::uint32_t kLodSideInterval = 8;
 		// The eye is the previous render's camera; reject pre-load records.
 		constexpr std::uint32_t kMaxCameraAgeFrames = 2;
 		// The hook skips interiors and loads; a longer gap means stale faces.
@@ -96,12 +103,14 @@ namespace cs::engine
 		{
 			std::string name;
 			std::function<bool()> wantsCube;
+			std::function<bool()> wantsLod;
 		};
 
 		struct Counters
 		{
 			std::atomic<std::uint64_t> renders{ 0 };
 			std::atomic<std::uint64_t> faces{ 0 };
+			std::atomic<std::uint64_t> lodFaces{ 0 };
 			std::atomic<std::uint64_t> invalidations{ 0 };
 			std::atomic<std::uint64_t> unboundTargets{ 0 };
 			std::atomic<std::uint64_t> skippedNoDemand{ 0 };
@@ -122,8 +131,15 @@ namespace cs::engine
 
 		// Never destroyed: static teardown must not free into the game heap.
 		RE::NiPointer<CubeCamera>* g_camera = nullptr;
-		std::uint32_t g_step = 0;
+		std::uint32_t g_polarNext = 0;
+		std::uint32_t g_sideNext = 0;
+		std::uint32_t g_sideTimer = 0;
+		std::uint32_t g_sidePending = kSideFaces;
+		bool g_lastLod = false;
 		std::optional<RE::NiPoint3> g_lastEye;
+		std::optional<RE::NiPoint3> g_lodEye;
+		const void* g_lodWorldSpace = nullptr;
+		WeatherSnapshot g_lodWeather;
 		std::optional<std::uint32_t> g_lastFrame;
 
 		void Disable(const char* a_reason) noexcept
@@ -138,8 +154,12 @@ namespace cs::engine
 			if (g_faceMask.exchange(0, std::memory_order_relaxed) != 0)
 				g_counters.invalidations.fetch_add(1, std::memory_order_relaxed);
 			g_valid.store(false, std::memory_order_release);
-			g_step = 0;
+			g_polarNext = 0;
+			g_sideNext = 0;
+			g_sideTimer = 0;
+			g_sidePending = kSideFaces;
 			g_lastEye.reset();
+			g_lodEye.reset();
 		}
 
 		[[nodiscard]] bool RenderIsCurrent(std::uint32_t a_frame) noexcept
@@ -163,6 +183,13 @@ namespace cs::engine
 		{
 			return std::ranges::any_of(g_consumers, [](const Consumer& a_consumer) {
 				return a_consumer.wantsCube();
+			});
+		}
+
+		[[nodiscard]] bool AnyConsumerWantsLod()
+		{
+			return std::ranges::any_of(g_consumers, [](const Consumer& a_consumer) {
+				return a_consumer.wantsLod && a_consumer.wantsLod();
 			});
 		}
 
@@ -263,6 +290,114 @@ namespace cs::engine
 			a_camera.SetViewFrustum(frustum);
 		}
 
+		// Engine Update adds these only when the worldspace has a terrain manager.
+		void AddLodScenes(CubeCamera& a_camera)
+		{
+			for (auto* node : { RE::BGSTerrainManager::GetLandNode(),
+					 RE::BGSTerrainManager::GetObjectsNode(),
+					 RE::BGSTerrainManager::GetTreesNode() }) {
+				if (node)
+					a_camera.AddCubeMapScene(node);
+			}
+		}
+
+		// Forward Lighting ships no LOD bases (8, 9, 13, 18, 19).
+		constexpr std::array kLodFlags{
+			RE::BSShaderProperty::EShaderPropertyFlag::kLODLandscape,
+			RE::BSShaderProperty::EShaderPropertyFlag::kLODObjects,
+			RE::BSShaderProperty::EShaderPropertyFlag::kLODLandBlend
+		};
+		// Cleared with them: it would select the missing base 8.
+		constexpr auto kLandscapeBlendFlag = RE::BSShaderProperty::EShaderPropertyFlag::kMultiTextureLandscape;
+		constexpr std::uint32_t kMaxLodDepth = 16;
+
+		// Clearing the LOD flags makes mode 0 resolve the base technique.
+		class ScopedLodLightingFlags
+		{
+		public:
+			ScopedLodLightingFlags() noexcept
+			{
+				const auto* land = RE::BGSTerrainManager::GetLandNode();
+				const auto* objects = RE::BGSTerrainManager::GetObjectsNode();
+				if (!land && !objects) {
+					CS_LOG_ONCE(L, spdlog::level::warn, "No LOD land or objects root; LOD flags stay as authored.");
+					return;
+				}
+				try {
+					Visit(land, 0);
+					Visit(objects, 0);
+				} catch (...) {
+					Restore();
+					CS_LOG_ONCE(L, spdlog::level::warn, "LOD flag clearing failed; flags were restored.");
+				}
+			}
+
+			~ScopedLodLightingFlags() { Restore(); }
+
+			ScopedLodLightingFlags(const ScopedLodLightingFlags&) = delete;
+			ScopedLodLightingFlags& operator=(const ScopedLodLightingFlags&) = delete;
+
+		private:
+			struct Change
+			{
+				RE::NiPointer<RE::BSShaderProperty> property;
+				std::uint64_t bits;
+			};
+
+			void Visit(const RE::NiNode* a_node, std::uint32_t a_depth)
+			{
+				if (!a_node || a_depth > kMaxLodDepth)
+					return;
+				const auto* data = a_node->children.data();
+				for (std::size_t i = 0; i < a_node->children.capacity(); ++i) {
+					auto* child = data[i].get();
+					if (!child || child->GetAppCulled())
+						continue;
+					if (const auto* node = child->IsNode()) {
+						Visit(node, a_depth + 1);
+					} else if (auto* geometry = child->IsGeometry()) {
+						Clear(geometry);
+					}
+				}
+			}
+
+			void Clear(RE::BSGeometry* a_geometry)
+			{
+				auto* property = netimmerse_cast<RE::BSLightingShaderProperty*>(a_geometry->properties[1].get());
+				if (!property)
+					return;
+				using Flag = RE::BSShaderProperty::EShaderPropertyFlag;
+				if (!property->flags.any(Flag::kLODLandscape, Flag::kLODObjects, Flag::kLODLandBlend))
+					return;
+				std::uint64_t bits = 0;
+				for (const auto flag : kLodFlags) {
+					if (property->flags.any(flag))
+						bits |= static_cast<std::uint64_t>(flag);
+				}
+				if (property->flags.any(kLandscapeBlendFlag))
+					bits |= static_cast<std::uint64_t>(kLandscapeBlendFlag);
+				_changes.push_back({ RE::NiPointer<RE::BSShaderProperty>(property), bits });
+				SetBits(*property, bits, false);
+			}
+
+			static void SetBits(RE::BSShaderProperty& a_property, std::uint64_t a_bits, bool a_value)
+			{
+				for (std::uint64_t bit = 1; bit != 0; bit <<= 1) {
+					if (a_bits & bit)
+						a_property.SetFlag(static_cast<RE::BSShaderProperty::EShaderPropertyFlag>(bit), a_value);
+				}
+			}
+
+			void Restore() noexcept
+			{
+				for (auto& change : _changes)
+					SetBits(*change.property, change.bits, true);
+				_changes.clear();
+			}
+
+			std::vector<Change> _changes;
+		};
+
 		// Faces leave cube mode set; end it so no later draw lands in the cube.
 		class ScopedCubeModeExit
 		{
@@ -283,26 +418,75 @@ namespace cs::engine
 			RE::BSGraphics::RenderTargetManager& _manager;
 		};
 
+		// Full side refresh when the scene the LOD was drawn from has changed.
+		void QueueLodRefresh(const RE::NiPoint3& a_eye, bool a_lod)
+		{
+			const auto* tes = RE::TES::GetSingleton();
+			const void* worldSpace = tes ? tes->worldSpace : nullptr;
+			const auto weather = SnapshotWeather();
+			const bool changed = a_lod != g_lastLod || !g_lodEye || g_lodEye->GetDistance(a_eye) > kEyeJumpLimit ||
+			                     worldSpace != g_lodWorldSpace || weather.current != g_lodWeather.current ||
+			                     weather.previous != g_lodWeather.previous;
+			if (!changed)
+				return;
+			g_sidePending = kSideFaces;
+			g_lastLod = a_lod;
+			g_lodEye = a_eye;
+			g_lodWorldSpace = worldSpace;
+			g_lodWeather = weather;
+		}
+
+		// Sky-only side faces cycle every frame; with LOD they trickle for sky drift.
+		[[nodiscard]] std::optional<std::uint32_t> NextSideFace(bool a_lod) noexcept
+		{
+			if (++g_sideTimer >= (a_lod ? kLodSideInterval : 1u)) {
+				g_sideTimer = 0;
+				g_sidePending |= 1u << g_sideNext;
+				g_sideNext = (g_sideNext + 1) % static_cast<std::uint32_t>(std::popcount(kSideFaces));
+			}
+			if (!g_sidePending)
+				return std::nullopt;
+			const auto face = static_cast<std::uint32_t>(std::countr_zero(g_sidePending));
+			g_sidePending &= g_sidePending - 1;
+			return face;
+		}
+
+		void ClickFace(CubeCamera& a_camera, RE::BSMultiBoundNode& a_skyRoot, std::uint32_t a_face, bool a_lod)
+		{
+			cs::render::annotation::ScopedEvent event(kFaceEvents[a_face]);
+			std::optional<ScopedPreCullBypass> preCull;
+			std::optional<ScopedLodLightingFlags> lodFlags;
+			if (a_lod) {
+				preCull.emplace();
+				lodFlags.emplace();
+				AddLodScenes(a_camera);
+				g_counters.lodFaces.fetch_add(1, std::memory_order_relaxed);
+			}
+			a_camera.AddCubeMapScene(&a_skyRoot);
+			// The release flag frees the scene list so it does not grow.
+			a_camera.Click(static_cast<FaceFlags>(1u << a_face), false, true, false);
+			g_faceMask.fetch_or(1u << a_face, std::memory_order_relaxed);
+			g_counters.faces.fetch_add(1, std::memory_order_relaxed);
+		}
+
+		// One polar face (sky only) and at most one side face per frame.
 		void RenderFaces(
 			CubeCamera& a_camera,
 			RE::BSMultiBoundNode& a_skyRoot,
 			RE::BSGraphics::RenderTargetManager& a_manager,
 			RE::BSGraphics::RendererShadowState& a_state,
-			const float (&a_clear)[4])
+			const float (&a_clear)[4],
+			const RE::NiPoint3& a_eye)
 		{
 			const ScopedSkyRootCubeFlag skyFlag(a_skyRoot);
 			const ScopedClearColor clearColor(a_state, a_clear);
 			const ScopedCubeModeExit cubeMode(a_manager);
-			a_camera.AddCubeMapScene(&a_skyRoot);
-			const std::array<std::uint32_t, kFacesPerUpdate> faces{ g_step, 5 - g_step };
-			for (std::size_t i = 0; i < faces.size(); ++i) {
-				cs::render::annotation::ScopedEvent event(kFaceEvents[faces[i]]);
-				// The last call releases the scene list so it does not grow.
-				a_camera.Click(static_cast<FaceFlags>(1u << faces[i]), false, i + 1 == faces.size(), false);
-				g_faceMask.fetch_or(1u << faces[i], std::memory_order_relaxed);
-				g_counters.faces.fetch_add(1, std::memory_order_relaxed);
-			}
-			g_step = (g_step + 1) % kUpdatesPerCube;
+			const bool lod = AnyConsumerWantsLod();
+			QueueLodRefresh(a_eye, lod);
+			ClickFace(a_camera, a_skyRoot, kPolarFirstFace + g_polarNext, false);
+			g_polarNext ^= 1;
+			if (const auto side = NextSideFace(lod))
+				ClickFace(a_camera, a_skyRoot, *side, lod);
 		}
 
 		void Render()
@@ -382,7 +566,7 @@ namespace cs::engine
 				unscaled.emplace();
 			UnbindAuxiliaryTargets(*manager, context->shadowState);
 			SetupCamera(**g_camera, eye, worldCamera->viewFrustum.far);
-			RenderFaces(**g_camera, *sky->root, *manager, context->shadowState, clear);
+			RenderFaces(**g_camera, *sky->root, *manager, context->shadowState, clear, eye);
 
 			g_counters.renders.fetch_add(1, std::memory_order_relaxed);
 			g_lastRenderFrame.store(state->frameCount, std::memory_order_relaxed);
@@ -402,7 +586,10 @@ namespace cs::engine
 		}
 	}
 
-	bool RegisterSkyReflectionCubeConsumer(std::string_view a_name, std::function<bool()> a_wantsCube)
+	bool RegisterSkyReflectionCubeConsumer(
+		std::string_view a_name,
+		std::function<bool()> a_wantsCube,
+		std::function<bool()> a_wantsLod)
 	{
 		if (!RenderHookRegistrationAllowed("SkyReflectionCubeConsumer"))
 			return false;
@@ -416,7 +603,7 @@ namespace cs::engine
 			InstallCubeSizeHook();
 			g_hookInstalled.store(true, std::memory_order_release);
 		}
-		g_consumers.push_back({ std::string(a_name), std::move(a_wantsCube) });
+		g_consumers.push_back({ std::string(a_name), std::move(a_wantsCube), std::move(a_wantsLod) });
 		L->info("Sky reflection cube consumer registered: {}", a_name);
 		return true;
 	}
@@ -441,6 +628,7 @@ namespace cs::engine
 		status.consumers = static_cast<std::uint32_t>(g_consumers.size());
 		status.renders = g_counters.renders.load(std::memory_order_relaxed);
 		status.faces = g_counters.faces.load(std::memory_order_relaxed);
+		status.lodFaces = g_counters.lodFaces.load(std::memory_order_relaxed);
 		status.invalidations = g_counters.invalidations.load(std::memory_order_relaxed);
 		status.unboundTargets = g_counters.unboundTargets.load(std::memory_order_relaxed);
 		status.skippedNoDemand = g_counters.skippedNoDemand.load(std::memory_order_relaxed);

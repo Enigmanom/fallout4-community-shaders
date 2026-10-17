@@ -457,6 +457,7 @@ namespace cs::telemetry
 				.Field("consumers", static_cast<std::int64_t>(status.consumers))
 				.Field("renders", TomlInteger(status.renders))
 				.Field("faces", TomlInteger(status.faces))
+				.Field("lod_faces", TomlInteger(status.lodFaces))
 				.Field("invalidations", TomlInteger(status.invalidations))
 				.Field("unbound_targets", TomlInteger(status.unboundTargets))
 				.Field("skipped_no_demand", TomlInteger(status.skippedNoDemand))
