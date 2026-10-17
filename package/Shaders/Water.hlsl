@@ -519,7 +519,13 @@ float3 surfaceColor(
 
 float fresnelTerm(float grazing)
 {
-	return (1.0 - perMaterial[13].z) * pow(grazing, 5) + perMaterial[13].z;
+	float f0 = perMaterial[13].z;
+#	if defined(REFLECTIONS) && defined(DYNAMIC_CUBEMAPS)
+	// FO4 translation: Skyrim-scale F0 is FO4's F0 times its reflection amount.
+	if (FO4SharedData::EnabledDynamicCubemaps != 0)
+		f0 *= perMaterial[8].y;
+#	endif
+	return (1.0 - f0) * pow(grazing, 5) + f0;
 }
 
 float3 atmosphere(float3 eyeToPosition, out float alpha)
@@ -944,7 +950,6 @@ float4 main(PS_INPUT input) : SV_Target0
 
 	float reflectionWeight = fresnel * perMaterial[8].y;
 #		if defined(REFLECTIONS) && defined(DYNAMIC_CUBEMAPS)
-	// FO4 translation: upstream weights reflections by fresnel alone, not the material amount.
 	if (FO4SharedData::EnabledDynamicCubemaps != 0)
 		reflectionWeight = fresnel;
 #		endif
