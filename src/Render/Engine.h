@@ -216,6 +216,12 @@ namespace cs::engine
 		return RE::BSGraphics::State::GetSingleton();
 	}
 
+	[[nodiscard]] inline std::uint32_t GetFrameCount() noexcept
+	{
+		const auto* state = RE::BSGraphics::State::GetSingleton();
+		return state ? state->frameCount : 0u;
+	}
+
 	[[nodiscard]] inline RE::BSGraphics::RenderTargetManager* GetRenderTargetManager()
 	{
 		return RE::BSGraphics::RenderTargetManager::GetSingleton();

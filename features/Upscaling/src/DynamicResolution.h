@@ -6,7 +6,6 @@
 #include <initializer_list>
 #include <limits>
 #include <memory>
-#include <optional>
 
 #include <winrt/base.h>
 
@@ -76,7 +75,6 @@ namespace cs::features
 		// Proxy holds the source's current contents until either side may change.
 		void InvalidateProxy(cs::engine::RenderTarget a_target) noexcept;
 		void InvalidateAllProxies() noexcept;
-		[[nodiscard]] static std::uint64_t CurrentFrame() noexcept;
 
 		ID3D11ComputeShader* GetOverrideDepthCS();
 		ID3D11ComputeShader* GetOverrideLinearDepthCS();
@@ -85,6 +83,16 @@ namespace cs::features
 			ID3D11DeviceContext* a_context,
 			float2 a_screenSize,
 			float2 a_renderSize);
+
+		// Engine frame a cached copy was last filled; unset until Mark.
+		struct FrameStamp
+		{
+			static constexpr std::uint32_t kNone = (std::numeric_limits<std::uint32_t>::max)();
+			std::uint32_t frame = kNone;
+			[[nodiscard]] bool IsCurrent(std::uint32_t a_frame) const noexcept { return frame == a_frame; }
+			void Mark(std::uint32_t a_frame) noexcept { frame = a_frame; }
+			void Reset() noexcept { frame = kNone; }
+		};
 
 		// Indexed by logical ID.
 		RE::BSGraphics::RenderTarget originalRenderTargets[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
@@ -100,8 +108,8 @@ namespace cs::features
 
 		float _previousWidthRatio = -1.0f;
 		float _previousHeightRatio = -1.0f;
-		std::optional<std::uint64_t> _proxyFilledFrame[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
-		std::uint64_t _depthCopyFrame = std::numeric_limits<std::uint64_t>::max();
+		FrameStamp _proxyFilledFrame[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
+		FrameStamp _depthCopyFrame;
 		bool _hasProxies = false;
 		bool _renderTargetsOverridden = false;
 		bool _depthOverridden = false;

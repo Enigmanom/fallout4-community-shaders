@@ -296,21 +296,15 @@ namespace cs::features
 			"Upscaling/DepthOverride.UAV");
 	}
 
-	std::uint64_t DynamicResolution::CurrentFrame() noexcept
-	{
-		const auto* state = cs::engine::GetGraphicsState();
-		return state ? state->frameCount : 0;
-	}
-
 	void DynamicResolution::InvalidateProxy(RenderTarget a_target) noexcept
 	{
-		_proxyFilledFrame[Index(a_target)].reset();
+		_proxyFilledFrame[Index(a_target)].Reset();
 	}
 
 	void DynamicResolution::InvalidateAllProxies() noexcept
 	{
 		for (auto& filled : _proxyFilledFrame) {
-			filled.reset();
+			filled.Reset();
 		}
 	}
 
@@ -332,7 +326,7 @@ namespace cs::features
 		}
 
 		// Valid only if no pass wrote the proxy or the source since the fill.
-		if (_proxyFilledFrame[index] == CurrentFrame()) {
+		if (_proxyFilledFrame[index].IsCurrent(cs::engine::GetFrameCount())) {
 			return;
 		}
 
@@ -345,7 +339,7 @@ namespace cs::features
 		D3D11_BOX box{ 0, 0, 0, proxyDesc.Width, proxyDesc.Height, 1 };
 		auto* context = reinterpret_cast<ID3D11DeviceContext*>(rendererData->context);
 		context->CopySubresourceRegion(proxyTexture, 0, 0, 0, 0, originalTexture, 0, &box);
-		_proxyFilledFrame[index] = CurrentFrame();
+		_proxyFilledFrame[index].Mark(cs::engine::GetFrameCount());
 	}
 
 	void DynamicResolution::ResetRenderTarget(RenderTarget a_target, bool a_doCopy)
@@ -492,11 +486,11 @@ namespace cs::features
 		_originalDepthView = reinterpret_cast<ID3D11ShaderResourceView*>(mainDepth->srViewDepth);
 
 		if (a_doCopy) {
-			const std::uint64_t frame = cs::engine::GetGraphicsState() ? cs::engine::GetGraphicsState()->frameCount : 0;
-			if (_depthCopyFrame != frame) {
+			const auto frame = cs::engine::GetFrameCount();
+			if (!_depthCopyFrame.IsCurrent(frame)) {
 				if (!CopyDepth())
 					return;
-				_depthCopyFrame = frame;
+				_depthCopyFrame.Mark(frame);
 			}
 		}
 
@@ -703,7 +697,7 @@ namespace cs::features
 		_depthOverrideTexture = nullptr;
 		_previousWidthRatio = -1.0f;
 		_previousHeightRatio = -1.0f;
-		_depthCopyFrame = std::numeric_limits<std::uint64_t>::max();
+		_depthCopyFrame.Reset();
 		_hasProxies = false;
 	}
 

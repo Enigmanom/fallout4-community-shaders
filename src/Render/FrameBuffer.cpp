@@ -99,12 +99,6 @@ namespace cs::engine
 		AnchorFrameState g_anchorFrame{};
 		const void* g_mapped = nullptr;
 
-		[[nodiscard]] std::uint32_t CurrentEngineFrame() noexcept
-		{
-			auto* state = GetGraphicsState();
-			return state ? state->frameCount : 0u;
-		}
-
 		[[nodiscard]] ID3D11Buffer* BoundAtPixelSlot12(
 			ID3D11DeviceContext* a_context) noexcept
 		{
@@ -236,7 +230,7 @@ namespace cs::engine
 			std::memset(&g_latestSnapshot.data, 0, sizeof(g_latestSnapshot.data));
 			std::memcpy(&g_latestSnapshot.data, source, bytes);
 
-			const auto frame = CurrentEngineFrame();
+			const auto frame = GetFrameCount();
 			UpdateMapCounters(frame);
 			g_latestSnapshot.frameCount = frame;
 			g_latestSnapshot.sequence =
@@ -538,7 +532,7 @@ namespace cs::engine
 
 		void PublishAtFullscreenLightDraw() noexcept
 		{
-			const auto frame = CurrentEngineFrame();
+			const auto frame = GetFrameCount();
 			BeginAnchorFrame(frame);
 			g_fullscreenLightAnchorsThisFrame.fetch_add(1, std::memory_order_relaxed);
 
@@ -615,13 +609,13 @@ namespace cs::engine
 
 		void BeginDeferredLights() noexcept
 		{
-			BeginAnchorFrame(CurrentEngineFrame());
+			BeginAnchorFrame(GetFrameCount());
 		}
 
 		void CaptureWorldCamera() noexcept
 		{
 			std::scoped_lock lock(g_prepassCameraMutex);
-			const auto frame = CurrentEngineFrame();
+			const auto frame = GetFrameCount();
 			if (g_prepassFrame != frame || !g_prepassCamera) {
 				g_prepassCamera = GetWorldCameraRecord();
 				g_prepassFrame = frame;
@@ -759,7 +753,7 @@ namespace cs::engine
 	FrameBufferStatus GetFrameBufferStatus() noexcept
 	{
 		FrameBufferStatus status;
-		const auto frame = CurrentEngineFrame();
+		const auto frame = GetFrameCount();
 		status.hookInstalled = g_hookInstalled.load(std::memory_order_relaxed);
 		status.hookedContextIsCurrent =
 			g_hookedContextIsCurrent.load(std::memory_order_relaxed);

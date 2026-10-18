@@ -358,8 +358,7 @@ namespace cs::render::renderer_detail
 
 	inline std::uint64_t GetEngineFrame() noexcept
 	{
-		auto* state = cs::engine::GetGraphicsState();
-		return state ? state->frameCount : 0;
+		return cs::engine::GetFrameCount();
 	}
 
 }
