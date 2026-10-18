@@ -702,6 +702,9 @@ struct PS_OUTPUT
 		if (SharedData::extendedMaterialSettings.EnableParallaxWarpingFix
 #		if defined(EMAT_LANDSCAPE)
 			&& SharedData::extendedMaterialSettings.EnableTerrainParallax
+#		else
+			// Draw-uniform gate keeps derivatives valid; skips non-parallax draws.
+			&& SharedData::extendedMaterialSettings.EnableParallax && PrepassFeatureLane.z != 0.0
 #		endif
 		) {
 			float3 ndx = ddx(vertexNormal);
