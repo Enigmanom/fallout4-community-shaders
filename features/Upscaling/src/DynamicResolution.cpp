@@ -107,6 +107,7 @@ namespace cs::features
 
 	void DynamicResolution::ReleaseProxy(RenderTarget a_target)
 	{
+		InvalidateProxy(a_target);
 		auto& proxy = proxyRenderTargets[Index(a_target)];
 		SafeRelease(proxy.uaView);
 		SafeRelease(proxy.srView);
@@ -136,6 +137,7 @@ namespace cs::features
 	void DynamicResolution::CaptureOriginal(RenderTarget a_target, const RE::BSGraphics::RenderTarget& a_engineTarget)
 	{
 		const auto index = Index(a_target);
+		InvalidateProxy(a_target);
 		auto& proxy = proxyRenderTargets[index];
 		const auto proxyViews = proxy;
 		// Keep the engine's copyTexture/copySRView pointers so a swap-in never nulls them.
@@ -294,6 +296,24 @@ namespace cs::features
 			"Upscaling/DepthOverride.UAV");
 	}
 
+	std::uint64_t DynamicResolution::CurrentFrame() noexcept
+	{
+		const auto* state = cs::engine::GetGraphicsState();
+		return state ? state->frameCount : 0;
+	}
+
+	void DynamicResolution::InvalidateProxy(RenderTarget a_target) noexcept
+	{
+		_proxyFilledFrame[Index(a_target)].reset();
+	}
+
+	void DynamicResolution::InvalidateAllProxies() noexcept
+	{
+		for (auto& filled : _proxyFilledFrame) {
+			filled.reset();
+		}
+	}
+
 	void DynamicResolution::OverrideRenderTarget(RenderTarget a_target, bool a_doCopy)
 	{
 		const auto index = Index(a_target);
@@ -306,6 +326,13 @@ namespace cs::features
 		*engineTarget = proxyRenderTargets[index];
 
 		if (!a_doCopy) {
+			// Bound without a fill: a pass draw may write it.
+			InvalidateProxy(a_target);
+			return;
+		}
+
+		// Valid only if no pass wrote the proxy or the source since the fill.
+		if (_proxyFilledFrame[index] == CurrentFrame()) {
 			return;
 		}
 
@@ -318,6 +345,7 @@ namespace cs::features
 		D3D11_BOX box{ 0, 0, 0, proxyDesc.Width, proxyDesc.Height, 1 };
 		auto* context = reinterpret_cast<ID3D11DeviceContext*>(rendererData->context);
 		context->CopySubresourceRegion(proxyTexture, 0, 0, 0, 0, originalTexture, 0, &box);
+		_proxyFilledFrame[index] = CurrentFrame();
 	}
 
 	void DynamicResolution::ResetRenderTarget(RenderTarget a_target, bool a_doCopy)
@@ -331,6 +359,7 @@ namespace cs::features
 		auto* rendererData = RE::BSGraphics::GetRendererData();
 
 		if (a_doCopy) {
+			InvalidateProxy(a_target);
 			auto* proxyTexture = reinterpret_cast<ID3D11Texture2D*>(proxyRenderTargets[index].texture);
 			auto* originalTexture = reinterpret_cast<ID3D11Texture2D*>(originalRenderTargets[index].texture);
 
@@ -650,6 +679,7 @@ namespace cs::features
 		}
 
 		_proxyPass = false;
+		InvalidateAllProxies();
 
 		// Restore the engine depth SRV if the override is still applied.
 		if (_depthOverridden) {

@@ -6,6 +6,7 @@
 #include <initializer_list>
 #include <limits>
 #include <memory>
+#include <optional>
 
 #include <winrt/base.h>
 
@@ -72,6 +73,10 @@ namespace cs::features
 		void RestoreEngineSlot(cs::engine::RenderTarget a_target);
 		bool IsProxyTexture(const void* a_texture) const noexcept;
 		void AbortProxyPass();
+		// Proxy holds the source's current contents until either side may change.
+		void InvalidateProxy(cs::engine::RenderTarget a_target) noexcept;
+		void InvalidateAllProxies() noexcept;
+		[[nodiscard]] static std::uint64_t CurrentFrame() noexcept;
 
 		ID3D11ComputeShader* GetOverrideDepthCS();
 		ID3D11ComputeShader* GetOverrideLinearDepthCS();
@@ -95,6 +100,7 @@ namespace cs::features
 
 		float _previousWidthRatio = -1.0f;
 		float _previousHeightRatio = -1.0f;
+		std::optional<std::uint64_t> _proxyFilledFrame[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
 		std::uint64_t _depthCopyFrame = std::numeric_limits<std::uint64_t>::max();
 		bool _hasProxies = false;
 		bool _renderTargetsOverridden = false;
