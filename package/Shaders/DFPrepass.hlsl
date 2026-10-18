@@ -703,7 +703,7 @@ struct PS_OUTPUT
 #		if defined(EMAT_LANDSCAPE)
 			&& SharedData::extendedMaterialSettings.EnableTerrainParallax
 #		else
-			// Draw-uniform gate keeps derivatives valid; skips non-parallax draws.
+			// FO4: only the marcher below reads this; upstream runs it on all EMAT draws.
 			&& SharedData::extendedMaterialSettings.EnableParallax && PrepassFeatureLane.z != 0.0
 #		endif
 		) {
