@@ -9,6 +9,7 @@
 #include "Render/Annotation.h"
 #include "Render/RendererContext.h"
 #include "Render/ScopedContextState.h"
+#include "Utils/ModuleInfo.h"
 
 // Last: this header must not see imgui.h.
 #include <reshade.hpp>
@@ -36,16 +37,6 @@ namespace cs::features
 		::reshade::api::resource_view ViewHandle(T* a_view) noexcept
 		{
 			return { reinterpret_cast<std::uint64_t>(a_view) };
-		}
-
-		HMODULE ThisModule() noexcept
-		{
-			HMODULE module = nullptr;
-			GetModuleHandleExW(
-				GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-					GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-				reinterpret_cast<LPCWSTR>(&OnReloadedEffects), &module);
-			return module;
 		}
 
 		bool FindReShade() noexcept
@@ -162,7 +153,7 @@ namespace cs::features
 			}
 			if (addonRegistered) {
 				::reshade::unregister_event<::reshade::addon_event::reshade_reloaded_effects>(&OnReloadedEffects);
-				::reshade::unregister_addon(ThisModule());
+				::reshade::unregister_addon(cs::util::ModuleFromAddress(reinterpret_cast<const void*>(&OnReloadedEffects)));
 			}
 			if (proxy) {
 				proxy->DetachOwner();
@@ -209,7 +200,7 @@ namespace cs::features
 			proxy.attach(new DXGISwapChainProxy(*owner, a_inner));
 
 			// Events need an add-on identity; without it, rebind every frame.
-			addonRegistered = ::reshade::register_addon(ThisModule());
+			addonRegistered = ::reshade::register_addon(cs::util::ModuleFromAddress(reinterpret_cast<const void*>(&OnReloadedEffects)));
 			if (addonRegistered) {
 				::reshade::register_event<::reshade::addon_event::reshade_reloaded_effects>(&OnReloadedEffects);
 			}
