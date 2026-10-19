@@ -17,7 +17,7 @@ namespace cs::features
 		std::string_view GetDisplayName() const override { return "CS Editor"; }
 		std::string GetFeatureSummary() const override { return "Weather picker, time controls and per-weather feature overrides."; }
 		bool SupportsEnableToggle() const override { return false; }
-		std::string GetCategory() const override { return FeatureCategories::kDevTools; }
+		std::string GetCategory() const override { return FeatureCategories::kUtility; }
 
 		void Load() override;
 		void OnDataLoaded() override;

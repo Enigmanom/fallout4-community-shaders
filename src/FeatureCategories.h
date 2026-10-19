@@ -5,18 +5,20 @@
 
 namespace cs::FeatureCategories
 {
+	inline constexpr char kDisplay[] = "Display";
+	inline constexpr char kLandscapeAndTextures[] = "Landscape & Textures";
 	inline constexpr char kLighting[] = "Lighting";
-	inline constexpr char kPostProcess[] = "Post-process";
-	inline constexpr char kCompatibility[] = "Compatibility";
-	inline constexpr char kPerformance[] = "Performance";
-	inline constexpr char kDevTools[] = "Dev Tools";
-	inline constexpr char kMisc[] = "Misc";
+	inline constexpr char kMaterials[] = "Materials";
+	inline constexpr char kOther[] = "Other";
+	inline constexpr char kUtility[] = "Utility";
+	inline constexpr char kWater[] = "Water";
 
-	inline constexpr std::array<std::string_view, 5> kRenderOrder{
+	inline constexpr std::array<std::string_view, 6> kRenderOrder{
+		kDisplay,
+		kLandscapeAndTextures,
 		kLighting,
-		kPostProcess,
-		kCompatibility,
-		kPerformance,
-		kDevTools
+		kMaterials,
+		kUtility,
+		kWater
 	};
 }

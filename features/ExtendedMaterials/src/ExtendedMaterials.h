@@ -21,7 +21,7 @@ namespace cs::features
 
 		std::string_view GetName() const override { return "ExtendedMaterials"; }
 		std::string_view GetDisplayName() const override { return "Extended Materials"; }
-		std::string GetCategory() const override { return FeatureCategories::kLighting; }
+		std::string GetCategory() const override { return FeatureCategories::kMaterials; }
 		std::string GetFeatureSummary() const override { return "Parallax occlusion mapping for objects and terrain."; }
 
 		bool Configure(const toml::table& a_config, std::string& a_error) override;

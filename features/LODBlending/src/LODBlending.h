@@ -19,7 +19,7 @@ namespace cs::features
 
 		std::string_view GetName() const override { return "LODBlending"; }
 		std::string_view GetDisplayName() const override { return "LOD Blending"; }
-		std::string GetCategory() const override { return FeatureCategories::kLighting; }
+		std::string GetCategory() const override { return FeatureCategories::kLandscapeAndTextures; }
 		std::string GetFeatureSummary() const override
 		{
 			return "LOD terrain and object brightness and gamma matching.";

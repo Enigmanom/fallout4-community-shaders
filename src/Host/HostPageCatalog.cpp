@@ -39,12 +39,12 @@ namespace cs::host
 
 		constexpr std::array kKnownCategories{
 			KnownCategory{ kGeneralCategoryId, kGeneralCategory },
+			KnownCategory{ "display", FeatureCategories::kDisplay, "monitor" },
+			KnownCategory{ "landscape-textures", FeatureCategories::kLandscapeAndTextures, "mountains" },
 			KnownCategory{ "lighting", FeatureCategories::kLighting, "sun-horizon" },
-			KnownCategory{ "post-process", FeatureCategories::kPostProcess },
-			KnownCategory{ "compatibility", FeatureCategories::kCompatibility },
-			KnownCategory{ "performance", FeatureCategories::kPerformance },
-			KnownCategory{ "dev-tools", FeatureCategories::kDevTools },
-			KnownCategory{ "misc", FeatureCategories::kMisc },
+			KnownCategory{ "materials", FeatureCategories::kMaterials, "cube" },
+			KnownCategory{ "utility", FeatureCategories::kUtility, "wrench" },
+			KnownCategory{ "water", FeatureCategories::kWater, "waves" },
 			KnownCategory{ kOtherCategoryId, kUncategorized },
 			KnownCategory{ kUnloadedCategoryId, kUnloadedCategory },
 			KnownCategory{ kOverlayCategoryId, kOverlayCategory }
@@ -74,8 +74,6 @@ namespace cs::host
 						   liveCategory - FeatureCategories::kRenderOrder.begin()) *
 				           10;
 			}
-			if (a_displayName == FeatureCategories::kMisc)
-				return 200;
 			if (a_displayName == kUncategorized)
 				return 210;
 			if (a_displayName == kUnloadedCategory)

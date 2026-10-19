@@ -25,7 +25,7 @@ namespace cs::features
 
 		std::string_view GetName() const override { return "RemoteControl"; }
 		std::string_view GetDisplayName() const override { return "Remote Control"; }
-		std::string GetCategory() const override { return FeatureCategories::kDevTools; }
+		std::string GetCategory() const override { return FeatureCategories::kUtility; }
 		std::string GetFeatureSummary() const override
 		{
 			return "Expose Community Shaders tools to the DevBench host for MCP and REST clients.";

@@ -60,7 +60,7 @@ namespace cs::features
 		std::string_view GetDisplayName() const override { return "RenderDoc"; }
 		std::string GetFeatureSummary() const override { return "In-game RenderDoc capture support."; }
 		bool SupportsEnableToggle() const override { return false; }
-		std::string GetCategory() const override { return FeatureCategories::kDevTools; }
+		std::string GetCategory() const override { return FeatureCategories::kUtility; }
 
 		bool Configure(const toml::table& a_config, std::string& a_error) override;
 		void Load() override;

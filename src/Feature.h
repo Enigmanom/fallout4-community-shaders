@@ -142,7 +142,7 @@ namespace cs
 
 		virtual std::optional<std::string> GetFeatureModLink() const { return {}; }
 
-		virtual std::string GetCategory() const { return FeatureCategories::kMisc; }
+		virtual std::string GetCategory() const { return FeatureCategories::kOther; }
 
 		virtual bool IsInMenu() const { return true; }
 

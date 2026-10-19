@@ -22,7 +22,7 @@ namespace cs::features
 		std::string_view GetDisplayName() const override { return "Frame Generation"; }
 		std::string GetPresetKey() const override { return "frame_generation"; }
 		bool SupportsEnableToggle() const override { return false; }
-		std::string GetCategory() const override { return FeatureCategories::kPerformance; }
+		std::string GetCategory() const override { return FeatureCategories::kDisplay; }
 		std::string GetFeatureSummary() const override
 		{
 			return "Frame generation for a smoother experience.";

@@ -51,7 +51,7 @@ namespace cs::features
 
 		std::string_view GetName() const override { return "DynamicCubemaps"; }
 		std::string_view GetDisplayName() const override { return "Dynamic Cubemaps"; }
-		std::string GetCategory() const override { return FeatureCategories::kLighting; }
+		std::string GetCategory() const override { return FeatureCategories::kMaterials; }
 		std::string GetFeatureSummary() const override
 		{
 			return "Real-time environment mapping and reflections.";

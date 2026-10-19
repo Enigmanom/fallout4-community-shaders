@@ -46,7 +46,7 @@ namespace cs::features
 		std::string_view GetName() const override { return "WaterEffects"; }
 		std::string_view GetDisplayName() const override { return "Water Effects"; }
 		std::string GetConfigKey() const override { return "WaterEffects"; }
-		std::string GetCategory() const override { return FeatureCategories::kLighting; }
+		std::string GetCategory() const override { return FeatureCategories::kWater; }
 		std::string GetFeatureSummary() const override
 		{
 			return "Projects animated water caustics onto submerged surfaces lit by the sun and adds parallax depth to water normals.";

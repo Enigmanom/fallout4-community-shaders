@@ -20,7 +20,7 @@ namespace cs::features
 		std::string_view GetName() const override { return "Upscaling"; }
 		std::string_view GetDisplayName() const override { return "Upscaling"; }
 		bool SupportsEnableToggle() const override { return false; }
-		std::string GetCategory() const override { return FeatureCategories::kPerformance; }
+		std::string GetCategory() const override { return FeatureCategories::kDisplay; }
 		std::string GetFeatureSummary() const override
 		{
 			return "DLSS, FSR 3, and FSR 4 super resolution with independently selected frame generation.";

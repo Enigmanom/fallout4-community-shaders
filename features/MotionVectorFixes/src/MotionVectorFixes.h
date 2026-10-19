@@ -12,7 +12,7 @@ namespace cs::features
 
 		std::string_view GetName() const override { return "MotionVectorFixes"; }
 		std::string_view GetDisplayName() const override { return "Motion Vector Fixes"; }
-		std::string GetCategory() const override { return FeatureCategories::kCompatibility; }
+		std::string GetCategory() const override { return FeatureCategories::kDisplay; }
 
 		void Load() override;
 		void OnDataLoaded() override;

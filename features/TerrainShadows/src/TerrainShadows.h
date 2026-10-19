@@ -40,7 +40,7 @@ namespace cs::features
 		std::string_view GetName() const override { return "TerrainShadows"; }
 		std::string_view GetDisplayName() const override { return "Terrain Shadows"; }
 		std::string GetConfigKey() const override { return "TerrainShadows"; }
-		std::string GetCategory() const override { return FeatureCategories::kLighting; }
+		std::string GetCategory() const override { return FeatureCategories::kLandscapeAndTextures; }
 		std::string GetFeatureSummary() const override
 		{
 			return "Terrain shadows from heightmap data.";

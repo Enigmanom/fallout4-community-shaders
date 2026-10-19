@@ -36,7 +36,7 @@ diagnostic hotkey path.
 Startup loading is edited only in Advanced with positive checked-to-load controls. Home reports
 startup results; feature pages retain live effect controls and actionable failure/restart notices.
 General sorts first, live feature categories follow the established feature-category order, then
-Misc, Other, and deterministic custom categories, with Unloaded after live features and Overlay
+Other, and deterministic custom categories, with Unloaded after live features and Overlay
 last. Distinct custom labels receive distinct stable IDs even when ASCII normalization collides.
 Only categories referenced by pages are registered. The client explicitly requests `cloud-sun`,
 and Lighting requests `sun-horizon` without changing its label or ID. Other categories retain

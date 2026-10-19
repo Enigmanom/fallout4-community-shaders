@@ -1,5 +1,7 @@
 #pragma once
 
+#include "FeatureCategories.h"
+
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -58,7 +60,7 @@ namespace cs::host
 	inline constexpr std::string_view kUnloadedCategoryId = "unloaded";
 	inline constexpr std::string_view kUnloadedCategory = "Unloaded";
 	inline constexpr std::string_view kOtherCategoryId = "other";
-	inline constexpr std::string_view kUncategorized = "Other";
+	inline constexpr std::string_view kUncategorized = FeatureCategories::kOther;
 	inline constexpr std::string_view kOverlayCategoryId = "overlay";
 	inline constexpr std::string_view kOverlayCategory = "Overlay";
 	inline constexpr std::string_view kOverlayPageId = "overlay";

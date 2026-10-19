@@ -20,7 +20,7 @@ namespace cs::features
 		static UnifiedWater* GetSingleton();
 		std::string_view GetName() const override { return "UnifiedWater"; }
 		std::string_view GetDisplayName() const override { return "Unified Water"; }
-		std::string GetCategory() const override { return FeatureCategories::kLighting; }
+		std::string GetCategory() const override { return FeatureCategories::kWater; }
 		std::string GetFeatureSummary() const override
 		{
 			return "Replaces distant terrain water tiles with close water and unifies their optical distance response. Placed water retains its vanilla distance rendering.";
