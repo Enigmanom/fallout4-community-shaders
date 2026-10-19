@@ -343,6 +343,19 @@ target("FrameDispatcherTests", function()
     add_tests("FrameDispatcher")
 end)
 
+target("DirectionalShadowLightDataTests", function()
+    set_kind("binary")
+    set_default(false)
+    set_group("unit")
+    add_files(
+        "tests/DirectionalShadowLightDataTests.cpp",
+        "src/Render/DirectionalShadowLightData.cpp"
+    )
+    add_defines("NOMINMAX")
+    add_packages("vcpkg::directxmath")
+    add_tests("DirectionalShadowLightData")
+end)
+
 target("SettingsJsonTests", function()
     set_kind("binary")
     set_default(false)
@@ -424,7 +437,7 @@ local function stock_shader_identity_target(name, compiler, tests)
             "src/Utils/ShaderCompile.cpp"
         )
         add_files(shader_cache_sources)
-        add_includedirs("features/ScreenSpaceGI/src", "features/Skylighting/src")
+        add_includedirs("features/ScreenSpaceGI/src")
         add_packages("spdlog", "vcpkg::directxmath", "vcpkg::tomlplusplus")
         add_syslinks("bcrypt", "d3dcompiler", "version")
         set_values("fo4cs.identity_compiler", compiler)

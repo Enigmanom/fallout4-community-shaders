@@ -1,8 +1,8 @@
 #include "ShaderABIChecks.h"
 
+#include "Render/DirectionalShadowLightData.h"
 #include "Render/SharedDataLayout.h"
 #include "ScreenSpaceGIConstants.h"
-#include "ShadowLightData.h"
 #include "Utils/ShaderCompile.h"
 
 #include <algorithm>
@@ -314,7 +314,7 @@ namespace
 		D3D11_SHADER_INPUT_BIND_DESC binding{};
 		if (FAILED(reflection->GetResourceBindingDescByName("DirectionalShadowLights", &binding)) || binding.BindPoint != 2)
 			return "DirectionalShadowLights: ABI slot mismatch";
-		if (binding.NumSamples != sizeof(cs::features::skylighting::DirectionalShadowLightData))
+		if (binding.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}

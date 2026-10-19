@@ -2,6 +2,7 @@
 
 #include "Render/Engine.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -56,6 +57,9 @@ namespace cs::engine
 				return SunCascadeStatus::kInvalid;
 			previousEnd = a_snapshot.splitEnd[i];
 		}
+		// The engine caches max(fBlendSplitDirShadow, 0); guard a bad read anyway.
+		const float overlap = RE::BSShaderManager::GetCachedDirectionalBlendWidth();
+		a_snapshot.overlap = std::isfinite(overlap) ? std::max(overlap, 0.0f) : 0.0f;
 		a_snapshot.count = count;
 		a_snapshot.texture = texture;
 		return SunCascadeStatus::kOk;

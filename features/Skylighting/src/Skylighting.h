@@ -5,8 +5,8 @@
 #include "FeatureCategories.h"
 #include "Render/PrecipitationOcclusion.h"
 #include "Render/ShadowCascades.h"
+#include "Render/SunShadowLights.h"
 #include "ShaderDefines.h"
-#include "ShadowLightData.h"
 #include "SkylightingSettings.h"
 #include "Utils/CSBuffer.h"
 
@@ -119,13 +119,10 @@ namespace cs::features
 			kCopyTarget,
 			kDisabled
 		};
-		// Right after the main sun's Render(7); publishes the cascades and light data.
+		// Right after the main sun's Render(7); copies the cascades the shared light data describes.
 		void CopySunCascades();
 		CascadeSkip PublishSunCascades(ID3D11DeviceContext* a_context);
 		bool EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source);
-		void PublishShadowLights(ID3D11DeviceContext* a_context, const skylighting::DirectionalShadowLightData& a_data);
-		// Publishes the neutral block so no probe update samples stale cascades.
-		void RetireCascades(ID3D11DeviceContext* a_context);
 		void RenderDebug(ID3D11DeviceContext* a_context);
 		// Healthy with probes created, whether or not the feature is enabled.
 		ID3D11ShaderResourceView* GetBindableProbeArraySRV() const noexcept;
@@ -163,15 +160,14 @@ namespace cs::features
 		std::unique_ptr<cs::buffer::Texture3D> _texShadowVisibility;
 		winrt::com_ptr<ID3D11SamplerState> _comparisonSampler;
 		winrt::com_ptr<ID3D11ComputeShader> _probeUpdateCompute;
-		// Zero split distances leave every probe lit, so neutral is the zeroed block.
-		winrt::com_ptr<ID3D11Buffer> _shadowLightsBuffer;
-		winrt::com_ptr<ID3D11ShaderResourceView> _shadowLightsSRV;
 		// Focus and local shadows overwrite the stock array; cascades live in a copy.
 		winrt::com_ptr<ID3D11Texture2D> _cascadeCopy;
 		winrt::com_ptr<ID3D11ShaderResourceView> _cascadeCopySRV;
 		D3D11_TEXTURE2D_DESC _cascadeDesc{};
-		// Render thread only: the copy holds sun cascades from this frame's Render(7).
-		bool _cascadesPublished = false;
+		// Render thread only: light data generation the copy was taken for; 0 is none.
+		std::uint64_t _copyGeneration = 0;
+		// The probe shader and light block fix the cascade count at two.
+		static constexpr std::uint32_t kCopiedCascades = 2;
 		std::atomic_bool _probesReady{ false };
 
 		std::array<winrt::com_ptr<ID3D11ComputeShader>, 2> _debugCompute;
@@ -252,6 +248,7 @@ namespace cs::features
 			std::array<std::atomic<std::uint64_t>, static_cast<std::size_t>(CascadeSkip::kDisabled) + 1> skipped{};
 			std::atomic<std::uint32_t> count{ 0 };
 			std::array<std::atomic<float>, cs::engine::kMaxSunCascades> splitEnd{};
+			std::atomic<float> overlap{ 0.0f };
 		} _cascadeCounters;
 		CascadeSkip _loggedCascadeSkip = CascadeSkip::kNone;
 		bool _loggedCascadeDesc = false;

@@ -120,6 +120,10 @@ namespace cs::features
 			FailLoad("Skylighting shader contribution registration failed.");
 			return;
 		}
+		if (!cs::engine::AcquireSunShadowLights()) {
+			FailLoad("Skylighting shadow history needs the shared sun shadow light data");
+			return;
+		}
 		// FO4: the stock array holds the sun cascades until focus shadows reuse it.
 		if (!cs::engine::RegisterPostSunShadowRender([this] { CopySunCascades(); })) {
 			FailLoad("Skylighting shadow history needs the main sun shadow render hook");
@@ -266,28 +270,6 @@ namespace cs::features
 			cs::render::annotation::SetName(_comparisonSampler.get(), "Skylighting/ComparisonSampler");
 		}
 
-		{
-			const D3D11_BUFFER_DESC bufferDesc{
-				.ByteWidth = sizeof(skylighting::DirectionalShadowLightData),
-				.Usage = D3D11_USAGE_DYNAMIC,
-				.BindFlags = D3D11_BIND_SHADER_RESOURCE,
-				.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-				.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
-				.StructureByteStride = sizeof(skylighting::DirectionalShadowLightData)
-			};
-			const skylighting::DirectionalShadowLightData zeroed{};
-			const D3D11_SUBRESOURCE_DATA initial{ .pSysMem = &zeroed };
-			DX::ThrowIfFailed(a_device->CreateBuffer(&bufferDesc, &initial, _shadowLightsBuffer.put()));
-			const D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{
-				.Format = DXGI_FORMAT_UNKNOWN,
-				.ViewDimension = D3D11_SRV_DIMENSION_BUFFER,
-				.Buffer = { .FirstElement = 0, .NumElements = 1 }
-			};
-			DX::ThrowIfFailed(a_device->CreateShaderResourceView(_shadowLightsBuffer.get(), &srvDesc, _shadowLightsSRV.put()));
-			cs::render::annotation::SetName(_shadowLightsBuffer.get(), "Skylighting/ShadowLights");
-			cs::render::annotation::SetName(_shadowLightsSRV.get(), "Skylighting/ShadowLights.SRV");
-		}
-
 		// FO4: the substrate defines the CS camera and shared-data inputs.
 		_probeUpdateCompute.attach(static_cast<ID3D11ComputeShader*>(cs::util::CompileShader(
 			L"Data\\Shaders\\Skylighting\\UpdateProbesCS.hlsl", { { "FO4CS_SUBSTRATE", "1" } }, "cs_5_0")));
@@ -337,7 +319,7 @@ namespace cs::features
 		// Grid bottom is stale until the next in-world buffer update, so don't cull this frame
 		probeGridBottomZ = -FLT_MAX;
 		// FO4: cascades from the previous location must not feed the fresh history.
-		RetireCascades(a_context);
+		_copyGeneration = 0;
 	}
 
 	void Skylighting::CreateOcclusionResources(ID3D11Device* a_device)
@@ -746,7 +728,8 @@ namespace cs::features
 			.Field("sun_copy_skipped_disabled", cascadeSkipped(CascadeSkip::kDisabled))
 			.Field("cascade_count", static_cast<std::int64_t>(_cascadeCounters.count.load(std::memory_order_relaxed)))
 			.Field("split_end_0", static_cast<double>(_cascadeCounters.splitEnd[0].load(std::memory_order_relaxed)))
-			.Field("split_end_1", static_cast<double>(_cascadeCounters.splitEnd[1].load(std::memory_order_relaxed)));
+			.Field("split_end_1", static_cast<double>(_cascadeCounters.splitEnd[1].load(std::memory_order_relaxed)))
+			.Field("cascade_overlap", static_cast<double>(_cascadeCounters.overlap.load(std::memory_order_relaxed)));
 		cs::render::profiling::CollectPassTimings(a_sink, "Skylighting/");
 	}
 
@@ -818,27 +801,11 @@ namespace cs::features
 			LogCaptureSummary(_loggedState);
 	}
 
-	void Skylighting::PublishShadowLights(ID3D11DeviceContext* a_context, const skylighting::DirectionalShadowLightData& a_data)
-	{
-		D3D11_MAPPED_SUBRESOURCE mapped{};
-		if (FAILED(a_context->Map(_shadowLightsBuffer.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-			throw std::runtime_error("the Skylighting shadow light buffer could not be mapped");
-		std::memcpy(mapped.pData, &a_data, sizeof(a_data));
-		a_context->Unmap(_shadowLightsBuffer.get(), 0);
-	}
-
-	void Skylighting::RetireCascades(ID3D11DeviceContext* a_context)
-	{
-		if (!std::exchange(_cascadesPublished, false))
-			return;
-		PublishShadowLights(a_context, {});
-	}
-
 	bool Skylighting::EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source)
 	{
 		D3D11_TEXTURE2D_DESC source{};
 		a_source->GetDesc(&source);
-		if (source.Format != DXGI_FORMAT_R16_TYPELESS || source.ArraySize != cs::engine::kMaxSunCascades || source.MipLevels != 1 || source.SampleDesc.Count != 1)
+		if (source.Format != DXGI_FORMAT_R16_TYPELESS || source.ArraySize != kCopiedCascades || source.MipLevels != 1 || source.SampleDesc.Count != 1)
 			return false;
 		if (_cascadeCopy && _cascadeDesc.Width == source.Width && _cascadeDesc.Height == source.Height && _cascadeDesc.ArraySize == source.ArraySize)
 			return true;
@@ -884,8 +851,8 @@ namespace cs::features
 		if (!cs::engine::IsFullSky())
 			return CascadeSkip::kNotFullSky;
 
-		cs::engine::SunCascadeSnapshot snapshot;
-		switch (cs::engine::TryGetSunCascades(snapshot)) {
+		const auto& lights = cs::engine::GetSunShadowLightState();
+		switch (lights.status) {
 		case cs::engine::SunCascadeStatus::kOk:
 			break;
 		case cs::engine::SunCascadeStatus::kNoLight:
@@ -897,43 +864,29 @@ namespace cs::features
 		case cs::engine::SunCascadeStatus::kInvalid:
 			return CascadeSkip::kInvalid;
 		}
-		// The light block and shader fix the cascade count at two.
-		if (snapshot.count != cs::engine::kMaxSunCascades)
+		const auto& snapshot = lights.snapshot;
+		// The probe shader fixes the cascade count at two.
+		if (snapshot.count != kCopiedCascades)
 			return CascadeSkip::kUnsupportedCount;
-
-		skylighting::DirectionalShadowLightData data{};
-		for (std::size_t i = 0; i < cs::engine::kMaxSunCascades; ++i) {
-			// Row-vector engine matrix; column_major HLSL reads the same bytes transposed.
-			data.ShadowProj[i] = snapshot.worldToShadow[i];
-			DirectX::XMVECTOR determinant;
-			const auto inverse = DirectX::XMMatrixInverse(&determinant, DirectX::XMLoadFloat4x4(&snapshot.worldToShadow[i]));
-			const float det = DirectX::XMVectorGetX(determinant);
-			if (!std::isfinite(det) || det == 0.0f)
-				return CascadeSkip::kInvalid;
-			DirectX::XMStoreFloat4x4(&data.InvShadowProj[i], inverse);
-		}
-		data.EndSplitDistances = { snapshot.splitEnd[0], snapshot.splitEnd[1] };
-		// FO4: the engine's overlap constant is untyped and the shader ignores starts.
-		data.StartSplitDistances = { 0.0f, snapshot.splitEnd[0] };
 
 		if (!EnsureCascadeCopy(device, snapshot.texture))
 			return CascadeSkip::kCopyTarget;
 		cs::engine::CopyResourcePreservingOM(a_context, _cascadeCopy.get(), snapshot.texture);
-		PublishShadowLights(a_context, data);
-		_cascadesPublished = true;
+		_copyGeneration = lights.generation;
 
 		_cascadeCounters.count.store(snapshot.count, std::memory_order_relaxed);
-		for (std::size_t i = 0; i < cs::engine::kMaxSunCascades; ++i)
+		_cascadeCounters.overlap.store(snapshot.overlap, std::memory_order_relaxed);
+		for (std::size_t i = 0; i < kCopiedCascades; ++i)
 			_cascadeCounters.splitEnd[i].store(snapshot.splitEnd[i], std::memory_order_relaxed);
 		if (!std::exchange(_loggedCascadeDesc, true)) {
 			// The cached matrix already carries the cascade sub-rect in its UV scale.
-			for (std::size_t i = 0; i < cs::engine::kMaxSunCascades; ++i) {
+			for (std::size_t i = 0; i < kCopiedCascades; ++i) {
 				const auto& m = snapshot.worldToShadow[i].m;
 				const float uScale = std::sqrt(m[0][0] * m[0][0] + m[1][0] * m[1][0] + m[2][0] * m[2][0]);
 				const float vScale = std::sqrt(m[0][1] * m[0][1] + m[1][1] * m[1][1] + m[2][1] * m[2][1]);
 				const float texel = snapshot.worldUnitsPerTexel[i];
-				CaptureLog->info("sun cascade {}: split_end={:.1f} units_per_texel={:.3f} uv_scale_ratio=({:.4f},{:.4f}) viewport=({},{},{},{})",
-					i, snapshot.splitEnd[i], texel, uScale * texel * _cascadeDesc.Width, vScale * texel * _cascadeDesc.Height,
+				CaptureLog->info("sun cascade {}: split_end={:.1f} overlap={:.1f} units_per_texel={:.3f} uv_scale_ratio=({:.4f},{:.4f}) viewport=({},{},{},{})",
+					i, snapshot.splitEnd[i], snapshot.overlap, texel, uScale * texel * _cascadeDesc.Width, vScale * texel * _cascadeDesc.Height,
 					snapshot.viewport[i][0], snapshot.viewport[i][1], snapshot.viewport[i][2], snapshot.viewport[i][3]);
 			}
 		}
@@ -949,8 +902,7 @@ namespace cs::features
 		} else {
 			_cascadeCounters.skipped[static_cast<std::size_t>(skip)].fetch_add(1, std::memory_order_relaxed);
 			// A skipped frame must not leave stale cascades beside live probe updates.
-			if (context)
-				RetireCascades(context);
+			_copyGeneration = 0;
 		}
 		if (std::exchange(_loggedCascadeSkip, skip) != skip)
 			CaptureLog->info("sun cascades: {}", kCascadeSkipNames[static_cast<std::size_t>(skip)]);
@@ -961,12 +913,15 @@ namespace cs::features
 		cs::engine::ComputeOMScope scope(a_context, 4, 1, 4, 0);
 		cs::render::ScopedComputeSharedDataBinding substrate(a_context);
 
-		// FO4: no ESRAM shadow, so t3 repeats the cascade copy; unpublished stays null.
-		auto* cascades = _cascadesPublished ? _cascadeCopySRV.get() : nullptr;
+		// FO4: no ESRAM shadow, so t3 repeats the cascade copy. The copy and the
+		// shared light block must come from this sun render; else both stay null.
+		const auto& lights = cs::engine::GetSunShadowLightState();
+		const bool fresh = lights.published && lights.generation == _copyGeneration;
+		auto* cascades = fresh ? _cascadeCopySRV.get() : nullptr;
 		std::array<ID3D11ShaderResourceView*, 4> srvs = {
 			_occlusionSRV.get(),
 			cascades,
-			_shadowLightsSRV.get(),
+			fresh ? cs::engine::GetSunShadowLightsSRV() : nullptr,
 			cascades
 		};
 		std::array<ID3D11UnorderedAccessView*, 4> uavs = {
