@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- The menu groups features into Skyrim CS's categories (Display, Landscape & Textures, Lighting, Materials, Utility, Water) instead of listing nearly everything under Lighting.
+
 ## 0.4.0
 
 - Skylighting: new feature ported from Skyrim CS. Scales ambient diffuse and specular lighting by sky visibility, selects the dynamic cubemap specular by sky visibility, applies sky visibility to water reflections and adds probe and occlusion debug views; it has a live enable toggle.
