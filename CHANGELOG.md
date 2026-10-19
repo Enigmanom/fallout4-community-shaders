@@ -2,7 +2,7 @@
 
 ## 0.4.1
 
-- The menu groups features into Skyrim CS's categories (Display, Landscape & Textures, Lighting, Materials, Utility, Water) instead of listing nearly everything under Lighting.
+- The menu groups features into Skyrim CS's categories (Display, Utility, Lighting, Materials, Landscape & Textures, Water).
 - Upscaling: ReShade (standard `dxgi.dll` install) now works with Upscaling and Frame Generation; effects apply before the UI, are included in generated frames, and receive depth.
 
 ## 0.4.0
@@ -25,10 +25,10 @@
 - Water: the shore blend no longer fringes first-person hands and weapons.
 - Screen Space GI: history now resets when the render size changes, as in Skyrim CS.
 - Diamond City and other open-sky worldspaces are no longer treated as interiors.
-- Hooks now use Microsoft Detours, abort cleanly if installation fails and log other mods' hooks on the same targets, which helps diagnose conflicts.
-- Shader cache: cached shaders are revalidated after plugin updates instead of being reused blindly.
+- Hooks now use Microsoft Detours, abort cleanly if installation fails and log other mods' hooks on the same targets.
+- Shader cache: cached shaders are revalidated after plugin updates.
 - RenderDoc: captures write one file per frame with names that stay unique across game sessions.
-- The menu's settings pages are modernized with sections, plots and reset indicators.
+- The menu's settings pages have sections, plots and reset indicators.
 - Every feature now has a live `enabled` toggle beside `load`, except Frame Generation, Inverse Square Lighting, Performance Overlay, RenderDoc and Upscaling.
 - Settings: unknown keys are dropped when a feature's config is rewritten; the Performance Overlay `Position` and `PositionSet` keys are ignored, as the menu saves window layout itself; Frame Generation `detailed_diagnostics` applies on the next launch.
 - Exponential Height Fog: removed until Skyrim CS releases it.
