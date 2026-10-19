@@ -4,10 +4,22 @@
 #include "FO4/SkylightingConsumer.hlsli"
 
 // Upstream's soft, rim and back sun lobes ride a soft shadow apart from the
-// cascade shadow. Probe visibility supplies it where upstream's SHADOW_VIS does.
+// cascade shadow. Probe visibility supplies it where upstream's SHADOW_VIS does,
+// else the volumetric shadow map.
 #if defined(SKYLIGHTING_SHADOW_VIS)
 #	define FO4_SOFT_SUN_SHADOW_ACTIVE
 #	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_SKYLIGHTING_SOFT_SHADOW(softShadow, viewPosition, normalView)
+#elif defined(VOLUMETRIC_SHADOWS) && defined(DIRECTIONAL) && (defined(BSDFLIGHT_PS_DIRSPLITS1) || defined(BSDFLIGHT_PS_DIRSPLITS2) || defined(BSDFLIGHT_PS_DIRSPLITS3))
+// Unshadowed passes render no sun cascades, so only the shadowed families take it.
+#	include "FO4/VolumetricShadowsConsumer.hlsli"
+#	define FO4_SOFT_SUN_SHADOW_ACTIVE
+#	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_VSM_SOFT_SHADOW(softShadow, viewPosition, normalView)
+#	ifdef BSDFLIGHT_PS_DIRSPLITS3
+#		define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow) FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow)
+#	endif
+#endif
+#ifndef FO4_SOFT_SHADOW_NATIVE
+#	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow)
 #endif
 
 #ifdef FO4_SOFT_SUN_SHADOW_ACTIVE

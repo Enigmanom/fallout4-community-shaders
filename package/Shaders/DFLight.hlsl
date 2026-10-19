@@ -4177,6 +4177,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 
 			float shadow = ComputeDirectionalShadow(posView, linearizedDepth);
+			FO4_SOFT_SHADOW_NATIVE(softShadow, shadow);
 
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 			shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));

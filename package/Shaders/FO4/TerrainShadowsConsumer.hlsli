@@ -6,7 +6,12 @@
 #include "FO4/FO4ShaderData.hlsli"
 #include "FO4/ForwardPosition.hlsli"
 #include "FO4/TerrainShadowsSampler.hlsli"
-#include "TerrainShadows/TerrainShadows.hlsli"
+// FO4: the upstream header has no guard and ShadowSampling includes it too.
+#ifdef VOLUMETRIC_SHADOWS
+#	include "FO4/VolumetricShadowsConsumer.hlsli"
+#else
+#	include "TerrainShadows/TerrainShadows.hlsli"
+#endif
 
 namespace TerrainShadows
 {
