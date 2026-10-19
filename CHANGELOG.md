@@ -1,18 +1,31 @@
 # Changelog
 
-## 0.3.2
+## 0.4.0
 
-- Upscaling: added NVIDIA Reflex controls (Low Latency Mode, Boost, Use Markers To Optimize, FPS Limit) as in Skyrim CS; Low Latency is on by default and always forced on under DLSS Frame Generation, off under FSR Frame Generation.
-- Upscaling: fixed a faint vertical seam at DLSS/FSR Quality.
-- Unified Water: ported Skyrim CS's distance-unified water and distant terrain water tiles with per-cell water types; off until loaded; placed water keeps vanilla distance rendering.
-- Frame Generation: updated Streamline to fix a black screen when loading a save with FSR 4 frame generation enabled and Gamma 2.2 color inputs.
-- Terrain Shadows: ships heightmaps for the base-game and DLC worldspaces; other worldspaces still need an xLODGen export.
+- Skylighting: new feature ported from Skyrim CS. Scales ambient diffuse and specular lighting by sky visibility, selects the dynamic cubemap specular by sky visibility, applies sky visibility to water reflections and adds probe and occlusion debug views; it has a live enable toggle.
+- Extended Materials: ported Skyrim CS's parallax and terrain height blending, with sun parallax shadows on objects and terrain; object parallax needs a height map in the `_s` alpha channel, and flat height maps are ignored.
+- Unified Water: ported Skyrim CS's distance-unified water and distant terrain water tiles with per-cell water types and a live enable toggle; placed water keeps vanilla distance rendering.
 - Image Based Lighting: ported Skyrim CS's spherical-harmonics ambient, specular and fog tint from the environment and sky cubemaps, with weather profiles; requires Dynamic Cubemaps, off until `EnableIBL` is set; static IBL is not included.
 - Terrain Variation: ported Skyrim CS's stochastic terrain sampling, LOD terrain tiling fix and landscape-textured mesh support, with a live enable toggle; mesh support covers natural landscape textures only, and Extended Materials and TruePBR height and RMAOS consumers are pending.
-- Performance Overlay: starts hidden each session; press F10 (rebindable) to show it, as in Skyrim CS. The frametime graph now scales with resolution.
-- Dynamic Cubemaps: water reflects the live cubemap near and the engine cube with LOD far, with Skyrim CS's screen-space reflection blend; `engine_cube_lod` (default on) toggles the LOD draw.
-- Extended Materials: terrain parallax shadows are as strong as on meshes again.
+- Dynamic Cubemaps: water reflects the live cubemap near and the engine cube far, with Skyrim CS's screen-space reflection blend; LOD is rendered into the engine reflection cube (`engine_cube_lod`, default on), new debug views show the cube, and all mips are encoded as BC6H.
 - Screen-Space Reflections: water and glossy reflections now appear; SSGI no longer disables the SSLR depth pyramid, and SSLR is correct under DLSS/FSR.
+- Inverse Square Lighting: lights without authored data now derive their size from the native falloff shape, light color matches Skyrim CS, each draw uses its own light data, and derived light reach no longer changes with animated dimmers.
+- CS Editor: ported Skyrim CS's weather picker, weather lock, time controls and weather overrides; override drags persist.
+- Remote Control: added a DevBench bridge that publishes events and lets external tools read and change settings, select debug views live, and request RenderDoc captures.
+- Terrain Shadows: ships heightmaps for the base-game and DLC worldspaces; other worldspaces still need an xLODGen export.
+- Performance Overlay: starts hidden each session; press F10 (rebindable) to show it, as in Skyrim CS. The frametime graph now scales with resolution and no longer spikes when the menu opens, and A/B deltas are signed as in Skyrim CS.
+- Upscaling: added NVIDIA Reflex controls (Low Latency Mode, Boost, Use Markers To Optimize, FPS Limit) as in Skyrim CS; Low Latency is on by default and always forced on under DLSS Frame Generation, off under FSR Frame Generation.
+- Upscaling: fixed a faint vertical seam at DLSS/FSR Quality; the Pip-Boy and companion map now render unscaled, DLSS no longer resets every frame while paused with Frame Generation, and the Frame Generation proxy device is created correctly.
+- Frame Generation: updated Streamline to fix a black screen when loading a save with FSR 4 frame generation enabled and Gamma 2.2 color inputs.
+- Water: the shore blend no longer fringes first-person hands and weapons.
+- Screen Space GI: history now resets when the render size changes, as in Skyrim CS.
+- Diamond City and other open-sky worldspaces are no longer treated as interiors.
+- Hooks now use Microsoft Detours, abort cleanly if installation fails and log other mods' hooks on the same targets, which helps diagnose conflicts.
+- Shader cache: cached shaders are revalidated after plugin updates instead of being reused blindly.
+- RenderDoc: captures write one file per frame with names that stay unique across game sessions.
+- The menu's settings pages are modernized with sections, plots and reset indicators.
+- Every feature now has a live `enabled` toggle beside `load`, except Frame Generation, Inverse Square Lighting, Performance Overlay, RenderDoc and Upscaling.
+- Settings: unknown keys are dropped when a feature's config is rewritten; the Performance Overlay `Position` and `PositionSet` keys are ignored, as the menu saves window layout itself; Frame Generation `detailed_diagnostics` applies on the next launch.
 - Exponential Height Fog: removed until Skyrim CS releases it.
 
 ## 0.3.1
