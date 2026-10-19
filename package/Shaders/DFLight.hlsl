@@ -11,6 +11,7 @@
 #	include "FO4/ExtendedMaterialsConsumer.hlsli"
 #endif
 #include "FO4/AmbientConsumer.hlsli"
+#include "FO4/SoftSunShadow.hlsli"
 
 #include "FO4/InverseSquareLightingRaster.hlsli"
 

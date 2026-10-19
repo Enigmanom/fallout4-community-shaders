@@ -123,12 +123,6 @@ namespace Skylighting
 		SampleProbes(positionMS, normalWS);
 	}
 
-	// FO4: the pass scaled every lobe by shadow; this adds the visibility delta.
-	float3 SoftSunLobeDelta(float3 sunColor, float rim, float backfaceWrap, float3 albedoPremult, float forwardBlend, float3 albedo, float3 tint, float shadow, float softShadow)
-	{
-		float3 softDiffuse = sunColor * (rim + backfaceWrap * albedoPremult + forwardBlend * albedo) * tint;
-		return softDiffuse * (softShadow - shadow);
-	}
 #	endif
 #endif
 
@@ -163,40 +157,13 @@ namespace Skylighting
 
 // Sun lobes use probe visibility where upstream's SHADOW_VIS does.
 #ifdef SKYLIGHTING_SHADOW_VIS
-#	ifdef WATER_EFFECTS
-#		define FO4_SKYLIGHTING_CAUSTICS_TINT causticsMult
-#	else
-#		define FO4_SKYLIGHTING_CAUSTICS_TINT 1.0
-#	endif
 // The ambient set already sampled the probes.
 #	ifdef AMBIENT
-#		define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) float softShadow = Skylighting::ShadowVisibility
+#		define FO4_SKYLIGHTING_SOFT_SHADOW(softShadow, viewPosition, normalView) float softShadow = Skylighting::ShadowVisibility
 #	else
-#		define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) \
-			Skylighting::SampleShadowVisibility(viewPosition, normalView);  \
+#		define FO4_SKYLIGHTING_SOFT_SHADOW(softShadow, viewPosition, normalView) \
+			Skylighting::SampleShadowVisibility(viewPosition, normalView);        \
 			float softShadow = Skylighting::ShadowVisibility
 #	endif
-// Light-wide multipliers (terrain) scale the soft shadow too.
-#	define FO4_SHADOW_LIGHT_MUL(shadow, softShadow, factor) \
-		{                                                    \
-			const float lightMul = (factor);                 \
-			shadow *= lightMul;                              \
-			softShadow *= lightMul;                          \
-		}
-#	define FO4_SOFT_SUN_LOBES(output, shadow, softShadow, sunColor, rim, backfaceWrap, albedoPremult, forwardBlend, albedo) \
-		output.diffuse.xyz += Skylighting::SoftSunLobeDelta(sunColor, rim, backfaceWrap, albedoPremult, forwardBlend, albedo, FO4_SKYLIGHTING_CAUSTICS_TINT, shadow, softShadow) / 3.0
-// Unshadowed passes fold multipliers into the diffuse sum, so lobes stay apart.
-#	define FO4_SOFT_LOBES_DECLARE(softDiffuse) float3 softDiffuse = 0.0
-#	define FO4_SOFT_LOBE(directDiffuse, softDiffuse) softDiffuse
-#	define FO4_SOFT_LOBE_SCALE(softDiffuse, factor) softDiffuse *= (factor)
-#	define FO4_SOFT_LOBES_APPLY(output, softDiffuse, softShadow) output.diffuse.xyz += (softDiffuse) * (softShadow) / 3.0
-#else
-#	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView)
-#	define FO4_SHADOW_LIGHT_MUL(shadow, softShadow, factor) shadow *= (factor)
-#	define FO4_SOFT_SUN_LOBES(output, shadow, softShadow, sunColor, rim, backfaceWrap, albedoPremult, forwardBlend, albedo)
-#	define FO4_SOFT_LOBES_DECLARE(softDiffuse)
-#	define FO4_SOFT_LOBE(directDiffuse, softDiffuse) directDiffuse
-#	define FO4_SOFT_LOBE_SCALE(softDiffuse, factor)
-#	define FO4_SOFT_LOBES_APPLY(output, softDiffuse, softShadow)
 #endif
 #endif
