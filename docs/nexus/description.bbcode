@@ -14,13 +14,19 @@ Every feature ships turned off, so you enable only what you want.
 [*][b]Terrain Shadows:[/b] Long-range shadows cast by distant terrain.[/*]
 [*][b]LOD Blending:[/b] Brightness and gamma matching for distant terrain and objects, with optional terrain vertex-color removal.[/*]
 [*][b]Screen Space GI:[/b] Ambient occlusion and indirect lighting.[/*]
+[*][b]Skylighting:[/b] Ambient light and reflections that respect how much sky a surface can see.[/*]
+[*][b]Image Based Lighting:[/b] Ambient light, reflections, and fog tint driven by the sky and environment. Requires Dynamic Cubemaps.[/*]
 [*][b]Inverse Square Lighting:[/b] Opt-in per-light falloff, authored in Lights TOML files. Existing lights stay unchanged.[/*]
-[*][b]Dynamic Cubemaps:[/b] Reflections that respond to the surrounding scene.[/*]
+[*][b]Extended Materials:[/b] Parallax on objects and terrain, with sun self-shadows. Objects need a height map in the specular texture's alpha.[/*]
+[*][b]Terrain Variation:[/b] Breaks up repeating terrain textures, including distant LOD.[/*]
+[*][b]Dynamic Cubemaps:[/b] Reflections that respond to the surrounding scene, including water reflections of the sky and distant terrain.[/*]
 [*][b]Water Effects:[/b] Water parallax and sunlight caustics on submerged surfaces.[/*]
-[*][b]Upscaling:[/b] TAA, FSR 3/4, and DLSS.[/*]
+[*][b]Unified Water:[/b] Distant water and terrain water tiles that match nearby water.[/*]
+[*][b]Upscaling:[/b] TAA, FSR 3/4, and DLSS, with NVIDIA Reflex low-latency controls.[/*]
 [*][b]Frame Generation:[/b] FSR 3/4 and DLSS, including supported Multi Frame Generation modes.[/*]
 [*][b]Motion Vector Fixes:[/b] Motion-data corrections for temporal rendering.[/*]
 [*][b]Performance Overlay:[/b] FPS, frame-time, and latency graphs, plus per-feature GPU timings.[/*]
+[*][b]CS Editor:[/b] Weather picker, weather lock, and time controls.[/*]
 [/list]
 
 [size=5][color=#42FA60][b]REQUIREMENTS[/b][/color][/size]
@@ -43,7 +49,7 @@ Upscaling and frame generation need a DX12-capable GPU. DLSS requires an NVIDIA 
 [*]Enable the features you want, then restart the game.[/*]
 [/list]
 
-Enabling or disabling a feature takes effect after a restart. Settings for enabled features apply live.
+Loading or unloading a feature takes effect after a restart. Once loaded, most features can be switched on and off live with their [b]enabled[/b] toggle, and their settings apply live.
 
 Without Dear Modding UI, enable features in [b]Data\F4SE\Plugins\FO4CommunityShaders\FO4CommunityShaders.toml[/b], created on first launch (in MO2, under Overwrite). Uncomment and set:
 [code][features.ScreenSpaceShadows]
@@ -57,6 +63,9 @@ I will now have to publicly execute you.
 
 [b]What about HDR?[/b]
 FO4 Community Shaders renders in SDR. Windows Auto HDR and NVIDIA RTX HDR convert the final image and should work. RenoDX and Special K HDR do not work with Upscaling or Frame Generation, which present through an SDR-only swap chain. Without those features they are untested.
+
+[b]Does it work with ReShade?[/b]
+Not yet. ReShade does not attach while Community Shaders is installed; a fix is in progress.
 
 [b]I installed it and nothing changed.[/b]
 Every feature ships turned off. Enable the ones you want in Dear Modding UI, then restart the game.
