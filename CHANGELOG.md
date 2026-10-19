@@ -3,6 +3,7 @@
 ## 0.4.1
 
 - The menu groups features into Skyrim CS's categories (Display, Landscape & Textures, Lighting, Materials, Utility, Water) instead of listing nearly everything under Lighting.
+- Upscaling: ReShade (standard `dxgi.dll` install) now works with Upscaling and Frame Generation; effects apply before the UI, are included in generated frames, and receive depth.
 
 ## 0.4.0
 
