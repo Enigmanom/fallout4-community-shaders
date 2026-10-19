@@ -21,6 +21,9 @@ load = true
 [features.WaterEffects]
 load = true
 
+[features.UnifiedWater]
+load = true
+
 [features.ScreenSpaceShadows]
 load = true
 
