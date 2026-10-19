@@ -11,6 +11,7 @@
 - Terrain Variation: ported Skyrim CS's stochastic terrain sampling, LOD terrain tiling fix and landscape-textured mesh support, with a live enable toggle; mesh support covers natural landscape textures only, and Extended Materials and TruePBR height and RMAOS consumers are pending.
 - Performance Overlay: starts hidden each session; press F10 (rebindable) to show it, as in Skyrim CS. The frametime graph now scales with resolution.
 - Dynamic Cubemaps: water reflects the live cubemap near and the engine cube with LOD far, with Skyrim CS's screen-space reflection blend; `engine_cube_lod` (default on) toggles the LOD draw.
+- Extended Materials: terrain parallax shadows are as strong as on meshes again.
 - Screen-Space Reflections: water and glossy reflections now appear; SSGI no longer disables the SSLR depth pyramid, and SSLR is correct under DLSS/FSR.
 - Exponential Height Fog: removed until Skyrim CS releases it.
 
