@@ -197,6 +197,12 @@ VS_OUTPUT main(VS_INPUT input)
 #	ifdef TERRAIN_SHADOWS
 #		include "FO4/TerrainShadowsConsumer.hlsli"
 #	endif
+#	ifdef VOLUMETRIC_SHADOWS
+#		include "FO4/VolumetricShadowsConsumer.hlsli"
+#		define FO4_WATER_SUN_SHADOW(worldPosition, screenPosition) FO4VolumetricShadows::GetWaterSurfaceShadow(worldPosition, screenPosition)
+#	elif defined(TERRAIN_SHADOWS)
+#		define FO4_WATER_SUN_SHADOW(worldPosition, screenPosition) TerrainShadows::GetWorldShadow(worldPosition)
+#	endif
 #	ifdef UNIFIED_WATER
 #		include "FO4/FO4ShaderData.hlsli"
 #	endif
@@ -609,8 +615,8 @@ float4 main(PS_INPUT input) : SV_Target0
 	float sunGlare = pow(max(dot(-viewDirection, WATER_PER_GEOMETRY(2).xyz), 0.0), WATER_PER_GEOMETRY(3).w) * WATER_PER_GEOMETRY(2).w;
 
 	float3 lightColor = WATER_PER_GEOMETRY(2).w * WATER_PER_GEOMETRY(3).xyz;
-#		ifdef TERRAIN_SHADOWS
-	lightColor *= TerrainShadows::GetWorldShadow(FrameBuffer::ViewToWorld(input.eyeToPosition));
+#		ifdef FO4_WATER_SUN_SHADOW
+	lightColor *= FO4_WATER_SUN_SHADOW(FrameBuffer::ViewToWorld(input.eyeToPosition), input.screenPosition.xy);
 #		endif
 	float3 specular = pow(saturate(dot(reflected, WATER_PER_GEOMETRY(2).xyz)), perMaterial[8].x) * lightColor;
 	float3 ambient = pow(saturate(dot(normal, float3(-0.099, -0.099, 0.990))), perMaterial[0].w) * lightColor;
@@ -933,8 +939,8 @@ float4 main(PS_INPUT input) : SV_Target0
 	fog = lerp(fog, WATER_PER_GEOMETRY(3).xyz, sunGlare);
 #		ifndef INTERIOR
 	float3 lightColor = WATER_PER_GEOMETRY(2).w * WATER_PER_GEOMETRY(3).xyz;
-#			ifdef TERRAIN_SHADOWS
-	lightColor *= TerrainShadows::GetWorldShadow(FrameBuffer::ViewToWorld(input.eyeToPosition));
+#			ifdef FO4_WATER_SUN_SHADOW
+	lightColor *= FO4_WATER_SUN_SHADOW(FrameBuffer::ViewToWorld(input.eyeToPosition), input.screenPosition.xy);
 #			endif
 	float3 ambient = pow(saturate(dot(normal, float3(-0.099, -0.099, 0.990))), perMaterial[0].w) * lightColor;
 	ambient = ambient * perMaterial[10].z;
