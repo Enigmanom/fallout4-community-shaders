@@ -242,6 +242,7 @@ target(plugin_name, function()
     add_includedirs(
         "features/Upscaling/src/RCAS",
         "extern/RenderDoc/include",
+        "extern/ReShade/include",
         "extern/Streamline/include",
         "extern/bethesda-devbench/include"
     )
