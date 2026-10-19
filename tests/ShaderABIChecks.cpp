@@ -1,5 +1,6 @@
 #include "ShaderABIChecks.h"
 
+#include "../features/VolumetricShadows/src/ShaderDefines.h"
 #include "Render/DirectionalShadowLightData.h"
 #include "Render/SharedDataLayout.h"
 #include "ScreenSpaceGIConstants.h"
@@ -13,6 +14,7 @@
 #include <d3dcompiler.h>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace
 {
@@ -318,36 +320,70 @@ namespace
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
+	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> Reflect(const std::filesystem::path& a_root, const char* a_path, const std::vector<std::pair<const char*, const char*>>& a_defines, const char* a_profile, std::string& a_error)
+	{
+		Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;
+		if (auto blob = cs::util::CompileShaderToBlob((a_root / a_path).c_str(), a_defines, a_profile, "main", &a_error, a_root);
+			blob && SUCCEEDED(D3DReflect(blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(reflection.GetAddressOf()))))
+			return reflection;
+		if (a_error.empty())
+			a_error = "reflection failed";
+		a_error = std::string(a_path) + ": " + a_error;
+		return {};
+	}
+	// Namespace-scoped resources reflect with their qualified name.
+	UINT BindPoint(ID3D11ShaderReflection* a_reflection, std::string_view a_name)
+	{
+		D3D11_SHADER_DESC shader{};
+		a_reflection->GetDesc(&shader);
+		for (UINT i = 0; i < shader.BoundResources; ++i) {
+			D3D11_SHADER_INPUT_BIND_DESC binding{};
+			if (SUCCEEDED(a_reflection->GetResourceBindingDesc(i, &binding)) && std::string_view(binding.Name).ends_with(a_name))
+				return binding.BindPoint;
+		}
+		return UINT_MAX;
+	}
 	std::string VerifyIBLABI(const std::filesystem::path& a_root)
 	{
 		std::string error;
-		const auto reflect = [&](const char* a_path, const std::vector<std::pair<const char*, const char*>>& a_defines) {
-			Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;
-			if (auto blob = cs::util::CompileShaderToBlob((a_root / a_path).c_str(), a_defines, "cs_5_0", "main", &error, a_root);
-				blob && SUCCEEDED(D3DReflect(blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(reflection.GetAddressOf()))))
-				return reflection;
-			if (error.empty())
-				error = "reflection failed";
-			error = std::string(a_path) + ": " + error;
-			return Microsoft::WRL::ComPtr<ID3D11ShaderReflection>{};
-		};
-		// Namespace-scoped resources reflect with their qualified name.
-		const auto bindPoint = [](ID3D11ShaderReflection* a_reflection, std::string_view a_name) {
-			D3D11_SHADER_DESC shader{};
-			a_reflection->GetDesc(&shader);
-			for (UINT i = 0; i < shader.BoundResources; ++i) {
-				D3D11_SHADER_INPUT_BIND_DESC binding{};
-				if (SUCCEEDED(a_reflection->GetResourceBindingDesc(i, &binding)) && std::string_view(binding.Name).ends_with(a_name))
-					return binding.BindPoint;
-			}
-			return UINT_MAX;
-		};
 		// The host binds the cube at t0 and the SH at u0.
-		const auto projection = reflect("IBL/DiffuseIBLCS.hlsl", { { "FO4CS_SUBSTRATE", "1" } });
+		const auto projection = Reflect(a_root, "IBL/DiffuseIBLCS.hlsl", { { "FO4CS_SUBSTRATE", "1" } }, "cs_5_0", error);
 		if (!projection)
 			return error;
-		if (bindPoint(projection.Get(), "EnvTexture") != 0 || bindPoint(projection.Get(), "IBLTexture") != 0 || bindPoint(projection.Get(), "LinearSampler") != 0)
+		if (BindPoint(projection.Get(), "EnvTexture") != 0 || BindPoint(projection.Get(), "IBLTexture") != 0 || BindPoint(projection.Get(), "LinearSampler") != 0)
 			return "DiffuseIBLCS: ABI slot mismatch";
+		return {};
+	}
+	std::string VerifyVolumetricShadowsABI(const std::filesystem::path& a_root)
+	{
+		namespace slots = cs::features::volumetric_shadows_shader;
+		std::string error;
+		// The host binds the cascade array at t0 and t1, the map mip at u0 and a clamp sampler at s0.
+		for (const char* define : { "DOWNSAMPLE_SHADOW_MIP0", "DOWNSAMPLE_SHADOW_MIP1" }) {
+			const auto downsample = Reflect(a_root, "VolumetricShadows/DownsampleShadowCS.hlsl", { { define, "1" } }, "cs_5_0", error);
+			if (!downsample)
+				return error;
+			if (BindPoint(downsample.Get(), "InputTexture") != 0 || BindPoint(downsample.Get(), "ESRAMShadow") != 1 ||
+				BindPoint(downsample.Get(), "OutputTexture") != 0 || BindPoint(downsample.Get(), "LinearSampler") != 0)
+				return "DownsampleShadowCS: ABI slot mismatch";
+		}
+		for (const char* define : { "BLUR_HORIZONTAL", "BLUR_VERTICAL" }) {
+			const auto blur = Reflect(a_root, "VolumetricShadows/BlurShadowCS.hlsl", { { define, "1" } }, "cs_5_0", error);
+			if (!blur)
+				return error;
+			if (BindPoint(blur.Get(), "InputTexture") != 0 || BindPoint(blur.Get(), "OutputTexture") != 0)
+				return "BlurShadowCS: ABI slot mismatch";
+		}
+		const auto consumer = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "VOLUMETRIC_SHADOWS", "1" } }, "ps_5_0", error);
+		if (!consumer)
+			return error;
+		if (BindPoint(consumer.Get(), "VolumetricShadows::SharedShadowMap") != slots::kSharedShadowMapSlot ||
+			BindPoint(consumer.Get(), "DirectionalShadowLights") != slots::kShadowLightsSlot ||
+			BindPoint(consumer.Get(), "FO4VolumetricShadows::Sampler") != slots::kSamplerSlot)
+			return "consumer: ABI slot mismatch";
+		D3D11_SHADER_INPUT_BIND_DESC lights{};
+		if (FAILED(consumer->GetResourceBindingDescByName("DirectionalShadowLights", &lights)) || lights.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))
+			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
 #undef ABI
@@ -363,5 +399,7 @@ std::string VerifyShaderABI(const std::filesystem::path& a_root)
 		return "Skylighting ABI: " + error;
 	if (auto error = VerifyIBLABI(a_root); !error.empty())
 		return "IBL ABI: " + error;
+	if (auto error = VerifyVolumetricShadowsABI(a_root); !error.empty())
+		return "Volumetric Shadows ABI: " + error;
 	return {};
 }

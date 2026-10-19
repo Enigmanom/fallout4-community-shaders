@@ -30,6 +30,9 @@ load = true
 [features.TerrainShadows]
 load = true
 
+[features.VolumetricShadows]
+load = true
+
 [features.LODBlending]
 load = true
 

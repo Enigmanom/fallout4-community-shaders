@@ -12,6 +12,7 @@
 #include "../features/TerrainVariation/src/ShaderDefines.h"
 #include "../features/UnifiedWater/src/ShaderDefines.h"
 #include "../features/Upscaling/src/ShaderDefines.h"
+#include "../features/VolumetricShadows/src/ShaderDefines.h"
 #include "../features/WaterEffects/src/ShaderDefines.h"
 #include "Render/FeatureShaderBindings.h"
 
@@ -30,6 +31,7 @@ namespace cs::engine
 				{ "DynamicCubemaps", &dc::kShaderDefines },
 				{ "ImageBasedLighting", &ibl_shader::kShaderDefines },
 				{ "TerrainShadows", &terrain_shader::kShaderDefines },
+				{ "VolumetricShadows", &volumetric_shadows_shader::kShaderDefines },
 				{ "LODBlending", &lod_blending_shader::kShaderDefines },
 				{ "TerrainVariation", &terrain_variation_shader::kShaderDefines },
 				{ "ExtendedMaterials", &extended_materials_shader::kShaderDefines },

@@ -35,6 +35,9 @@ function main(target)
             "features/Terrain Shadows/Shaders/TerrainShadows/TerrainShadows.hlsli",
             "features/Terrain Variation/Shaders/TerrainVariation/TerrainVariation.hlsli",
             "features/Upscaling/Shaders/Upscaling/RCAS/RCAS.hlsl",
+            "features/Volumetric Shadows/Shaders/VolumetricShadows/BlurShadowCS.hlsl",
+            "features/Volumetric Shadows/Shaders/VolumetricShadows/DownsampleShadowCS.hlsl",
+            "features/Volumetric Shadows/Shaders/VolumetricShadows/VolumetricShadows.hlsli",
             "features/Water Effects/Shaders/WaterEffects/watercaustics.dds",
             "features/Water Effects/Shaders/WaterEffects/WaterCaustics.hlsli",
             "features/Water Effects/Shaders/WaterEffects/WaterParallax.hlsli"

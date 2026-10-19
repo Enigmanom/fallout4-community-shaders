@@ -1,0 +1,49 @@
+#ifndef FO4_VOLUMETRIC_SHADOWS_CONSUMER
+#define FO4_VOLUMETRIC_SHADOWS_CONSUMER
+
+#include "FO4/FO4ShaderData.hlsli"
+
+namespace FO4VolumetricShadows
+{
+	// FO4: binds its own linear clamp sampler; the engine's slots are taken.
+	SamplerState Sampler : register(s15);
+}
+#define LinearSampler FO4VolumetricShadows::Sampler
+
+#include "Common/ShadowSampling.hlsli"
+
+namespace FO4VolumetricShadows
+{
+	// FO4: weight of the VSM against the native shadow in the last cascade range.
+	static float DistanceFade = 1.0;
+
+	float GetSoftShadow(float3 viewPosition)
+	{
+		float3 worldPosition = FrameBuffer::ViewToWorld(viewPosition);
+		float detailedShadow;
+		float softShadow = ShadowSampling::GetLightingShadow(worldPosition, detailedShadow);
+#ifdef BSDFLIGHT_PS_DIRSPLITS3
+		float fade = saturate(SharedData::GetScreenDepth(FrameBuffer::GetShadowDepth(worldPosition)) / DirectionalShadowLights[0].EndSplitDistances.y);
+		DistanceFade = 1.0 - pow(fade * fade, 8);
+#endif
+		return softShadow;
+	}
+
+	// FO4: a third cascade has no VSM, so the fade lands on the native soft shadow.
+	float BlendNativeShadow(float softShadow, float nativeShadow)
+	{
+		return softShadow - (1.0 - DistanceFade) * (1.0 - nativeShadow);
+	}
+
+	// FO4: no refraction direction; the view ray crosses the surface.
+	float GetWaterSurfaceShadow(float3 worldPosition, float2 screenPosition)
+	{
+		float surfaceShadow;
+		ShadowSampling::Get3DFilteredShadow(worldPosition, normalize(worldPosition), screenPosition, surfaceShadow);
+		return surfaceShadow;
+	}
+}
+
+#define FO4_VSM_SOFT_SHADOW(softShadow, viewPosition, normalView) float softShadow = FO4VolumetricShadows::GetSoftShadow(viewPosition)
+#define FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow) softShadow = FO4VolumetricShadows::BlendNativeShadow(softShadow, shadow)
+#endif

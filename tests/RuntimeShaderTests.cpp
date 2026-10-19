@@ -77,6 +77,9 @@ namespace
 			{ "TerrainShadows/ShadowUpdate.cs.hlsl" },
 			{ "TerrainShadows/ShadowStatistics.cs.hlsl" },
 
+			{ "VolumetricShadows/DownsampleShadowCS.hlsl", "cs_5_0", {}, { { { { "DOWNSAMPLE_SHADOW_MIP0", "1" } }, { { "DOWNSAMPLE_SHADOW_MIP1", "1" } } } } },
+			{ "VolumetricShadows/BlurShadowCS.hlsl", "cs_5_0", {}, { { { { "BLUR_HORIZONTAL", "1" } }, { { "BLUR_VERTICAL", "1" } } } } },
+
 			{ "FO4/Upscaling/EncodeTexturesCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" }, { "DEPTH_OUTPUT", "1" } }, { { {}, { { "DLSS", "" } }, { { "FSR", "" } } } } },
 			{ "FO4/Upscaling/DepthRefractionUpscalePS.hlsl", "ps_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
 			{ "FO4/Upscaling/UpscaleVS.hlsl", "vs_5_0" },

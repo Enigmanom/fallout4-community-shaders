@@ -85,6 +85,7 @@ namespace
 			std::pair{ "UnifiedWater", SchemaView{} },
 			std::pair{ "ScreenSpaceShadows", MakeSchemaView(sss_settings::kSchema) },
 			std::pair{ "TerrainShadows", SchemaView{} },
+			std::pair{ "VolumetricShadows", SchemaView{} },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
 			std::pair{ "TerrainVariation", MakeSchemaView(terrain_variation::kSchema) },
 			std::pair{ "ExtendedMaterials", MakeSchemaView(extended_materials::kSchema) },

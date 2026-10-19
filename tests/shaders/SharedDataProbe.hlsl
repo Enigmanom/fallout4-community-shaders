@@ -1,4 +1,7 @@
 #include "FO4/FO4ShaderData.hlsli"
+#ifdef VOLUMETRIC_SHADOWS
+#	include "FO4/VolumetricShadowsConsumer.hlsli"
+#endif
 #ifdef ABI_SLOT_COLLISION
 cbuffer Collision : register(ABI_SLOT_COLLISION)
 {
@@ -14,6 +17,9 @@ float4 main(float4 position : SV_Position) : SV_Target
 	value += SharedData::grassLightingSettings.Glossiness + SharedData::horizonFixSettings.farWaterDistance;
 	value += FO4SharedData::DeltaTime;
 	value += SharedData::DepthTexture.Load(int3(position.xy, 0)).x;
+#	ifdef VOLUMETRIC_SHADOWS
+	value += FO4VolumetricShadows::GetSoftShadow(position.xyz) + FO4VolumetricShadows::GetWaterSurfaceShadow(position.xyz, position.xy);
+#	endif
 #	ifdef ABI_SLOT_COLLISION
 	value += CollisionValue;
 #	endif

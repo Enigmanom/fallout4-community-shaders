@@ -18,6 +18,7 @@ local features = {
     "FrameGeneration",
     "ScreenSpaceShadows",
     "TerrainShadows",
+    "VolumetricShadows",
     "LODBlending",
     "TerrainVariation",
     "ExtendedMaterials",
