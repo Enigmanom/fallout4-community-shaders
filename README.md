@@ -110,7 +110,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, building, testing, and deploym
 - Upscaling requires a DX12-capable GPU. DLSS requires compatible NVIDIA RTX hardware.
 - FSR 4 requires compatible AMD Radeon hardware.
 - Upscaling (except TAA) and frame generation require borderless windowed mode.
-- ReShade (standard `dxgi.dll` install) works with Upscaling and Frame Generation: effects apply before the UI, appear in generated frames, and get depth.
+- ReShade (standard `dxgi.dll` install) works with Upscaling and Frame Generation: effects apply before the UI, appear in generated frames, and get non-reversed depth (`RESHADE_DEPTH_INPUT_IS_REVERSED=0`).
 - Supported upscaling and frame-generation methods can change while playing; switching may briefly pause rendering.
 - Terrain Shadows ships heightmaps for the base-game and DLC worldspaces; other worldspaces need an xLODGen height map export.
 - RenderDoc capture requires an installed RenderDoc, found automatically; `dll_path` overrides it.
