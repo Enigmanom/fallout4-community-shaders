@@ -451,10 +451,10 @@ namespace cs::render
 			return;
 		}
 		auto* context = cs::engine::GetImmediateContext();
-		auto* frameBuffer =
-			cs::engine::GetRenderTargetTexture(cs::engine::RenderTarget::kFrameBuffer);
+		winrt::com_ptr<ID3D11Texture2D> frameBuffer;
+		D3D11_TEXTURE2D_DESC frameBufferDesc{};
 		const auto camera = cs::engine::GetCapturedWorldCameraRecord(GetEngineFrame());
-		if (!context || !frameBuffer || !camera) {
+		if (!context || !TryGetFrameBufferTexture(frameBuffer, frameBufferDesc) || !camera) {
 			return;
 		}
 		pipeline.RenderReShadeEffects(
