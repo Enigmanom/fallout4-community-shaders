@@ -299,37 +299,39 @@ namespace cs::features
 		return _impl && _impl->runtime && _impl->runtime->get_effects_state();
 	}
 
-	void ReShadeRuntime::RenderEffects(ID3D11DeviceContext& a_context, ID3D11Resource& a_color,
-		ID3D11ShaderResourceView* a_depth) noexcept
+	template <class F>
+	void ReShadeRuntime::WithColorCopy(ID3D11DeviceContext& a_context, ID3D11Resource& a_color,
+		const char* a_event, F&& a_body) noexcept
 	{
 		if (!_impl || !_impl->runtime) {
 			return;
 		}
 		auto& impl = *_impl;
-		cs::render::annotation::ScopedEvent annotationScope("Upscaling/ReShade/Effects");
+		cs::render::annotation::ScopedEvent annotationScope(a_event);
 		cs::engine::CopyResourcePreservingOM(&a_context, impl.color.get(), &a_color);
-		{
-			cs::render::ScopedContextState state(&a_context, impl.contextState.get());
+		a_body(impl);
+		cs::engine::CopyResourcePreservingOM(&a_context, &a_color, impl.color.get());
+	}
+
+	void ReShadeRuntime::RenderEffects(ID3D11DeviceContext& a_context, ID3D11Resource& a_color,
+		ID3D11ShaderResourceView* a_depth) noexcept
+	{
+		WithColorCopy(a_context, a_color, "Upscaling/ReShade/Effects", [&](Impl& a_impl) {
+			cs::render::ScopedContextState state(&a_context, a_impl.contextState.get());
 			if (!state.IsActive()) {
 				return;
 			}
-			impl.BindDepth(a_depth);
-			impl.runtime->render_effects(
-				impl.runtime->get_command_queue()->get_immediate_command_list(),
-				ViewHandle(impl.rtv.get()), ViewHandle(impl.rtvSrgb.get()));
-		}
-		cs::engine::CopyResourcePreservingOM(&a_context, &a_color, impl.color.get());
+			a_impl.BindDepth(a_depth);
+			a_impl.runtime->render_effects(
+				a_impl.runtime->get_command_queue()->get_immediate_command_list(),
+				ViewHandle(a_impl.rtv.get()), ViewHandle(a_impl.rtvSrgb.get()));
+		});
 	}
 
 	void ReShadeRuntime::Present(ID3D11DeviceContext& a_context, ID3D11Resource& a_color) noexcept
 	{
-		if (!_impl || !_impl->runtime) {
-			return;
-		}
-		auto& impl = *_impl;
-		cs::render::annotation::ScopedEvent annotationScope("Upscaling/ReShade/Present");
-		cs::engine::CopyResourcePreservingOM(&a_context, impl.color.get(), &a_color);
-		::reshade::update_and_present_effect_runtime(impl.runtime);
-		cs::engine::CopyResourcePreservingOM(&a_context, &a_color, impl.color.get());
+		WithColorCopy(a_context, a_color, "Upscaling/ReShade/Present", [](Impl& a_impl) {
+			::reshade::update_and_present_effect_runtime(a_impl.runtime);
+		});
 	}
 }

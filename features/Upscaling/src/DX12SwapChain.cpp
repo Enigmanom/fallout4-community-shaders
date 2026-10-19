@@ -2461,8 +2461,6 @@ namespace cs::features
 			}
 		}
 
-		// ReShade holds views of the buffer that is about to be replaced.
-		ReleaseReShade();
 		if (_provider) {
 			const auto releaseResult =
 				render::temporal::QuiesceDrainAndRelease(*_provider, [&]() {
@@ -2563,6 +2561,8 @@ namespace cs::features
 		}
 
 		if (sizeChanged) {
+			// ReShade's copy and runtime are sized at creation.
+			ReleaseReShade();
 			_proxyBuffer = std::move(pendingProxy);
 			_hudlessBuffers = std::move(pendingHudless);
 		}

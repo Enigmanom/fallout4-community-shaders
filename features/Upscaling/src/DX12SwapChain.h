@@ -109,7 +109,7 @@ namespace cs::features
 			std::string_view a_operation,
 			const render::temporal::ProviderResult& a_result) noexcept;
 		[[nodiscard]] bool AcquireFrameGenerationInputWrite() noexcept;
-		// Creates the ReShade runtime on first use; false when it is absent or unusable.
+		// Creates the ReShade runtime on first use; false if absent or unusable.
 		[[nodiscard]] bool ReShadeEffectsEnabled() noexcept;
 		void RenderReShadeEffects(ID3D11DeviceContext& a_context,
 			ID3D11Resource& a_color, ID3D11ShaderResourceView* a_depth) noexcept;

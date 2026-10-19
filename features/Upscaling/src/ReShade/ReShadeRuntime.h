@@ -37,6 +37,11 @@ namespace cs::features
 
 	private:
 		struct Impl;
+
+		template <class F>
+		void WithColorCopy(ID3D11DeviceContext& a_context, ID3D11Resource& a_color,
+			const char* a_event, F&& a_body) noexcept;
+
 		std::unique_ptr<Impl> _impl;
 		bool _attempted = false;
 	};
