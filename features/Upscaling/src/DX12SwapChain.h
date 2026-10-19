@@ -13,6 +13,7 @@
 
 #include "DXGISwapChainProxy.h"
 #include "RCAS/RCAS.h"
+#include "ReShade/ReShadeRuntime.h"
 #include "Render/FrameGenerationOrchestration.h"
 #include "Render/TemporalProvider.h"
 #include "Utils/CSBuffer.h"
@@ -108,6 +109,10 @@ namespace cs::features
 			std::string_view a_operation,
 			const render::temporal::ProviderResult& a_result) noexcept;
 		[[nodiscard]] bool AcquireFrameGenerationInputWrite() noexcept;
+		// Creates the ReShade runtime on first use; false when it is absent or unusable.
+		[[nodiscard]] bool ReShadeEffectsEnabled() noexcept;
+		void RenderReShadeEffects(ID3D11DeviceContext& a_context,
+			ID3D11Resource& a_color, ID3D11ShaderResourceView* a_depth) noexcept;
 
 		HRESULT Present(UINT a_syncInterval, UINT a_flags) noexcept override;
 		HRESULT
@@ -198,6 +203,9 @@ namespace cs::features
 		HRESULT ResizeBuffersImpl(UINT a_bufferCount, UINT a_width, UINT a_height,
 			DXGI_FORMAT a_format, UINT a_flags);
 		void ClearSharedBuffers(bool a_clearFrameGenerationInputs = true) noexcept;
+		[[nodiscard]] bool PrepareReShade() noexcept;
+		void ReleaseReShade() noexcept;
+		void SetProxyInner(IDXGISwapChain4* a_inner) noexcept;
 		void QuarantineTransport(std::string_view a_reason) noexcept;
 		void
 		RecordGlobalDrain(std::string_view a_reason,
@@ -229,6 +237,7 @@ namespace cs::features
 		Streamline* _streamline = nullptr;
 		render::temporal::IFrameGenerationProvider* _provider = nullptr;
 		RCAS _rcas;
+		ReShadeRuntime _reshade;
 		TemporalPresentationCallbacks _callbacks;
 		DXGI_SWAP_CHAIN_DESC _creationDesc{};
 		DXGI_SWAP_CHAIN_DESC _proxyDesc{};

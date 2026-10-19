@@ -215,6 +215,9 @@ namespace cs::render
 		[[nodiscard]] FrameGenerationCaptureResources
 		GetFrameGenerationCaptureResources() const noexcept;
 		[[nodiscard]] bool AcquireFrameGenerationInputWrite() noexcept;
+		[[nodiscard]] bool ReShadeEffectsEnabled() noexcept;
+		void RenderReShadeEffects(ID3D11DeviceContext& a_context,
+			ID3D11Resource& a_color, ID3D11ShaderResourceView* a_depth) noexcept;
 		void SetFrameGenerationInputsReady(bool a_ready) noexcept;
 		void FailFrameGenerationFrame(const char* a_reason) noexcept;
 		void ResetFrameGenerationCaptureDiagnostics() noexcept;

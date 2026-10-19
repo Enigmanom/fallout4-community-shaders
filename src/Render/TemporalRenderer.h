@@ -160,6 +160,8 @@ namespace cs::render
 
 		void CaptureFrameGenerationInputs();
 		void CaptureHUDLessColor();
+		void RenderReShadeEffects();
+		void FinishPreUiScene(bool a_resolved, bool a_captureHudless);
 		void RecordFrameGenerationFailure() noexcept;
 		void InvalidateEngineDerivedResources();
 

@@ -211,9 +211,8 @@ namespace cs::render
 				upscaling->CaptureFrameGenerationInputs();
 			}
 			if (!handoff.driveSuperResolution) {
-				if (handoff.ShouldCaptureHudlessColor(true)) {
-					upscaling->CaptureHUDLessColor();
-				}
+				upscaling->FinishPreUiScene(
+					true, handoff.ShouldCaptureHudlessColor(true));
 				return;
 			}
 
@@ -242,9 +241,8 @@ namespace cs::render
 			}
 			// A false result means both the provider and explicit spatial recovery failed.
 
-			if (handoff.ShouldCaptureHudlessColor(upscaled)) {
-				upscaling->CaptureHUDLessColor();
-			}
+			upscaling->FinishPreUiScene(
+				upscaled, handoff.ShouldCaptureHudlessColor(upscaled));
 
 			SetTemporalEnabled(upscaleMethod == UpscaleMethod::kTAA);
 		});

@@ -1927,6 +1927,17 @@ namespace cs::render
 		return _impl->swapChain.AcquireFrameGenerationInputWrite();
 	}
 
+	bool TemporalPipeline::ReShadeEffectsEnabled() noexcept
+	{
+		return _impl->swapChain.ReShadeEffectsEnabled();
+	}
+
+	void TemporalPipeline::RenderReShadeEffects(ID3D11DeviceContext& a_context,
+		ID3D11Resource& a_color, ID3D11ShaderResourceView* a_depth) noexcept
+	{
+		_impl->swapChain.RenderReShadeEffects(a_context, a_color, a_depth);
+	}
+
 	void TemporalPipeline::SetFrameGenerationInputsReady(bool a_ready) noexcept
 	{
 		if (!a_ready) {

@@ -1,3 +1,4 @@
+#include "Render/CanonicalDepth.h"
 #include "Render/FrameBuffer.h"
 #include "Render/FrameGenerationOrchestration.h"
 #include "Render/TemporalRendererInternals.h"
@@ -441,6 +442,34 @@ namespace cs::render
 			return;
 		}
 		render::TemporalPipeline::Get().RecordFrameGenerationDispatch();
+	}
+
+	void TemporalRenderer::RenderReShadeEffects()
+	{
+		auto& pipeline = render::TemporalPipeline::Get();
+		if (!pipeline.ReShadeEffectsEnabled()) {
+			return;
+		}
+		auto* context = cs::engine::GetImmediateContext();
+		auto* frameBuffer =
+			cs::engine::GetRenderTargetTexture(cs::engine::RenderTarget::kFrameBuffer);
+		const auto camera = cs::engine::GetCapturedWorldCameraRecord(GetEngineFrame());
+		if (!context || !frameBuffer || !camera) {
+			return;
+		}
+		pipeline.RenderReShadeEffects(
+			*context, *frameBuffer,
+			UpdateOutputCanonicalDepth(context, *camera));
+	}
+
+	void TemporalRenderer::FinishPreUiScene(bool a_resolved, bool a_captureHudless)
+	{
+		if (a_resolved) {
+			RenderReShadeEffects();
+		}
+		if (a_captureHudless) {
+			CaptureHUDLessColor();
+		}
 	}
 
 	void TemporalRenderer::ClearFrameGenerationCaptureState() noexcept

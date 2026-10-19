@@ -319,6 +319,7 @@ namespace cs::features
 		}
 		_callbacks = {};
 		_published = false;
+		ReleaseReShade();
 		if (_quarantined) {
 			return DXGI_ERROR_DEVICE_REMOVED;
 		}
@@ -1094,9 +1095,7 @@ namespace cs::features
 		for (auto& backBuffer : _backBuffers) {
 			backBuffer = nullptr;
 		}
-		if (_proxy) {
-			_proxy->ReplaceInner(nullptr);
-		}
+		SetProxyInner(nullptr);
 		_swapChain = nullptr;
 		++_inputResourceGeneration;
 		render::temporal::ResetPresentationProtocol(
@@ -1181,9 +1180,7 @@ namespace cs::features
 		} else {
 			_frameGenerationDisabled = false;
 		}
-		if (_proxy) {
-			_proxy->ReplaceInner(_swapChain.get());
-		}
+		SetProxyInner(_swapChain.get());
 		_creationDesc.BufferDesc.Width = _innerDesc.Width;
 		_creationDesc.BufferDesc.Height = _innerDesc.Height;
 		_creationDesc.Windowed = _proxyDesc.Windowed;
@@ -1865,6 +1862,9 @@ namespace cs::features
 					return acquireResult;
 				}
 			}
+			if (PrepareReShade()) {
+				_reshade.Present(*_context11, *_proxyBuffer->texture11);
+			}
 			cs::render::annotation::SetMarker("FG_D3D11ProductionComplete");
 			const UINT64 d3d11Ready = _nextFenceValue++;
 			DX::ThrowIfFailed(_context11->Signal(_fence11.get(), d3d11Ready));
@@ -2163,6 +2163,44 @@ namespace cs::features
 		return presentResult;
 	}
 
+	bool DX12SwapChain::PrepareReShade() noexcept
+	{
+		return ReShadeRuntime::IsInstalled() && IsReady() && _outwardDevice11 &&
+		       _reshade.Ensure(*this, *_swapChain, *_outwardDevice11,
+				   _innerDesc.Width, _innerDesc.Height);
+	}
+
+	void DX12SwapChain::ReleaseReShade() noexcept
+	{
+		if (_quarantined) {
+			_reshade.Abandon();
+		} else {
+			_reshade.Destroy();
+		}
+	}
+
+	void DX12SwapChain::SetProxyInner(IDXGISwapChain4* a_inner) noexcept
+	{
+		if (_proxy) {
+			_proxy->ReplaceInner(a_inner);
+		}
+		_reshade.ReplaceInner(a_inner);
+	}
+
+	bool DX12SwapChain::ReShadeEffectsEnabled() noexcept
+	{
+		return PrepareReShade() && _reshade.EffectsEnabled();
+	}
+
+	void DX12SwapChain::RenderReShadeEffects(ID3D11DeviceContext& a_context,
+		ID3D11Resource& a_color, ID3D11ShaderResourceView* a_depth) noexcept
+	{
+		// Only the proxy buffer is what the game later presents.
+		if (PrepareReShade() && &a_color == static_cast<ID3D11Resource*>(_proxyBuffer->texture11.get())) {
+			_reshade.RenderEffects(a_context, a_color, a_depth);
+		}
+	}
+
 	void DX12SwapChain::ClearSharedBuffers(
 		bool a_clearFrameGenerationInputs) noexcept
 	{
@@ -2423,6 +2461,8 @@ namespace cs::features
 			}
 		}
 
+		// ReShade holds views of the buffer that is about to be replaced.
+		ReleaseReShade();
 		if (_provider) {
 			const auto releaseResult =
 				render::temporal::QuiesceDrainAndRelease(*_provider, [&]() {
