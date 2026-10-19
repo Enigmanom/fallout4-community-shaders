@@ -4,6 +4,7 @@
 
 - The menu groups features into Skyrim CS's categories (Display, Landscape & Textures, Lighting, Materials, Utility, Water) instead of listing nearly everything under Lighting.
 - Upscaling: ReShade (standard `dxgi.dll` install) now works with Upscaling and Frame Generation; effects apply before the UI, are included in generated frames, and receive depth.
+- Volumetric Shadows: new feature ported from Skyrim CS. Softens the sun's soft, rim and back lighting with blurred variance shadow maps of the sun cascades and shadows the sun on water; it has a live enable toggle and cascade debug views.
 
 ## 0.4.0
 

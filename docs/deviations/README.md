@@ -26,7 +26,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 | Divergence | Water refraction samples the offset texel | Shore blend falls back to the mask-accepted sample above the water plane | Stock reads the unmasked texel, fringing first-person hands and weapons into water |
 | Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; menu and Interface3D effects are not separated | FO4 `BSEffect` PS has no world position or per-draw flags |
 | Forced | Skyrim point-light term in `Effect.hlsl` | FO4's four-light term stays | FO4 `PerGeometry` layout |
-| Pending | Effect-lighting `EffectRadius` shadow filter, `VOLUMETRIC_SHADOWS`, `CLOUD_SHADOWS`, `LIGHT_LIMIT_FIX`, Interior Sun | Compiled out | Features not ported |
+| Pending | Effect-lighting `EffectRadius` shadow filter, `CLOUD_SHADOWS`, `LIGHT_LIMIT_FIX`, Interior Sun | Compiled out | Features not ported |
 | Divergence | Stock shader families | Effect and DistantTree are replaced for feature consumers; Utility, Sky, Particle, BloodSplatter and Lighting stay stock | No current feature consumes the stock ones |
 
 ## Features
@@ -49,6 +49,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 - [Screen Space GI](ScreenSpaceGI.md)
 - [Screen Space Shadows](ScreenSpaceShadows.md)
 - [Skylighting](Skylighting.md)
+- [Volumetric Shadows](VolumetricShadows.md)
 - [CS Editor](CSEditor.md)
 
 [upstream]: https://github.com/community-shaders/skyrim-community-shaders
