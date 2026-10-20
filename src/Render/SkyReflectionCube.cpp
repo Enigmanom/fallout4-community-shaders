@@ -9,12 +9,14 @@
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "World/Sky.h"
+#include "World/Weather.h"
 
 #include <d3d11.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -39,8 +41,10 @@ namespace cs::engine
 		constexpr std::uint32_t kAllFaces = 0x3F;
 		// Beyond this the eye has left the dome the faces came from.
 		constexpr float kEyeJumpLimit = 512.0f;
-		constexpr std::uint32_t kSideCount = 4;
+		constexpr std::uint32_t kSideFaces = 0xF;
 		constexpr std::uint32_t kPolarFirstFace = 4;
+		// With LOD, a side face redraws only this often unless the scene changed.
+		constexpr std::uint32_t kLodSideInterval = 8;
 		// The eye is the previous render's camera; reject pre-load records.
 		constexpr std::uint32_t kMaxCameraAgeFrames = 2;
 		// The hook skips interiors and loads; a longer gap means stale faces.
@@ -126,7 +130,13 @@ namespace cs::engine
 		RE::NiPointer<CubeCamera>* g_camera = nullptr;
 		std::uint32_t g_polarNext = 0;
 		std::uint32_t g_sideNext = 0;
+		std::uint32_t g_sideTimer = 0;
+		std::uint32_t g_sidePending = kSideFaces;
+		bool g_lastLod = false;
 		std::optional<RE::NiPoint3> g_lastEye;
+		std::optional<RE::NiPoint3> g_lodEye;
+		const void* g_lodWorldSpace = nullptr;
+		WeatherSnapshot g_lodWeather;
 		std::optional<std::uint32_t> g_lastFrame;
 
 		void Disable(const char* a_reason) noexcept
@@ -143,7 +153,10 @@ namespace cs::engine
 			g_valid.store(false, std::memory_order_release);
 			g_polarNext = 0;
 			g_sideNext = 0;
+			g_sideTimer = 0;
+			g_sidePending = kSideFaces;
 			g_lastEye.reset();
+			g_lodEye.reset();
 		}
 
 		[[nodiscard]] bool RenderIsCurrent(std::uint32_t a_frame) noexcept
@@ -400,6 +413,39 @@ namespace cs::engine
 			RE::BSGraphics::RenderTargetManager& _manager;
 		};
 
+		// Full side refresh when the scene the LOD was drawn from has changed.
+		void QueueLodRefresh(const RE::NiPoint3& a_eye, bool a_lod)
+		{
+			const auto* tes = RE::TES::GetSingleton();
+			const void* worldSpace = tes ? tes->worldSpace : nullptr;
+			const auto weather = SnapshotWeather();
+			const bool changed = a_lod != g_lastLod || !g_lodEye || g_lodEye->GetDistance(a_eye) > kEyeJumpLimit ||
+			                     worldSpace != g_lodWorldSpace || weather.current != g_lodWeather.current ||
+			                     weather.previous != g_lodWeather.previous;
+			if (!changed)
+				return;
+			g_sidePending = kSideFaces;
+			g_lastLod = a_lod;
+			g_lodEye = a_eye;
+			g_lodWorldSpace = worldSpace;
+			g_lodWeather = weather;
+		}
+
+		// Sky-only side faces cycle every frame; with LOD they trickle for sky drift.
+		[[nodiscard]] std::optional<std::uint32_t> NextSideFace(bool a_lod) noexcept
+		{
+			if (++g_sideTimer >= (a_lod ? kLodSideInterval : 1u)) {
+				g_sideTimer = 0;
+				g_sidePending |= 1u << g_sideNext;
+				g_sideNext = (g_sideNext + 1) % static_cast<std::uint32_t>(std::popcount(kSideFaces));
+			}
+			if (!g_sidePending)
+				return std::nullopt;
+			const auto face = static_cast<std::uint32_t>(std::countr_zero(g_sidePending));
+			g_sidePending &= g_sidePending - 1;
+			return face;
+		}
+
 		void ClickFace(CubeCamera& a_camera, RE::BSMultiBoundNode& a_skyRoot, std::uint32_t a_face, bool a_lod)
 		{
 			cs::render::annotation::ScopedEvent event(kFaceEvents[a_face]);
@@ -418,22 +464,24 @@ namespace cs::engine
 			g_counters.faces.fetch_add(1, std::memory_order_relaxed);
 		}
 
-		// One polar face (sky only) and one round-robin side face per frame.
+		// One polar face (sky only) and at most one side face per frame.
 		void RenderFaces(
 			CubeCamera& a_camera,
 			RE::BSMultiBoundNode& a_skyRoot,
 			RE::BSGraphics::RenderTargetManager& a_manager,
 			RE::BSGraphics::RendererShadowState& a_state,
-			const float (&a_clear)[4])
+			const float (&a_clear)[4],
+			const RE::NiPoint3& a_eye)
 		{
 			const ScopedSkyRootCubeFlag skyFlag(a_skyRoot);
 			const ScopedClearColor clearColor(a_state, a_clear);
 			const ScopedCubeModeExit cubeMode(a_manager);
 			const bool lod = AnyConsumerWantsLod();
+			QueueLodRefresh(a_eye, lod);
 			ClickFace(a_camera, a_skyRoot, kPolarFirstFace + g_polarNext, false);
 			g_polarNext ^= 1;
-			ClickFace(a_camera, a_skyRoot, g_sideNext, lod);
-			g_sideNext = (g_sideNext + 1) % kSideCount;
+			if (const auto side = NextSideFace(lod))
+				ClickFace(a_camera, a_skyRoot, *side, lod);
 		}
 
 		void Render()
@@ -513,7 +561,7 @@ namespace cs::engine
 				unscaled.emplace();
 			UnbindAuxiliaryTargets(*manager, context->shadowState);
 			SetupCamera(**g_camera, eye, worldCamera->viewFrustum.far);
-			RenderFaces(**g_camera, *sky->root, *manager, context->shadowState, clear);
+			RenderFaces(**g_camera, *sky->root, *manager, context->shadowState, clear, eye);
 
 			g_counters.renders.fetch_add(1, std::memory_order_relaxed);
 			g_lastRenderFrame.store(state->frameCount, std::memory_order_relaxed);
