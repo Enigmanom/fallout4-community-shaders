@@ -8,6 +8,7 @@
 #include "RE/B/BSWaterShaderMaterial.h"
 #include "RE/B/BSWaterShaderProperty.h"
 #include "RE/N/NiUpdateData.h"
+#include "RE/P/PlayerCharacter.h"
 #include "RE/T/TES.h"
 #include "RE/T/TESFileArray.h"
 #include "RE/T/TESObjectCELL.h"
@@ -225,7 +226,6 @@ namespace cs::engine::water
 		const auto system = RE::TESWaterSystem::GetSingleton();
 		if (!a_chunk->water || !system)
 			return;
-		EnableWaterSystem();
 		for (const auto& child : a_chunk->water->children) {
 			if (!child)
 				continue;
@@ -257,7 +257,18 @@ namespace cs::engine::water
 			system->Enable();
 	}
 
-	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles)
+	bool InteriorCellActive()
+	{
+		const auto tes = RE::TES::GetSingleton();
+		if (tes && tes->interiorCell)
+			return true;
+		// TES::interiorCell can lag behind during load transitions
+		const auto player = RE::PlayerCharacter::GetSingleton();
+		const auto cell = player ? player->GetParentCell() : nullptr;
+		return cell && cell->IsInterior();
+	}
+
+	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles, bool a_hideTiles)
 	{
 		if (!a_node || !a_parent)
 			return;
@@ -285,8 +296,9 @@ namespace cs::engine::water
 			const auto level = static_cast<std::int32_t>(a_node->GetLODLevel());
 			// FO4: native BuildCellCache orders the borrowed cells x-major.
 			const auto index = x * level + y;
-			const bool hide = intersects && x >= 0 && y >= 0 && x < level && y < level &&
-			                  index >= 0 && static_cast<std::size_t>(index) < cells.size() && ActiveCell(cells[static_cast<std::uint32_t>(index)]);
+			// FO4: the engine tests each geometry's own cull bit, not the root's.
+			const bool hide = a_hideTiles || (intersects && x >= 0 && y >= 0 && x < level && y < level &&
+												 index >= 0 && static_cast<std::size_t>(index) < cells.size() && ActiveCell(cells[static_cast<std::uint32_t>(index)]) && cells[static_cast<std::uint32_t>(index)]->HasWater());
 			child->SetAppCulled(hide);
 		}
 	}
