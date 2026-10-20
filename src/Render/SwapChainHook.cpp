@@ -18,8 +18,11 @@ namespace cs::render
 		auto* L = cs::log::Get("cs.render.swapchainhook");
 		std::atomic<CreateDeviceAndSwapChain> nextCreateDeviceAndSwapChain{ nullptr };
 		std::atomic<CreateDevice> nextCreateDevice{ nullptr };
-		// Upstream ignores the caller's list and requests exactly 11_1.
-		constexpr D3D_FEATURE_LEVEL kRequiredFeatureLevel = D3D_FEATURE_LEVEL_11_1;
+		// FO4: keep 11_0 fallback so non-11_1 GPUs still boot; proxy interop needs 11_1.
+		constexpr D3D_FEATURE_LEVEL kNativeFeatureLevels[]{
+			D3D_FEATURE_LEVEL_11_1,
+			D3D_FEATURE_LEVEL_11_0,
+		};
 		std::atomic<SwapChainHookState> installState{ SwapChainHookState::kUnattempted };
 		std::mutex installMutex;
 		std::vector<PreCreateDeviceCallback> preCreateCallbacks;
@@ -83,7 +86,7 @@ namespace cs::render
 				.driverType = a_driverType,
 				.software = a_software,
 				.flags = a_flags,
-				.featureLevels = &kRequiredFeatureLevel,
+				.featureLevels = kNativeFeatureLevels,
 				.featureLevelCount = 1,
 				.sdkVersion = a_sdkVersion,
 				.swapChainDesc = hasDesc ? &swapChainDesc : nullptr,
@@ -106,7 +109,7 @@ namespace cs::render
 				}
 			}
 
-			const HRESULT result = replacementResult ? *replacementResult : next(a_adapter, a_driverType, a_software, a_flags, &kRequiredFeatureLevel, 1, a_sdkVersion, hasDesc ? &swapChainDesc : nullptr, a_swapChain, a_device, a_featureLevel, a_immediateContext);
+			const HRESULT result = replacementResult ? *replacementResult : next(a_adapter, a_driverType, a_software, a_flags, kNativeFeatureLevels, static_cast<UINT>(std::size(kNativeFeatureLevels)), a_sdkVersion, hasDesc ? &swapChainDesc : nullptr, a_swapChain, a_device, a_featureLevel, a_immediateContext);
 
 			if (SUCCEEDED(result)) {
 				// Callbacks run before the bootstrap so an interface upgrade is visible to it.
