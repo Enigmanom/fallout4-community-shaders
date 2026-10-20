@@ -18,11 +18,12 @@ namespace cs::render
 		auto* L = cs::log::Get("cs.render.swapchainhook");
 		std::atomic<CreateDeviceAndSwapChain> nextCreateDeviceAndSwapChain{ nullptr };
 		std::atomic<CreateDevice> nextCreateDevice{ nullptr };
-		// FO4: keep 11_0 fallback so non-11_1 GPUs still boot; proxy interop needs 11_1.
+		// FO4: 11_0 fallback so non-11_1 GPUs boot; the proxy still needs 11_1.
 		constexpr D3D_FEATURE_LEVEL kNativeFeatureLevels[]{
 			D3D_FEATURE_LEVEL_11_1,
 			D3D_FEATURE_LEVEL_11_0,
 		};
+		constexpr D3D_FEATURE_LEVEL kProxyFeatureLevel = D3D_FEATURE_LEVEL_11_1;
 		std::atomic<SwapChainHookState> installState{ SwapChainHookState::kUnattempted };
 		std::mutex installMutex;
 		std::vector<PreCreateDeviceCallback> preCreateCallbacks;
@@ -86,7 +87,7 @@ namespace cs::render
 				.driverType = a_driverType,
 				.software = a_software,
 				.flags = a_flags,
-				.featureLevels = kNativeFeatureLevels,
+				.featureLevels = &kProxyFeatureLevel,
 				.featureLevelCount = 1,
 				.sdkVersion = a_sdkVersion,
 				.swapChainDesc = hasDesc ? &swapChainDesc : nullptr,
