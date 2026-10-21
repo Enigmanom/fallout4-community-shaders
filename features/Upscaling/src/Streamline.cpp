@@ -608,7 +608,7 @@ namespace cs::features
 		return frameToken != nullptr;
 	}
 
-	Streamline::FrameConstantsStatus Streamline::CheckFrameConstants(
+	render::temporal::ProviderResultCode Streamline::CheckFrameConstants(
 		sl::ViewportHandle p_viewport,
 		std::uint32_t a_frameIndex,
 		float a_jitterX,
@@ -617,13 +617,13 @@ namespace cs::features
 		const render::temporal::FrameGenerationCamera& a_camera)
 	{
 		if (!initialized || !deviceRegistered || !slSetConstants)
-			return FrameConstantsStatus::kError;
+			return render::temporal::ProviderResultCode::kFailure;
 
 		if (!EnsureFrameToken(a_frameIndex))
-			return FrameConstantsStatus::kError;
+			return render::temporal::ProviderResultCode::kFailure;
 
 		if (!a_camera.valid || !(a_camera.aspectRatio > 0.0f)) {
-			return FrameConstantsStatus::kRejected;
+			return render::temporal::ProviderResultCode::kSkipped;
 		}
 		if (_constantsFrame == a_frameIndex) {
 			const bool sameCamera =
@@ -656,9 +656,9 @@ namespace cs::features
 			if (!sameCamera || (a_resetHistory && !_constantsReset)) {
 				L->warn("Shared Streamline constants changed after submission for frame {}; rejecting the later consumer.",
 					a_frameIndex);
-				return FrameConstantsStatus::kRejected;
+				return render::temporal::ProviderResultCode::kSkipped;
 			}
-			return FrameConstantsStatus::kAccepted;
+			return render::temporal::ProviderResultCode::kSuccess;
 		}
 		const auto makeMatrix = [](const float (&a_values)[16]) {
 			sl::float4x4 matrix;
@@ -762,7 +762,7 @@ namespace cs::features
 
 		if (SL_FAILED(res, slSetConstants(slConstants, *frameToken, p_viewport))) {
 			L->error("Could not set constants: {}", magic_enum::enum_name(res));
-			return FrameConstantsStatus::kError;
+			return render::temporal::ProviderResultCode::kFailure;
 		}
 
 		_constantsFrame = a_frameIndex;
@@ -771,7 +771,7 @@ namespace cs::features
 		_constantsJitterX = a_jitterX;
 		_constantsJitterY = a_jitterY;
 		_constantsCamera = a_camera;
-		return FrameConstantsStatus::kAccepted;
+		return render::temporal::ProviderResultCode::kSuccess;
 	}
 
 	bool Streamline::SetDLSSOptions(
@@ -1026,13 +1026,13 @@ namespace cs::features
 			a_request.jitterY,
 			a_request.resetHistory,
 			a_request.camera);
-		if (constants == FrameConstantsStatus::kRejected) {
+		if (constants == render::temporal::ProviderResultCode::kSkipped) {
 			return {
 				.code = render::temporal::ProviderResultCode::kSkipped,
 				.message = "Shared Streamline constants were rejected for this frame."
 			};
 		}
-		if (constants != FrameConstantsStatus::kAccepted ||
+		if (constants != render::temporal::ProviderResultCode::kSuccess ||
 			!(fsr ? SetFSROptions(
 						viewport, a_request, *a_fsrAlgorithm) :
 					SetDLSSOptions(viewport, a_request))) {
@@ -1272,7 +1272,7 @@ namespace cs::features
 				a_request.jitterX,
 				a_request.jitterY,
 				a_request.resetHistory,
-				a_request.camera) != FrameConstantsStatus::kAccepted) {
+				a_request.camera) != render::temporal::ProviderResultCode::kSuccess) {
 			return false;
 		}
 

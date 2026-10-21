@@ -646,9 +646,7 @@ namespace cs::render::temporal
 		bool _renderSubmitEnded = false;
 	};
 
-	// Loads can render several world frames per latency frame.
-	// Streamline binds one constants set to a latency-frame token, so the
-	// first world frame owns it and later ones skip external consumers.
+	// One constants set per latency-frame token: the first world frame owns it.
 	class WorldFrameClaim
 	{
 	public:

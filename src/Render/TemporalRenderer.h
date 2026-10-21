@@ -156,13 +156,8 @@ namespace cs::render
 			ID3D11DeviceContext* a_context);
 		void ScheduleNativeSuperResolutionFallback() noexcept;
 		void UpscaleDepth();
-		enum class ResolveOutcome : std::uint8_t
-		{
-			kResolved,
-			kSkipped,  // transient: no provider work, no native fallback
-			kFailed
-		};
-		ResolveOutcome Upscale();
+		// kSkipped is transient: no provider work, no native fallback.
+		temporal::ProviderResultCode Upscale();
 		// Returns true once consecutive skips mean the provider is broken.
 		[[nodiscard]] bool NoteSuperResolutionSkip() noexcept;
 

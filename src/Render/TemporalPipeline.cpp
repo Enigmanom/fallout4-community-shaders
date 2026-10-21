@@ -326,6 +326,13 @@ namespace cs::render
 			}
 		}
 
+		// Latency hooks can be absent; the engine frame then identifies the frame.
+		[[nodiscard]] std::uint64_t RealFrame() const noexcept
+		{
+			const auto frame = latency.Frame();
+			return frame ? frame : cs::engine::GetFrameCount();
+		}
+
 		void Trace(TemporalTraceEvent a_event,
 			const temporal::FrameTransaction& a_frame,
 			HRESULT a_result = S_OK) noexcept
@@ -984,7 +991,7 @@ namespace cs::render
 	std::uint64_t TemporalPipeline::CurrentRealFrame() const noexcept
 	{
 		std::scoped_lock lock(_impl->mutex);
-		return _impl->latency.Frame();
+		return _impl->RealFrame();
 	}
 
 	void TemporalPipeline::OnDataLoaded()
@@ -1524,7 +1531,7 @@ namespace cs::render
 	bool TemporalPipeline::ClaimWorldFrame(std::uint64_t a_engineFrame) noexcept
 	{
 		std::scoped_lock lock(_impl->mutex);
-		return _impl->worldFrameClaim.Claim(_impl->latency.Frame(), a_engineFrame);
+		return _impl->worldFrameClaim.Claim(_impl->RealFrame(), a_engineFrame);
 	}
 
 	void TemporalPipeline::SkipWorldFrame() noexcept
@@ -1632,7 +1639,7 @@ namespace cs::render
 		{
 			std::scoped_lock lock(_impl->mutex);
 			auto& frame = _impl->frames[a_slot];
-			valid = frame.Capture({ .realFrame = _impl->latency.Frame(),
+			valid = frame.Capture({ .realFrame = _impl->RealFrame(),
 									  .engineFrame = a_engineFrame,
 									  .slot = a_slot },
 				a_renderExtent, a_outputExtent);
