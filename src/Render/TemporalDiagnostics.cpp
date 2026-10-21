@@ -720,6 +720,7 @@ namespace cs::render
 			.Field("scale_published", _resolutionScalePublished)
 			.Field("provider_failures", static_cast<std::int64_t>(_providerFailures.load(std::memory_order_relaxed)))
 			.Field("spatial_fallbacks", static_cast<std::int64_t>(_spatialFallbacks.load(std::memory_order_relaxed)))
+			.Field("sr_transient_failures", static_cast<std::int64_t>(_transientFailures.load(std::memory_order_relaxed)))
 			.Field("spatial_fallback_preflight_ready", _spatialFallbackPreflightReady.load(std::memory_order_acquire))
 			.Field("spatial_fallback_this_frame", _spatialFallbackThisFrame.load(std::memory_order_acquire))
 			.Field("missed_resolve_frames", static_cast<std::int64_t>(_missedResolveFrames.load(std::memory_order_relaxed)))

@@ -242,6 +242,7 @@ namespace cs::render
 		std::atomic_bool allowFrameGenerationInMenus{ false };
 		std::atomic_uint64_t configurationRevision{ 1 };
 		temporal::LatencyTimeline latency;
+		temporal::WorldFrameClaim worldFrameClaim;
 		std::atomic_bool latencyHooksInstalled{ false };
 		std::atomic_bool latencyFailureReported{ false };
 		std::atomic_uint64_t generatedFrames{ 0 };
@@ -1518,6 +1519,12 @@ namespace cs::render
 	{
 		std::scoped_lock lock(_impl->mutex);
 		_impl->resetEpochs.RequestSuperResolution();
+	}
+
+	bool TemporalPipeline::ClaimWorldFrame(std::uint64_t a_engineFrame) noexcept
+	{
+		std::scoped_lock lock(_impl->mutex);
+		return _impl->worldFrameClaim.Claim(_impl->latency.Frame(), a_engineFrame);
 	}
 
 	void TemporalPipeline::SkipWorldFrame() noexcept

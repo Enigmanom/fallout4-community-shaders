@@ -1442,8 +1442,10 @@ namespace cs::features
 			auto providerResult = a_provider.Record(request);
 			if (!providerResult.Succeeded()) {
 				DX::ThrowIfFailed(commandList->Close());
-				if (providerResult.failureDomain ==
-					render::temporal::FailureDomain::kNone) {
+				if (providerResult.code ==
+						render::temporal::ProviderResultCode::kFailure &&
+					providerResult.failureDomain ==
+						render::temporal::FailureDomain::kNone) {
 					providerResult.failureDomain =
 						render::temporal::FailureDomain::kSuperResolution;
 				}

@@ -646,6 +646,33 @@ namespace cs::render::temporal
 		bool _renderSubmitEnded = false;
 	};
 
+	// Loads can render several world frames per latency frame.
+	// Streamline binds one constants set to a latency-frame token, so the
+	// first world frame owns it and later ones skip external consumers.
+	class WorldFrameClaim
+	{
+	public:
+		[[nodiscard]] bool Claim(
+			std::uint64_t a_realFrame, std::uint64_t a_engineFrame) noexcept
+		{
+			if (_claimed && _realFrame == a_realFrame) {
+				return _engineFrame == a_engineFrame;
+			}
+			_claimed = true;
+			_realFrame = a_realFrame;
+			_engineFrame = a_engineFrame;
+			return true;
+		}
+
+	private:
+		bool _claimed = false;
+		std::uint64_t _realFrame = 0;
+		std::uint64_t _engineFrame = 0;
+	};
+
+	// Consecutive skipped world frames before the provider is deemed broken.
+	inline constexpr std::uint32_t kMaxConsecutiveSuperResolutionSkips = 30;
+
 	struct FrameIdentity
 	{
 		std::uint64_t realFrame = 0;
