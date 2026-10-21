@@ -8,7 +8,6 @@
 #include "RE/B/BSWaterShaderMaterial.h"
 #include "RE/B/BSWaterShaderProperty.h"
 #include "RE/N/NiUpdateData.h"
-#include "RE/P/PlayerCharacter.h"
 #include "RE/T/TES.h"
 #include "RE/T/TESFileArray.h"
 #include "RE/T/TESObjectCELL.h"
@@ -257,23 +256,12 @@ namespace cs::engine::water
 			system->Enable();
 	}
 
-	bool InteriorCellActive()
-	{
-		const auto tes = RE::TES::GetSingleton();
-		if (tes && tes->interiorCell)
-			return true;
-		// TES::interiorCell can lag behind during load transitions
-		const auto player = RE::PlayerCharacter::GetSingleton();
-		const auto cell = player ? player->GetParentCell() : nullptr;
-		return cell && cell->IsInterior();
-	}
-
-	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles, bool a_hideTiles)
+	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles, bool a_hideTiles, bool a_interior)
 	{
 		if (!a_node || !a_parent)
 			return;
 		const auto tes = RE::TES::GetSingleton();
-		const bool intersects = tes && !tes->interiorCell && a_node->IsInLoadedRange();
+		const bool intersects = tes && !a_interior && a_node->IsInLoadedRange();
 		RE::BSScrapArray<RE::TESObjectCELL*> cells;
 		if (intersects) {
 			a_node->BuildCellCache(cells);

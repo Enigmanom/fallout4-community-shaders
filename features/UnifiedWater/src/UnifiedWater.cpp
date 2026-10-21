@@ -4,6 +4,7 @@
 #include "RE/B/BSModelDB.h"
 #include "RE/N/NiCloningProcess.h"
 #include "RE/N/NiUpdateData.h"
+#include "RE/P/PlayerCharacter.h"
 #include "RE/T/TES.h"
 #include "RE/U/UI.h"
 #include "Render/FeatureShaderBindings.h"
@@ -17,6 +18,16 @@ namespace cs::features
 	namespace
 	{
 		auto* L = cs::log::Get("cs.feature.unifiedwater");
+
+		bool InteriorCellActive()
+		{
+			const auto tes = RE::TES::GetSingleton();
+			if (tes && tes->interiorCell)
+				return true;
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			const auto cell = player ? player->GetParentCell() : nullptr;
+			return cell && cell->IsInterior();
+		}
 
 		std::vector<RE::NiPointer<RE::NiAVObject>> DetachChildren(RE::NiNode* a_parent)
 		{
@@ -272,7 +283,7 @@ namespace cs::features
 		const std::scoped_lock lock(self._mutex);
 		const auto it = self._managed.find(a_parent);
 		// FO4: mixed parents cannot use unchecked native segment traversal.
-		engine::water::UpdateVisibility(a_node, a_parent, it != self._managed.end() ? std::span<const engine::water::TileCell>{ it->second.tiles } : std::span<const engine::water::TileCell>{}, self.TilesHidden());
+		engine::water::UpdateVisibility(a_node, a_parent, it != self._managed.end() ? std::span<const engine::water::TileCell>{ it->second.tiles } : std::span<const engine::water::TileCell>{}, self.TilesHidden(), InteriorCellActive());
 		self._visibilityUpdates.fetch_add(1);
 	}
 
@@ -341,7 +352,8 @@ namespace cs::features
 
 	bool UnifiedWater::TilesHidden() const
 	{
-		return !_exterior.load(std::memory_order_acquire) || engine::water::InteriorCellActive();
+		// Interiors can inherit stale exterior worldspace state during transitions
+		return !_exterior.load(std::memory_order_acquire) || InteriorCellActive();
 	}
 
 	void UnifiedWater::RefreshTileVisibility()
@@ -354,7 +366,7 @@ namespace cs::features
 				continue;
 			const auto it = _managed.find(chunk->water.get());
 			if (it != _managed.end())
-				engine::water::UpdateVisibility(chunk->node, chunk->water.get(), it->second.tiles, hide);
+				engine::water::UpdateVisibility(chunk->node, chunk->water.get(), it->second.tiles, hide, InteriorCellActive());
 		}
 	}
 
