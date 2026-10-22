@@ -20,6 +20,9 @@ namespace cs::engine
 	// Render thread. Null unless all six faces are fresh.
 	[[nodiscard]] ID3D11ShaderResourceView* GetSkyReflectionCubeSRV() noexcept;
 
+	// Engine cube and depth face size; set before the renderer creates targets.
+	void SetSkyReflectionCubeSize(std::uint32_t a_size) noexcept;
+
 	struct SkyReflectionCubeStatus
 	{
 		bool hookInstalled = false;

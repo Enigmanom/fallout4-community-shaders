@@ -2,19 +2,38 @@
 
 #include "Settings/SettingsSchema.h"
 
+#include <array>
+
 namespace cs::features::dynamic_cubemaps
 {
+	enum class EngineCubeSize : std::uint32_t
+	{
+		k256 = 256,
+		k512 = 512,
+		k1024 = 1024,
+		k2048 = 2048
+	};
+
+	inline constexpr std::array kEngineCubeSizes{
+		settings::Choice{ "256", EngineCubeSize::k256 },
+		settings::Choice{ "512", EngineCubeSize::k512 },
+		settings::Choice{ "1024", EngineCubeSize::k1024 },
+		settings::Choice{ "2048", EngineCubeSize::k2048 }
+	};
+
 	struct Settings
 	{
 		bool enabledSSR = true;
 		float materialReflections = 1.0f;
 		bool engineCubeLod = true;
+		EngineCubeSize engineCubeSize = EngineCubeSize::k1024;
 	};
 
 	inline constexpr settings::Schema kSchema{
 		std::tuple{
 			settings::Field{ "enabled_ssr", "Enable all screen-space reflections, including water.", &Settings::enabledSSR },
 			settings::Field{ "material_reflections", "Blend from authored material cubemaps to dynamic reflections on environment-mapped surfaces.", &Settings::materialReflections, settings::Range{ 0.0f, 1.0f } },
-			settings::Field{ "engine_cube_lod", "Draw LOD land, objects and trees into the engine reflection cube that far water blends toward.", &Settings::engineCubeLod } }
+			settings::Field{ "engine_cube_lod", "Draw LOD land, objects and trees into the engine reflection cube that far water blends toward.", &Settings::engineCubeLod },
+			settings::ChoiceField{ "engine_cube_size", "Engine reflection cube face size in texels; FO4 object LOD needs 1024 or more to stay stable.", &Settings::engineCubeSize, kEngineCubeSizes, settings::ApplyTiming::kNextLaunch } }
 	};
 }
