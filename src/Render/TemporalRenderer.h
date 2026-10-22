@@ -156,7 +156,10 @@ namespace cs::render
 			ID3D11DeviceContext* a_context);
 		void ScheduleNativeSuperResolutionFallback() noexcept;
 		void UpscaleDepth();
-		bool Upscale();
+		// kSkipped is transient: no provider work, no native fallback.
+		temporal::ProviderResultCode Upscale();
+		// Returns true once consecutive skips mean the provider is broken.
+		[[nodiscard]] bool NoteSuperResolutionSkip() noexcept;
 
 		void CaptureFrameGenerationInputs();
 		void CaptureHUDLessColor();
@@ -451,6 +454,8 @@ namespace cs::render
 		std::atomic_uint64_t _frameGenerationLatchFrame{ 0 };
 		std::atomic_uint32_t _providerFailures{ 0 };
 		std::atomic_uint32_t _spatialFallbacks{ 0 };
+		std::atomic_uint32_t _transientFailures{ 0 };
+		std::uint32_t _consecutiveSkips = 0;
 		std::atomic_uint32_t _missedResolveFrames{ 0 };
 		std::atomic_uint32_t _gammaOnlyRecoveryFrames{ 0 };
 		std::atomic_bool _renderUiFullEffectsPath{ false };

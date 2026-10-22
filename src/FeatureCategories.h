@@ -15,10 +15,10 @@ namespace cs::FeatureCategories
 
 	inline constexpr std::array<std::string_view, 6> kRenderOrder{
 		kDisplay,
-		kLandscapeAndTextures,
+		kUtility,
 		kLighting,
 		kMaterials,
-		kUtility,
+		kLandscapeAndTextures,
 		kWater
 	};
 }

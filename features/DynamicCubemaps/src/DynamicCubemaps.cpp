@@ -235,8 +235,14 @@ namespace cs::features
 			return false;
 		}
 		_settings = candidate;
+		_bootSettings = candidate;
 		_liveSettings = settings::BindLiveSettings(dynamic_cubemaps::kSchema, _settings, [this] { PublishSettings(); });
 		return true;
+	}
+
+	std::vector<std::string_view> DynamicCubemaps::GetRestartSettings() const
+	{
+		return settings::RestartRequired(dynamic_cubemaps::kSchema, _bootSettings, _settings);
 	}
 
 	void DynamicCubemaps::OnEnabledChanged(bool a_enabled) noexcept
@@ -268,6 +274,7 @@ namespace cs::features
 		}
 
 		// FO4 vanilla never renders the reflections cube; the host does.
+		cs::engine::SetSkyReflectionCubeSize(static_cast<std::uint32_t>(_bootSettings.engineCubeSize));
 		if (!cs::engine::RegisterSkyReflectionCubeConsumer("DynamicCubemaps", [this] { return IsEnabled() &&
 			                                                                                  _resourcesReady.load(std::memory_order_acquire) &&
 			                                                                                  _injectionsOperational.load(std::memory_order_acquire); }, [this] { return _engineCubeLod.load(std::memory_order_acquire); })) {
@@ -1344,6 +1351,19 @@ namespace cs::features
 			changed |= edit.Discrete(dmui::ui::Checkbox("Engine Cube LOD", &_settings.engineCubeLod));
 			if (dmui::ui::IsItemHovered())
 				dmui::ui::SetTooltip("Draw LOD land, objects and trees into the engine reflection cube that far water blends toward.");
+			using dynamic_cubemaps::EngineCubeSize;
+			static constexpr std::array kSizes{
+				dmui::ChoiceOption<EngineCubeSize>{ EngineCubeSize::k256, "256", "256", true },
+				dmui::ChoiceOption<EngineCubeSize>{ EngineCubeSize::k512, "512", "512", true },
+				dmui::ChoiceOption<EngineCubeSize>{ EngineCubeSize::k1024, "1024", "1024", true },
+				dmui::ChoiceOption<EngineCubeSize>{ EngineCubeSize::k2048, "2048", "2048", true }
+			};
+			const auto size = dmui::DrawChoice<EngineCubeSize>("dynamic-cubemaps-engine-cube-size", _settings.engineCubeSize,
+				std::span<const dmui::ChoiceOption<EngineCubeSize>>{ kSizes }, "Unavailable", "Engine Cube Size");
+			if (edit.Discrete(size.changed))
+				_settings.engineCubeSize = *size.selected;
+			if (dmui::ui::IsItemHovered())
+				dmui::ui::SetTooltip("Engine reflection cube face size in texels; FO4 object LOD needs 1024 or more to stay stable.");
 		}
 		if (const ui::Section section{ "dynamic-cubemaps-material", "Material Reflections" }; section) {
 			const auto range = dynamic_cubemaps::kSchema.EditRange(&Settings::materialReflections);

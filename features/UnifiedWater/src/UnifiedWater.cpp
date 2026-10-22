@@ -19,6 +19,16 @@ namespace cs::features
 	{
 		auto* L = cs::log::Get("cs.feature.unifiedwater");
 
+		bool InteriorCellActive()
+		{
+			const auto tes = RE::TES::GetSingleton();
+			if (tes && tes->interiorCell)
+				return true;
+			const auto player = RE::PlayerCharacter::GetSingleton();
+			const auto cell = player ? player->GetParentCell() : nullptr;
+			return cell && cell->IsInterior();
+		}
+
 		std::vector<RE::NiPointer<RE::NiAVObject>> DetachChildren(RE::NiNode* a_parent)
 		{
 			// FO4: NiTArray size is the active count, not the last occupied slot.
@@ -273,7 +283,7 @@ namespace cs::features
 		const std::scoped_lock lock(self._mutex);
 		const auto it = self._managed.find(a_parent);
 		// FO4: mixed parents cannot use unchecked native segment traversal.
-		engine::water::UpdateVisibility(a_node, a_parent, it != self._managed.end() ? std::span<const engine::water::TileCell>{ it->second.tiles } : std::span<const engine::water::TileCell>{});
+		engine::water::UpdateVisibility(a_node, a_parent, it != self._managed.end() ? std::span<const engine::water::TileCell>{ it->second.tiles } : std::span<const engine::water::TileCell>{}, self.TilesHidden(), InteriorCellActive());
 		self._visibilityUpdates.fetch_add(1);
 	}
 
@@ -282,6 +292,7 @@ namespace cs::features
 		func(a_tes, a_world, a_exterior);
 		auto& self = *GetSingleton();
 		self._exterior.store(a_world && a_exterior, std::memory_order_release);
+		self._refreshTiles.store(true, std::memory_order_release);
 		self.UpdateWaterLODCull();
 	}
 
@@ -290,6 +301,7 @@ namespace cs::features
 		func(a_world);
 		auto& self = *GetSingleton();
 		self._exterior.store(false, std::memory_order_release);
+		self._refreshTiles.store(true, std::memory_order_release);
 		self.UpdateWaterLODCull();
 	}
 
@@ -324,22 +336,47 @@ namespace cs::features
 	void UnifiedWater::UpdateWaterSystem::thunk(engine::water::WaterSystem* a_system, RE::BSCullingProcess* a_process)
 	{
 		// FO4: runs every frame, so live toggles apply with a static camera.
-		GetSingleton()->ApplyEnabledState();
+		auto& self = *GetSingleton();
+		self.ApplyEnabledState();
+		if (self._refreshTiles.exchange(false, std::memory_order_acq_rel))
+			self.RefreshTileVisibility();
 		func(a_system, a_process);
+	}
+
+	void UnifiedWater::OnLoadingMenuClosed()
+	{
+		// Some interiors keep exterior state alive until the load screen closes
+		_refreshTiles.store(true, std::memory_order_release);
+		UpdateWaterLODCull();
+	}
+
+	bool UnifiedWater::TilesHidden() const
+	{
+		// Interiors can inherit stale exterior worldspace state during transitions
+		return !_exterior.load(std::memory_order_acquire) || InteriorCellActive();
+	}
+
+	void UnifiedWater::RefreshTileVisibility()
+	{
+		const std::scoped_lock lock(_mutex);
+		const auto hide = TilesHidden();
+		UpdateWaterLODCull();
+		for (const auto chunk : _attached) {
+			if (!chunk || !chunk->node || !chunk->water)
+				continue;
+			const auto it = _managed.find(chunk->water.get());
+			if (it != _managed.end())
+				engine::water::UpdateVisibility(chunk->node, chunk->water.get(), it->second.tiles, hide, InteriorCellActive());
+		}
 	}
 
 	void UnifiedWater::UpdateWaterLODCull() const
 	{
 		if (!_ready.load(std::memory_order_acquire))
 			return;
-		const auto tes = RE::TES::GetSingleton();
-		const auto player = RE::PlayerCharacter::GetSingleton();
-		const auto cell = player ? player->GetParentCell() : nullptr;
-		// TES::interiorCell can lag behind during load transitions
-		const bool interior = (tes && tes->interiorCell) || (cell && cell->IsInterior());
 		// FO4: the Pip-Boy map has no Skyrim exterior-LOD MapMenu rendering path.
 		if (const auto root = engine::water::GetWaterLOD())
-			root->SetAppCulled(!_exterior.load(std::memory_order_acquire) || interior);
+			root->SetAppCulled(TilesHidden());
 	}
 
 	void UnifiedWater::DrawSettings()
@@ -385,6 +422,7 @@ namespace cs::features
 			.Field("visibility_updates", _visibilityUpdates.load())
 			.Field("tile_water_overrides", engine::water::TileWaterOverrides())
 			.Field("exterior", _exterior.load())
+			.Field("tiles_hidden", TilesHidden())
 			.Field("lod_root_culled", engine::water::GetWaterLOD() && engine::water::GetWaterLOD()->GetAppCulled());
 	}
 

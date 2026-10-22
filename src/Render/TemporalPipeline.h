@@ -170,6 +170,7 @@ namespace cs::render
 		void AdvanceDisplayGeneration(std::uint32_t a_width,
 			std::uint32_t a_height) noexcept;
 		void RequestSuperResolutionReset() noexcept;
+		[[nodiscard]] bool ClaimWorldFrame(std::uint64_t a_engineFrame) noexcept;
 		void SkipWorldFrame() noexcept;
 		void RequestFrameGenerationReset() noexcept;
 		void SetFrameGenerationInterrupted(bool a_interrupted) noexcept;

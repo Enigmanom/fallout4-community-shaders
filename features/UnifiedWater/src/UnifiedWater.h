@@ -29,6 +29,7 @@ namespace cs::features
 		cs::UnifiedWaterFeatureData GetCommonBufferData() const;
 		void OnPostPostLoad() override;
 		void OnDataLoaded() override;
+		void OnLoadingMenuClosed() override;
 		void DrawSettings() override;
 		void DrawOverlay() override;
 		bool IsOverlayActive() const override;
@@ -81,6 +82,8 @@ namespace cs::features
 		};
 		void ApplyEnabledState();
 		void UpdateWaterLODCull() const;
+		bool TilesHidden() const;
+		void RefreshTileVisibility();
 		void RestoreOriginal(RE::BSMultiBoundNode* a_parent, ManagedWater& a_water);
 		void AttachVanilla(Chunk* a_chunk, bool a_alreadyAttached = false);
 
@@ -96,6 +99,7 @@ namespace cs::features
 		std::atomic_bool _hooks{ false };
 		std::atomic_bool _injections{ false };
 		std::atomic_bool _exterior{ false };
+		std::atomic_bool _refreshTiles{ false };
 		std::atomic_uint64_t _tilesBuilt{ 0 };
 		std::atomic_uint64_t _chunksAttached{ 0 };
 		std::atomic_uint64_t _chunksDetached{ 0 };

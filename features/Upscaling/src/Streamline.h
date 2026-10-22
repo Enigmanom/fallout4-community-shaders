@@ -97,7 +97,8 @@ namespace cs::features
 		void CheckFeatures(IDXGIAdapter* a_adapter);
 		void PostDevice();
 		bool EnsureFrameToken(std::uint32_t a_frameIndex);
-		bool CheckFrameConstants(
+		// kSkipped: unusable camera or diverging reuse; kFailure: SDK failure.
+		[[nodiscard]] render::temporal::ProviderResultCode CheckFrameConstants(
 			sl::ViewportHandle p_viewport,
 			std::uint32_t a_frameIndex,
 			float a_jitterX,

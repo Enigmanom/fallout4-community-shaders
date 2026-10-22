@@ -74,6 +74,7 @@ namespace cs::features
 		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
 		cs::DynamicCubemapsFeatureData GetCommonBufferData() const;
+		std::vector<std::string_view> GetRestartSettings() const override;
 
 		// Null unless enabled, operational and published, so consumers fail neutral.
 		ID3D11ShaderResourceView* GetEnvironmentSRV() const noexcept;
@@ -213,6 +214,7 @@ namespace cs::features
 			DebugVisualization::kOff
 		};
 		Settings _settings;
+		Settings _bootSettings;
 
 		CaptureStream _baseStream;
 		CaptureStream _reflectionsStream;

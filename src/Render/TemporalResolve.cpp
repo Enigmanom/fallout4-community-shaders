@@ -37,31 +37,36 @@ namespace cs::render
 		       frameBufferDesc.Height == state->screenHeight;
 	}
 
-	bool TemporalRenderer::Upscale()
+	render::temporal::ProviderResultCode TemporalRenderer::Upscale()
 	{
 		auto upscaleMethod = GetUpscaleMethod();
 		if (!IsExternalUpscaler(upscaleMethod)) {
-			return false;
+			return render::temporal::ProviderResultCode::kFailure;
 		}
 
 		auto* context = cs::engine::GetImmediateContext();
 		auto* state = cs::engine::GetGraphicsState();
-		if (!context || !state || !upscalingTexture || !superResolutionDepthTexture ||
+		if (!context || !state) {
+			return render::temporal::ProviderResultCode::kFailure;
+		}
+		// Resources are recreated across render-size and load transitions.
+		if (!upscalingTexture || !superResolutionDepthTexture ||
 			!reactiveMaskTexture || !transparencyCompositionMaskTexture) {
-			return false;
+			return render::temporal::ProviderResultCode::kSkipped;
 		}
 
 		auto* motionVectorTexture =
 			cs::engine::GetRenderTargetTexture(kMotionVectorTarget);
 		auto* motionVectorSRV = cs::engine::GetRenderTargetSRV(kMotionVectorTarget);
 		if (!motionVectorTexture || !motionVectorSRV || !motionVectorCopyTexture) {
-			return false;
+			return render::temporal::ProviderResultCode::kSkipped;
 		}
 
 		bool upscaled = false;
+		bool providerSkipped = false;
 		const auto [renderWidth, renderHeight] = GetRenderSize();
 		if (renderWidth == 0 || renderHeight == 0) {
-			return false;
+			return render::temporal::ProviderResultCode::kSkipped;
 		}
 		{
 			// Keep OM unbound until provider reads complete.
@@ -78,7 +83,7 @@ namespace cs::render
 					cs::engine::DepthStencilTarget::kMain);
 				auto* encodeShader = GetEncodeTexturesCS();
 				if (!depthSRV || !encodeShader) {
-					return false;
+					return render::temporal::ProviderResultCode::kSkipped;
 				}
 
 				ID3D11ShaderResourceView* views[4] = { nullptr, normalsSRV,
@@ -176,7 +181,7 @@ namespace cs::render
 				.outputHeight = state->screenHeight,
 				.qualityMode = settings.qualityMode,
 				.providerPreset = settings.presetDLSS,
-				.realFrame = realFrame ? realFrame : frameCount,
+				.realFrame = realFrame,
 				.engineFrame = frameCount,
 				.jitterX = jitter.x,
 				.jitterY = jitter.y,
@@ -217,6 +222,8 @@ namespace cs::render
 						request);
 			}
 			upscaled = providerResult.CanPublishOutput();
+			providerSkipped =
+				providerResult.code == render::temporal::ProviderResultCode::kSkipped;
 			_providerPublicationOutputReady =
 				providerResult.publicationOutputReady;
 			_superResolutionSubmissionUnsafe =
@@ -238,13 +245,25 @@ namespace cs::render
 			}
 		}
 
+		_upscaledThisFrame = upscaled;
 		if (upscaled) {
 			_upscaleDispatches.fetch_add(1, std::memory_order_relaxed);
-		} else {
-			_providerFailures.fetch_add(1, std::memory_order_relaxed);
+			_consecutiveSkips = 0;
+			return render::temporal::ProviderResultCode::kSuccess;
 		}
-		_upscaledThisFrame = upscaled;
-		return upscaled;
+		if (providerSkipped) {
+			return render::temporal::ProviderResultCode::kSkipped;
+		}
+		_providerFailures.fetch_add(1, std::memory_order_relaxed);
+		return render::temporal::ProviderResultCode::kFailure;
+	}
+
+	bool TemporalRenderer::NoteSuperResolutionSkip() noexcept
+	{
+		_transientFailures.fetch_add(1, std::memory_order_relaxed);
+		render::TemporalPipeline::Get().SkipWorldFrame();
+		return ++_consecutiveSkips >=
+		       render::temporal::kMaxConsecutiveSuperResolutionSkips;
 	}
 
 	bool TemporalRenderer::PerformUpscaling()
@@ -289,11 +308,17 @@ namespace cs::render
 				context, upscalingTexture->resource.get(), frameBuffer.get());
 		}
 
-		const bool worldFrame = cs::engine::GetCapturedWorldCameraRecord(GetEngineFrame()).has_value();
-		if (!worldFrame) {
+		const bool captured = cs::engine::GetCapturedWorldCameraRecord(GetEngineFrame()).has_value();
+		if (!captured) {
 			render::TemporalPipeline::Get().SkipWorldFrame();
 		}
-		if (!worldFrame || !Upscale()) {
+		const bool worldFrame = captured &&
+		                        render::TemporalPipeline::Get().ClaimWorldFrame(GetEngineFrame());
+		auto outcome = render::temporal::ProviderResultCode::kSkipped;
+		if (worldFrame) {
+			outcome = Upscale();
+		}
+		if (outcome != render::temporal::ProviderResultCode::kSuccess) {
 			if (_superResolutionSubmissionUnsafe) {
 				return finish(false);
 			}
@@ -308,11 +333,22 @@ namespace cs::render
 			}
 			_spatialFallbacks.fetch_add(1, std::memory_order_relaxed);
 			_spatialFallbackThisFrame.store(true, std::memory_order_release);
-			if (worldFrame) {
+			if (outcome == render::temporal::ProviderResultCode::kFailure) {
 				L->warn(
 					"spatial fallback published after provider evaluation failure; "
 					"native TAA begins next frame.");
 				ScheduleNativeSuperResolutionFallback();
+			} else if (worldFrame) {
+				if (NoteSuperResolutionSkip()) {
+					L->error(
+						"super resolution skipped {} consecutive world frames; "
+						"native TAA begins next frame.",
+						render::temporal::kMaxConsecutiveSuperResolutionSkips);
+					ScheduleNativeSuperResolutionFallback();
+				}
+			} else if (captured) {
+				// Later world frame of a latency frame: structural, not a provider skip.
+				render::TemporalPipeline::Get().SkipWorldFrame();
 			}
 			UpscaleDepth();
 			return finish(true, false);

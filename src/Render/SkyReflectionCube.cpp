@@ -43,8 +43,6 @@ namespace cs::engine
 		constexpr float kEyeJumpLimit = 512.0f;
 		constexpr std::uint32_t kSideFaces = 0xF;
 		constexpr std::uint32_t kPolarFirstFace = 4;
-		// With LOD, a side face redraws only this often unless the scene changed.
-		constexpr std::uint32_t kLodSideInterval = 8;
 		// The eye is the previous render's camera; reject pre-load records.
 		constexpr std::uint32_t kMaxCameraAgeFrames = 2;
 		// The hook skips interiors and loads; a longer gap means stale faces.
@@ -60,8 +58,8 @@ namespace cs::engine
 			"SkyReflectionCube::Face+Z", "SkyReflectionCube::Face-Z"
 		};
 
-		// Upstream size; depth 7 stays 512 because Interface3D shares it.
-		constexpr std::uint32_t kCubeSize = 256;
+		// Upstream uses 256; FO4 object LOD is sub-texel there.
+		std::atomic<std::uint32_t> g_cubeSize{ 256 };
 
 		// The only cube creation, inside BSShaderRenderTargets::Create.
 		constexpr CallSiteAnchor kCubeTargetCreate{
@@ -79,8 +77,28 @@ namespace cs::engine
 				RE::BSGraphics::CubeMapRenderTargetProperties* a_properties,
 				bool a_forceAll)
 			{
-				a_properties->width = kCubeSize;
-				a_properties->height = kCubeSize;
+				const auto size = g_cubeSize.load(std::memory_order_relaxed);
+				a_properties->width = size;
+				a_properties->height = size;
+				func(a_this, a_logicalID, a_properties, a_forceAll);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		// The face depth must be at least the face size; it only grows.
+		struct CreateDepthStencilTarget_Hook
+		{
+			static void thunk(
+				RE::BSGraphics::RenderTargetManager* a_this,
+				std::uint32_t a_logicalID,
+				RE::BSGraphics::DepthStencilTargetProperties* a_properties,
+				bool a_forceAll)
+			{
+				if (a_logicalID == static_cast<std::uint32_t>(DepthStencilTarget::kReflections)) {
+					const auto size = g_cubeSize.load(std::memory_order_relaxed);
+					a_properties->width = std::max(a_properties->width, size);
+					a_properties->height = std::max(a_properties->height, size);
+				}
 				func(a_this, a_logicalID, a_properties, a_forceAll);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -94,6 +112,7 @@ namespace cs::engine
 				return;
 			}
 			stl::write_thunk_call<CreateCubeMapRenderTarget_Hook>(*site);
+			stl::detour_thunk<CreateDepthStencilTarget_Hook>(RE::ID::BSGraphics::RenderTargetManager::CreateDepthStencilTarget);
 		}
 
 		struct Consumer
@@ -130,7 +149,6 @@ namespace cs::engine
 		RE::NiPointer<CubeCamera>* g_camera = nullptr;
 		std::uint32_t g_polarNext = 0;
 		std::uint32_t g_sideNext = 0;
-		std::uint32_t g_sideTimer = 0;
 		std::uint32_t g_sidePending = kSideFaces;
 		bool g_lastLod = false;
 		std::optional<RE::NiPoint3> g_lastEye;
@@ -153,7 +171,6 @@ namespace cs::engine
 			g_valid.store(false, std::memory_order_release);
 			g_polarNext = 0;
 			g_sideNext = 0;
-			g_sideTimer = 0;
 			g_sidePending = kSideFaces;
 			g_lastEye.reset();
 			g_lodEye.reset();
@@ -431,14 +448,11 @@ namespace cs::engine
 			g_lodWeather = weather;
 		}
 
-		// Sky-only side faces cycle every frame; with LOD they trickle for sky drift.
-		[[nodiscard]] std::optional<std::uint32_t> NextSideFace(bool a_lod) noexcept
+		// One side face per frame keeps the work constant; queued faces go first.
+		[[nodiscard]] std::optional<std::uint32_t> NextSideFace() noexcept
 		{
-			if (++g_sideTimer >= (a_lod ? kLodSideInterval : 1u)) {
-				g_sideTimer = 0;
-				g_sidePending |= 1u << g_sideNext;
-				g_sideNext = (g_sideNext + 1) % static_cast<std::uint32_t>(std::popcount(kSideFaces));
-			}
+			g_sidePending |= 1u << g_sideNext;
+			g_sideNext = (g_sideNext + 1) % static_cast<std::uint32_t>(std::popcount(kSideFaces));
 			if (!g_sidePending)
 				return std::nullopt;
 			const auto face = static_cast<std::uint32_t>(std::countr_zero(g_sidePending));
@@ -480,7 +494,7 @@ namespace cs::engine
 			QueueLodRefresh(a_eye, lod);
 			ClickFace(a_camera, a_skyRoot, kPolarFirstFace + g_polarNext, false);
 			g_polarNext ^= 1;
-			if (const auto side = NextSideFace(lod))
+			if (const auto side = NextSideFace())
 				ClickFace(a_camera, a_skyRoot, *side, lod);
 		}
 
@@ -601,6 +615,11 @@ namespace cs::engine
 		g_consumers.push_back({ std::string(a_name), std::move(a_wantsCube), std::move(a_wantsLod) });
 		L->info("Sky reflection cube consumer registered: {}", a_name);
 		return true;
+	}
+
+	void SetSkyReflectionCubeSize(std::uint32_t a_size) noexcept
+	{
+		g_cubeSize.store(a_size, std::memory_order_relaxed);
 	}
 
 	ID3D11ShaderResourceView* GetSkyReflectionCubeSRV() noexcept

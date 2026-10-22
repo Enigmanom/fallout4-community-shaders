@@ -484,6 +484,9 @@ namespace cs::engine
 	{
 		kMain = 1,
 
+		// Cube-face depth; shared with Interface3D offscreen models.
+		kReflections = 7,
+
 		// Fixed 512x512 precipitation occlusion depth.
 		kPrecipitationOcclusion = 8,
 

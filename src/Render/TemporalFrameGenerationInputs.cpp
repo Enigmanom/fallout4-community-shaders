@@ -232,7 +232,7 @@ namespace cs::render
 		BeginFrameGenerationCaptureState();
 		auto& pipeline = render::TemporalPipeline::Get();
 		const auto frameBuffer = cs::engine::GetCapturedWorldCameraRecord(GetEngineFrame());
-		if (!frameBuffer) {
+		if (!frameBuffer || !pipeline.ClaimWorldFrame(GetEngineFrame())) {
 			pipeline.SkipWorldFrame();
 			return;
 		}
