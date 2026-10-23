@@ -122,7 +122,7 @@ namespace cs::features
 		// Right after the main sun's Render(7); publishes the cascades and light data.
 		void CopySunCascades();
 		CascadeSkip PublishSunCascades(ID3D11DeviceContext* a_context);
-		bool EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source);
+		bool EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source, std::uint32_t a_count);
 		void PublishShadowLights(ID3D11DeviceContext* a_context, const skylighting::DirectionalShadowLightData& a_data);
 		// Publishes the neutral block so no probe update samples stale cascades.
 		void RetireCascades(ID3D11DeviceContext* a_context);

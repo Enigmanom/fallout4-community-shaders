@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Skylighting: fixed a bright patch around the player with 3 shadow cascades (`iDirShadowSplits=3`, the High/Ultra default).
+
 ## 0.4.1
 
 - Dynamic Cubemaps: far LOD water reflections no longer scramble while walking; adds an Engine Cube Size setting.

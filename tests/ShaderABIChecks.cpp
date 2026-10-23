@@ -305,7 +305,7 @@ namespace
 	{
 		std::string error;
 		auto blob = cs::util::CompileShaderToBlob((a_root / "Skylighting/UpdateProbesCS.hlsl").c_str(),
-			{ { "FO4CS_SUBSTRATE", "1" } }, "cs_5_0", "main", &error, a_root);
+			{ { "FO4CS_SUBSTRATE", "1" }, { "SKYLIGHTING_SUN_CASCADES", cs::features::skylighting::kSunCascadesDefine } }, "cs_5_0", "main", &error, a_root);
 		if (!blob)
 			return error;
 		Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;

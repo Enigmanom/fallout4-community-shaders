@@ -1,5 +1,6 @@
 #include "ParallelFor.h"
 #include "ShaderTestCache.h"
+#include "ShadowLightData.h"
 #include "Utils/ShaderCompile.h"
 
 #include <algorithm>
@@ -71,7 +72,7 @@ namespace
 			// The shader's sample count is a scaled runtime value; compile its bounds.
 			{ "ScreenSpaceShadows/RaymarchCS.hlsl", "cs_5_0", { { "TERRAIN_BLENDING", "" } }, { { { { "SAMPLE_COUNT", "8" } }, { { "SAMPLE_COUNT", "480" } } } } },
 
-			{ "Skylighting/UpdateProbesCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
+			{ "Skylighting/UpdateProbesCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" }, { "SKYLIGHTING_SUN_CASCADES", cs::features::skylighting::kSunCascadesDefine } } },
 			{ "FO4/Skylighting/DebugCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } }, { Toggle("SKYLIGHTING_UP_VISIBILITY", "1") } },
 
 			{ "TerrainShadows/ShadowUpdate.cs.hlsl" },

@@ -9,8 +9,8 @@
 
 namespace cs::engine
 {
-	// Consumers size per-cascade data by this; the live count must not exceed it.
-	inline constexpr std::size_t kMaxSunCascades = 2;
+	// Upper bound for per-cascade data; Render(7) renders at most three cascades.
+	inline constexpr std::size_t kMaxSunCascades = 3;
 
 	// The main sun's cascades; valid only right after its Render(7) returns.
 	struct SunCascadeSnapshot

@@ -464,6 +464,8 @@ target("RuntimeShaderTests", function()
     add_deps("ShaderStage")
     add_files("tests/RuntimeShaderTests.cpp", "src/Utils/ShaderCompile.cpp")
     add_files(shader_cache_sources)
+    add_includedirs("features/Skylighting/src")
+    add_packages("vcpkg::directxmath")
     add_syslinks("bcrypt", "d3dcompiler", "version")
     after_build(stage_shader_compiler)
     add_tests("RuntimeShaderCompile", {
