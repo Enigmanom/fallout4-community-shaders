@@ -17,10 +17,6 @@
 #	if defined(FO4_EFFECT_LIGHTING) && defined(SKYLIGHTING)
 #		include "FO4/SkylightingConsumer.hlsli"
 #	endif
-#	ifdef TERRAIN_SHADOWS
-#		include "FO4/TerrainShadowsSampler.hlsli"
-#		define LinearSampler TerrainShadows::TerrainShadowsSampler
-#	endif
 
 // FO4: no per-draw descriptor or radius carrier; lookups read fixed state.
 namespace Permutation
@@ -35,7 +31,7 @@ namespace Permutation
 }
 
 #	define EFFECT
-#	include "Common/ShadowSampling.hlsli"
+#	include "FO4/ShadowSamplingConsumer.hlsli"
 
 namespace FO4EffectLighting
 {

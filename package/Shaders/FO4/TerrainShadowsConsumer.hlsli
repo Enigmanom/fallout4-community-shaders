@@ -5,46 +5,23 @@
 #include "FO4/Depth.hlsli"
 #include "FO4/FO4ShaderData.hlsli"
 #include "FO4/ForwardPosition.hlsli"
-#include "FO4/TerrainShadowsSampler.hlsli"
-// FO4: the upstream header has no guard and ShadowSampling includes it too.
-#ifdef VOLUMETRIC_SHADOWS
-#	include "FO4/VolumetricShadowsConsumer.hlsli"
-#else
-#	include "TerrainShadows/TerrainShadows.hlsli"
-#endif
+#include "FO4/ShadowSamplingConsumer.hlsli"
 
 namespace TerrainShadows
 {
-	float GetWorldShadow(float3 cameraRelativePosition)
+	float GetTerrainShadowMultFromViewPosition(float3 viewPosition)
 	{
-		if (SharedData::InInterior || SharedData::HideSky || SharedData::InMapMenu)
-			return 1.0;
 		// FO4: b4 supplies the absolute origin for upstream heightfield sampling.
-		return GetTerrainShadow(cameraRelativePosition + FrameBuffer::CameraPosAdjust.xyz, TerrainShadowsSampler);
+		return ShadowSampling::GetWorldShadow(FrameBuffer::ViewToWorld(viewPosition), FrameBuffer::CameraPosAdjust.xyz);
 	}
 
 	float GetShadowFromScreenPosition(float3 screenPosition)
 	{
-		return GetWorldShadow(FrameBuffer::ViewToWorld(FO4Forward::ViewPosition(screenPosition)));
-	}
-
-	float GetTerrainShadowMultFromViewPosition(
-		float3 viewPosition, SamplerState textureSampler,
-		float4 viewToWorldRow0, float4 viewToWorldRow1, float4 viewToWorldRow2,
-		float4 cameraPosAdjust)
-	{
-		if (SharedData::InInterior || SharedData::HideSky || SharedData::InMapMenu)
-			return 1.0;
-		return GetTerrainShadow(FrameBuffer::ViewToWorld(viewPosition) +
-									FrameBuffer::CameraPosAdjust.xyz,
-			textureSampler);
+		return GetTerrainShadowMultFromViewPosition(FO4Forward::ViewPosition(screenPosition));
 	}
 
 #ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
-	bool TryGetDebugColorFromViewPosition(
-		float3 viewPosition, SamplerState textureSampler,
-		float4 viewToWorldRow0, float4 viewToWorldRow1, float4 viewToWorldRow2,
-		float4 cameraPosAdjust, out float4 color)
+	bool TryGetDebugColorFromViewPosition(float3 viewPosition, out float4 color)
 	{
 		color = 0.0;
 		if (FO4SharedData::DebugOwner != FullscreenDebugOwner::TerrainShadows)
@@ -52,11 +29,11 @@ namespace TerrainShadows
 		if (!SharedData::terraOccSettings.EnableTerrainShadow || FO4SharedData::DebugMode == 0)
 			return false;
 		float3 worldPosition = FrameBuffer::ViewToWorld(viewPosition) + FrameBuffer::CameraPosAdjust.xyz;
-		float value = GetTerrainShadow(worldPosition, textureSampler);
+		float value = GetTerrainShadow(worldPosition, LinearSampler);
 		if (FO4SharedData::DebugMode == 2) {
 			float2 HeightRange = FO4SharedData::DebugParams.xy;
 			float2 DebugHeightRange = FO4SharedData::DebugParams.zw;
-			float height = FO4SharedData::DebugTexture.SampleLevel(textureSampler, GetTerrainShadowUV(worldPosition.xy), 0).x;
+			float height = FO4SharedData::DebugTexture.SampleLevel(LinearSampler, GetTerrainShadowUV(worldPosition.xy), 0).x;
 			height = lerp(HeightRange.x, HeightRange.y, height);
 			value = saturate((height - DebugHeightRange.x) / max(DebugHeightRange.y - DebugHeightRange.x, 1e-3));
 		}
@@ -64,26 +41,16 @@ namespace TerrainShadows
 		return true;
 	}
 
-	bool TryGetDebugColorFromScreenPosition(
-		float2 pixelPosition, SamplerState textureSampler,
-		float4 viewToWorldRow0, float4 viewToWorldRow1, float4 viewToWorldRow2,
-		float4 cameraPosAdjust, float4 farReprojRow0, float4 farReprojRow1,
-		float4 farReprojRow2, float4 farReprojRow3, float4 nearReprojRow0,
-		float4 nearReprojRow1, float4 nearReprojRow2, float4 nearReprojRow3,
-		out float4 color)
+	bool TryGetDebugColorFromScreenPosition(float2 pixelPosition, out float4 color)
 	{
 		float2 uv = pixelPosition * SharedData::BufferDim.zw;
 		uv = FrameBuffer::GetDynamicResolutionUnadjustedScreenPosition(uv);
 		float4 view = mul(FrameBuffer::CameraProjInverse,
 			float4(uv * float2(2.0, -2.0) + float2(-1.0, 1.0), SharedData::GetDepth(uv), 1.0));
-		return TryGetDebugColorFromViewPosition(view.xyz / view.w, textureSampler,
-			viewToWorldRow0, viewToWorldRow1, viewToWorldRow2, cameraPosAdjust, color);
+		return TryGetDebugColorFromViewPosition(view.xyz / view.w, color);
 	}
 #else
-	bool TryGetDebugColorFromViewPosition(
-		float3 viewPosition, SamplerState textureSampler,
-		float4 viewToWorldRow0, float4 viewToWorldRow1, float4 viewToWorldRow2,
-		float4 cameraPosAdjust, out float4 color)
+	bool TryGetDebugColorFromViewPosition(float3 viewPosition, out float4 color)
 	{
 		color = 0.0;
 		return false;

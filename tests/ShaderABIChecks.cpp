@@ -380,7 +380,7 @@ namespace
 			return error;
 		if (BindPoint(consumer.Get(), "VolumetricShadows::SharedShadowMap") != slots::kSharedShadowMapSlot ||
 			BindPoint(consumer.Get(), "DirectionalShadowLights") != slots::kShadowLightsSlot ||
-			BindPoint(consumer.Get(), "TerrainShadows::TerrainShadowsSampler") != cs::render::kLinearClampSamplerSlot)
+			BindPoint(consumer.Get(), "LinearSampler") != cs::render::kLinearClampSamplerSlot)
 			return "consumer: ABI slot mismatch";
 		D3D11_SHADER_INPUT_BIND_DESC lights{};
 		if (FAILED(consumer->GetResourceBindingDescByName("DirectionalShadowLights", &lights)) || lights.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))

@@ -1,13 +1,7 @@
 #ifndef FO4_VOLUMETRIC_SHADOWS_CONSUMER
 #define FO4_VOLUMETRIC_SHADOWS_CONSUMER
 
-#include "FO4/FO4ShaderData.hlsli"
-
-#include "FO4/TerrainShadowsSampler.hlsli"
-// FO4: the host-bound linear clamp sampler is shared with terrain shadows.
-#define LinearSampler TerrainShadows::TerrainShadowsSampler
-
-#include "Common/ShadowSampling.hlsli"
+#include "FO4/ShadowSamplingConsumer.hlsli"
 
 namespace FO4VolumetricShadows
 {

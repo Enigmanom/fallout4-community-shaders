@@ -2392,7 +2392,7 @@ float2 goboUV = float2(omniUV.x,
 #	endif
 		FO4_SOFT_SHADOW_NATIVE(softShadow, shadow);
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, PosAdjust));
+		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 		FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
@@ -3187,7 +3187,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 			FO4_SOFT_SHADOW_NATIVE(softShadow, shadow);
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, PosAdjust));
+			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
@@ -4186,7 +4186,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	endif
 			FO4_SOFT_SHADOW_NATIVE(softShadow, shadow);
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView, TerrainShadows::TerrainShadowsSampler, ViewToWorld_row0, ViewToWorld_row1, ViewToWorld_row2, PosAdjust));
+			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, TerrainShadows::GetTerrainShadowMultFromViewPosition(posView));
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			FO4_SHADOW_LIGHT_MUL(shadow, softShadow, ExtendedMaterials::GetParallaxShadow(input.position.xy));
@@ -5315,13 +5315,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			result *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth);
 #	endif
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			result *= TerrainShadows::GetTerrainShadowMultFromViewPosition(
-				posView,
-				TerrainShadows::TerrainShadowsSampler,
-				ViewToWorld_row0,
-				ViewToWorld_row1,
-				ViewToWorld_row2,
-				PosAdjust);
+			result *= TerrainShadows::GetTerrainShadowMultFromViewPosition(posView);
 #	endif
 #	if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			result *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
@@ -5611,13 +5605,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 			result *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth);
 #		endif
 #		if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			result *= TerrainShadows::GetTerrainShadowMultFromViewPosition(
-				posView,
-				TerrainShadows::TerrainShadowsSampler,
-				ViewToWorld_row0,
-				ViewToWorld_row1,
-				ViewToWorld_row2,
-				PosAdjust);
+			result *= TerrainShadows::GetTerrainShadowMultFromViewPosition(posView);
 #		endif
 #		if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 			result *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
@@ -5652,13 +5640,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 	splitShadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth);
 #		endif
 #		if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-	splitShadow *= TerrainShadows::GetTerrainShadowMultFromViewPosition(
-		posView,
-		TerrainShadows::TerrainShadowsSampler,
-		ViewToWorld_row0,
-		ViewToWorld_row1,
-		ViewToWorld_row2,
-		PosAdjust);
+	splitShadow *= TerrainShadows::GetTerrainShadowMultFromViewPosition(posView);
 #		endif
 #		if defined(DIRECTIONAL) && defined(EXTENDED_MATERIALS)
 	splitShadow *= ExtendedMaterials::GetParallaxShadow(input.position.xy);
@@ -6359,13 +6341,7 @@ static const float FO4_SPECULAR_SCALE = 3.1415927;
 #	endif
 
 #	if defined(DIRECTIONAL) && defined(TERRAIN_SHADOWS)
-			float terrainShadowMult = TerrainShadows::GetTerrainShadowMultFromViewPosition(
-				posView,
-				TerrainShadows::TerrainShadowsSampler,
-				ViewToWorld_row0,
-				ViewToWorld_row1,
-				ViewToWorld_row2,
-				PosAdjust);
+			float terrainShadowMult = TerrainShadows::GetTerrainShadowMultFromViewPosition(posView);
 			finalDiffuse *= terrainShadowMult;
 			FO4_SOFT_LOBE_SCALE(softDiffuse, terrainShadowMult);
 			brdfSpecular *= terrainShadowMult;

@@ -206,14 +206,7 @@ PS_OUTPUT main(PS_INPUT input)
 #	endif
 #	ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			positionView,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(positionView, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
 	}
@@ -565,14 +558,7 @@ PS_OUTPUT main(PS_INPUT input)
 
 #	ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			positionView,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(positionView, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
 	}
@@ -1032,14 +1018,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		reconstructViewPosition(coordinate, linearizedDepth, row0, row1, row2, row3);
 #		ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			terrainViewPosition,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld[0],
-			ViewToWorld[1],
-			ViewToWorld[2],
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(terrainViewPosition, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -1317,14 +1296,7 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 
 #	ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			pos.xyz,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld[0],
-			ViewToWorld[1],
-			ViewToWorld[2],
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(pos.xyz, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #	endif
@@ -1505,22 +1477,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 {
 #	ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #	endif
@@ -1839,14 +1796,7 @@ PS_OUTPUT main(PS_INPUT input)
 		terrainPositionViewH.xyz / terrainPositionViewH.w;
 #		ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			terrainViewPosition,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(terrainViewPosition, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
 	}
@@ -2138,22 +2088,7 @@ PS_OUTPUT main(PS_INPUT input)
 	output.secondary = 0.0;
 #	ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			input.position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
 	}
@@ -2224,22 +2159,7 @@ PS_OUTPUT main(PS_INPUT input)
 	output.secondary = 0.0;
 #	ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			input.position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		return output;
 	}
@@ -2447,14 +2367,7 @@ float4 main(PSInput input) : SV_Target0
 		terrainPositionViewH.xyz / terrainPositionViewH.w;
 #		ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			terrainViewPosition,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld[0],
-			ViewToWorld[1],
-			ViewToWorld[2],
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(terrainViewPosition, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -2784,22 +2697,7 @@ float4 main(PS_INPUT input) : SV_Target0
 {
 #		ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			input.position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -2872,22 +2770,7 @@ float4 main(PS_INPUT input) : SV_Target0
 {
 #		ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			input.position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -2966,22 +2849,7 @@ float4 main(PS_INPUT input) : SV_Target0
 {
 #		ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			input.position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -3058,22 +2926,7 @@ float4 main(PS_INPUT input) : SV_Target0
 {
 #		ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromScreenPosition(
-			input.position.xy,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld_row0,
-			ViewToWorld_row1,
-			ViewToWorld_row2,
-			PosAdjust,
-			ClipToView_row0,
-			ClipToView_row1,
-			ClipToView_row2,
-			ClipToView_row3,
-			FirstPersonClipToView_row0,
-			FirstPersonClipToView_row1,
-			FirstPersonClipToView_row2,
-			FirstPersonClipToView_row3,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -3273,14 +3126,7 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	terrainReconstructed.xyz /= terrainReconstructed.w;
 #		ifdef TERRAIN_SHADOWS
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			terrainReconstructed.xyz,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld[0],
-			ViewToWorld[1],
-			ViewToWorld[2],
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(terrainReconstructed.xyz, terrainDebugColor)) {
 		return terrainDebugColor;
 	}
 #		endif
@@ -3593,14 +3439,7 @@ PS_OUTPUT main(PS_INPUT input)
 	reconstructedPosition.xyz /= reconstructedPosition.w;
 #	ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			reconstructedPosition.xyz,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld[0],
-			ViewToWorld[1],
-			ViewToWorld[2],
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(reconstructedPosition.xyz, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		output.normal = 0.0;
 		output.material = 0.0;
@@ -3930,14 +3769,7 @@ PS_OUTPUT main(PS_INPUT input)
 	reconstructedPosition.xyz /= reconstructedPosition.w;
 #	ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
 	float4 terrainDebugColor;
-	if (TerrainShadows::TryGetDebugColorFromViewPosition(
-			reconstructedPosition.xyz,
-			TerrainShadows::TerrainShadowsSampler,
-			ViewToWorld[0],
-			ViewToWorld[1],
-			ViewToWorld[2],
-			PosAdjust,
-			terrainDebugColor)) {
+	if (TerrainShadows::TryGetDebugColorFromViewPosition(reconstructedPosition.xyz, terrainDebugColor)) {
 		output.color = terrainDebugColor;
 		output.normal = 0.0;
 		output.material = 0.0;

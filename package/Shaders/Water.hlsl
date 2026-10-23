@@ -201,7 +201,7 @@ VS_OUTPUT main(VS_INPUT input)
 #		include "FO4/VolumetricShadowsConsumer.hlsli"
 #		define FO4_WATER_SUN_SHADOW(worldPosition, screenPosition) FO4VolumetricShadows::GetWaterSurfaceShadow(worldPosition, screenPosition)
 #	elif defined(TERRAIN_SHADOWS)
-#		define FO4_WATER_SUN_SHADOW(worldPosition, screenPosition) TerrainShadows::GetWorldShadow(worldPosition)
+#		define FO4_WATER_SUN_SHADOW(worldPosition, screenPosition) ShadowSampling::GetWorldShadow(worldPosition, FrameBuffer::CameraPosAdjust.xyz)
 #	endif
 #	ifdef UNIFIED_WATER
 #		include "FO4/FO4ShaderData.hlsli"
