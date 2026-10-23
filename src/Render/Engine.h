@@ -40,7 +40,7 @@ namespace cs::engine
 		[[nodiscard]] inline std::optional<ImageSpaceMacroSet>
 		GetImageSpaceMacros(RE::BSShader* a_shader) noexcept
 		{
-			if (!a_shader || a_shader->shaderType != 0xC)
+			if (!a_shader || a_shader->shaderType != static_cast<std::int32_t>(RE::BSShaderManager::ShaderEnum::kImageSpace))
 				return std::nullopt;
 
 			std::array<RE::BSImagespaceShader::ShaderMacro, 8> nativeMacros{};
@@ -123,7 +123,7 @@ namespace cs::engine
 		return manager && index < manager->effectList.size() ? manager->effectList[index] : nullptr;
 	}
 
-	// SAO_CS: saoToggleState gates the composite; isActive also gates the SSLR Hi-Z passes.
+	// SAO_CS: saoToggleState gates the composite; isActive also gates SSLR Hi-Z.
 	[[nodiscard]] inline RE::ImageSpaceEffectScalableAmbientObscuranceCS* GetScalableAOCompute()
 	{
 		return static_cast<RE::ImageSpaceEffectScalableAmbientObscuranceCS*>(GetImageSpaceEffect(
