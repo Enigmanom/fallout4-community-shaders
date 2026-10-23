@@ -6,6 +6,7 @@
 #include "Render/SubstrateSlots.h"
 #include "ScreenSpaceGIConstants.h"
 #include "Utils/ShaderCompile.h"
+#include "Utils/ShaderSamplerBindings.h"
 
 #include <algorithm>
 #include <array>
@@ -13,6 +14,7 @@
 #include <cstddef>
 #include <d3d11shader.h>
 #include <d3dcompiler.h>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -382,6 +384,12 @@ namespace
 			BindPoint(consumer.Get(), "DirectionalShadowLights") != slots::kShadowLightsSlot ||
 			BindPoint(consumer.Get(), "LinearSampler") != cs::render::kLinearClampSamplerSlot)
 			return "consumer: ABI slot mismatch";
+		// Injection binds the host sampler only for shaders declaring it by name.
+		const auto blob = cs::util::CompileShaderToBlob((a_root / "SharedDataProbe.hlsl").c_str(),
+			{ { "FO4CS_SUBSTRATE", "1" }, { "VOLUMETRIC_SHADOWS", "1" } }, "ps_5_0", "main", &error, a_root);
+		const auto use = blob ? cs::util::ReflectShaderSamplers(blob->GetBufferPointer(), blob->GetBufferSize()) : std::nullopt;
+		if (!use || !use->hostLinearClamp)
+			return "consumer: host sampler not detected by name and slot";
 		D3D11_SHADER_INPUT_BIND_DESC lights{};
 		if (FAILED(consumer->GetResourceBindingDescByName("DirectionalShadowLights", &lights)) || lights.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))
 			return "DirectionalShadowLights: ABI structure stride mismatch";

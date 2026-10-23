@@ -47,6 +47,7 @@ namespace cs::engine
 		virtual winrt::com_ptr<ID3D11DeviceChild> Acquire() noexcept = 0;
 		virtual std::string GetError() const = 0;
 		virtual std::uint16_t GetSamplerMask() const noexcept { return UINT16_MAX; }
+		virtual bool BindsHostSampler() const noexcept { return false; }
 	};
 
 	struct ShaderVariantCompilationOutput
@@ -54,6 +55,7 @@ namespace cs::engine
 		winrt::com_ptr<ID3D11DeviceChild> shader;
 		std::string error;
 		std::uint16_t samplerMask = UINT16_MAX;
+		bool bindsHostSampler = false;
 	};
 
 	using ShaderVariantCompiler =

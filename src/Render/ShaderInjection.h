@@ -250,7 +250,8 @@ namespace cs::engine
 	void DispatchShaderInjections(
 		ShaderInjectionTarget a_target,
 		ID3D11DeviceContext* a_context,
-		std::uint16_t a_samplerMask = UINT16_MAX) noexcept;
+		std::uint16_t a_samplerMask = UINT16_MAX,
+		bool a_bindsHostSampler = false) noexcept;
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept;
 	NativeGraphicsShaderBinding ResolveNativeGraphicsShaderBinding(

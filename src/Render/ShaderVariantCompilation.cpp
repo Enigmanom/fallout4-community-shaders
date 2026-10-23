@@ -46,6 +46,11 @@ namespace cs::engine
 				return GetState() == ShaderVariantCompilationState::kReady ? _samplerMask : UINT16_MAX;
 			}
 
+			bool BindsHostSampler() const noexcept override
+			{
+				return GetState() == ShaderVariantCompilationState::kReady && _bindsHostSampler;
+			}
+
 			void Complete(ShaderVariantCompilationOutput a_output)
 			{
 				const bool ready = !!a_output.shader;
@@ -54,6 +59,7 @@ namespace cs::engine
 					if (ready) {
 						_shader = std::move(a_output.shader);
 						_samplerMask = a_output.samplerMask;
+						_bindsHostSampler = a_output.bindsHostSampler;
 						_error.clear();
 					} else {
 						_shader = nullptr;
@@ -89,6 +95,7 @@ namespace cs::engine
 			winrt::com_ptr<ID3D11DeviceChild> _shader;
 			std::string _error;
 			std::uint16_t _samplerMask = UINT16_MAX;
+			bool _bindsHostSampler = false;
 		};
 
 		class BatchTracker

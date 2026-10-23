@@ -389,7 +389,7 @@ namespace cs::render
 		}
 		state.ready.store(true, std::memory_order_release);
 		L->info(
-			"Shared substrate ready: b4/b5/b6/b7 sizes={}/{}/{}/{} bytes; canonical depth at t17; linear clamp sampler at s13.",
+			"Shared substrate ready: b4/b5/b6/b7 sizes={}/{}/{}/{} bytes; canonical depth at t17.",
 			kBufferSizes[0], kBufferSizes[1], kBufferSizes[2], kBufferSizes[3]);
 	}
 
@@ -473,7 +473,6 @@ namespace cs::render
 		for (std::size_t index = 0; index < kSubstrateBufferCount; ++index)
 			buffers[index] = state.buffers[index].get();
 		auto* depth = GetCanonicalSceneDepthSRV();
-		auto* sampler = state.linearClamp.get();
 		switch (a_stage) {
 		case engine::ShaderStage::kVertex:
 			engine::BindFrameConstantBuffers(a_context, a_stage, kFrameDataSlot, kSubstrateBufferCount, buffers);
@@ -483,7 +482,6 @@ namespace cs::render
 			engine::BindFrameConstantBuffers(a_context, a_stage, kFrameDataSlot, kSubstrateBufferCount, buffers);
 			engine::BindFrameShaderResources(a_context, a_stage, kCanonicalDepthSlot, 1, &depth);
 			engine::BindFrameShaderResources(a_context, a_stage, kFullscreenDebugTextureSlot, 1, &debugTexture);
-			a_context->PSSetSamplers(kLinearClampSamplerSlot, 1, &sampler);
 			break;
 		case engine::ShaderStage::kCompute:
 			engine::BindFrameConstantBuffers(a_context, a_stage, kFrameDataSlot, kSubstrateBufferCount, buffers);

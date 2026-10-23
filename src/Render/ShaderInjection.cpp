@@ -406,6 +406,7 @@ namespace cs::engine
 			// Published after preparation stores its final compilation (or none).
 			std::atomic<bool> settled{ false };
 			std::atomic<std::uint16_t> samplerMask{ UINT16_MAX };
+			std::atomic<bool> bindsHostSampler{ false };
 		};
 
 		struct NativeReplacementWrapperKey
@@ -1044,6 +1045,7 @@ namespace cs::engine
 			report();
 
 			variant->samplerMask.store(compilation->GetSamplerMask(), std::memory_order_relaxed);
+			variant->bindsHostSampler.store(compilation->BindsHostSampler(), std::memory_order_relaxed);
 			{
 				auto& service = GetService();
 				std::scoped_lock lock(service.nativeVariantMutex);
@@ -1939,7 +1941,8 @@ namespace cs::engine
 	void DispatchShaderInjections(
 		ShaderInjectionTarget a_target,
 		ID3D11DeviceContext* a_context,
-		std::uint16_t a_samplerMask) noexcept
+		std::uint16_t a_samplerMask,
+		bool a_bindsHostSampler) noexcept
 	{
 		if (!a_context || !IsValidTarget(a_target))
 			return;
@@ -1949,6 +1952,11 @@ namespace cs::engine
 		if (!target)
 			return;
 		const auto previousMask = std::exchange(t_samplerMask, a_samplerMask);
+		if (a_bindsHostSampler) {
+			// PS shadow state owns s0-s15, so the sampler is bound per draw and restored.
+			auto* sampler = render::GetLinearClampSampler();
+			BindInjectionSamplers(a_context, render::kLinearClampSamplerSlot, 1, &sampler);
+		}
 		DispatchPublishedTarget(*target, ShaderStage::kPixel, a_context);
 		t_samplerMask = previousMask;
 	}
@@ -2396,7 +2404,7 @@ namespace cs::engine
 		}
 		if (activeVariant) {
 			const ActiveVariantScope scope(activeVariant.get());
-			DispatchShaderInjections(activeVariant->target, a_context, activeVariant->samplerMask.load(std::memory_order_relaxed));
+			DispatchShaderInjections(activeVariant->target, a_context, activeVariant->samplerMask.load(std::memory_order_relaxed), activeVariant->bindsHostSampler.load(std::memory_order_relaxed));
 		}
 		boundShader->Release();
 	}
