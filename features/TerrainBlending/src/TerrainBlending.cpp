@@ -6,6 +6,7 @@
 #include "Render/FeatureShaderBindings.h"
 #include "Render/FrameProfiler.h"
 #include "Render/LightingRenderPasses.h"
+#include "Render/PrepassTechnique.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "Render/ShaderInjection.h"
@@ -28,8 +29,7 @@ namespace cs::features
 		using ShaderFlag = RE::BSShaderProperty::EShaderPropertyFlag;
 
 		// DFPrePass technique bits LANDSCAPE and LOD_LANDSCAPE.
-		constexpr std::uint32_t kLandscapeTechnique = 1U << 5;
-		constexpr std::uint32_t kLodLandscapeTechnique = 1U << 9;
+		using namespace cs::engine::prepass_technique;
 
 		// Opaque and alpha-tested Z-prepass entries; type 4 is registered nowhere.
 		constexpr std::uint8_t kPassTypeZPrepassOpaque = 0x19;
@@ -74,7 +74,7 @@ namespace cs::features
 			};
 		}
 
-		// Colour lerps by the PS alpha. Data channels (RT2, RT0/RT3 .w) are written by the data draw.
+		// Colour lerps by PS alpha; data channels belong to the data draw.
 		D3D11_BLEND_DESC ColorBlendDesc()
 		{
 			D3D11_BLEND_DESC desc{};
@@ -85,7 +85,7 @@ namespace cs::features
 			SetBlendTarget(desc.RenderTarget[3], true, 0x7);
 			SetBlendTarget(desc.RenderTarget[4], true, 0x7);
 			SetBlendTarget(desc.RenderTarget[5], true, 0x3);
-			// Parallax shadow term is a continuous shading value, so it blends like colour.
+			// Parallax shadow is continuous shading, so it blends like colour.
 			SetBlendTarget(desc.RenderTarget[6], true, 0x1);
 			SetBlendTarget(desc.RenderTarget[7], false, 0x0);
 			return desc;
@@ -196,7 +196,7 @@ namespace cs::features
 
 	bool TerrainBlending::HoldsTechnique(std::uint32_t a_technique) const noexcept
 	{
-		return (a_technique & kLandscapeTechnique) != 0 && (a_technique & kLodLandscapeTechnique) == 0 &&
+		return (a_technique & kLandscape) != 0 && (a_technique & kLodLandscape) == 0 &&
 		       IsOperational();
 	}
 
@@ -207,7 +207,7 @@ namespace cs::features
 		if (!a_passes || !a_property.flags.all(ShaderFlag::kMultiTextureLandscape) ||
 			a_property.flags.any(ShaderFlag::kLODLandscape) || !IsOperational())
 			return;
-		// Z-prepass depth would sit above buried objects and reject the terrain that blends over them.
+		// Z-prepass depth above buried objects would reject the blending terrain.
 		for (auto* pass = a_passes->passList; pass; pass = pass->propertyNext) {
 			if (pass->passType == kPassTypeZPrepassOpaque || pass->passType == kPassTypeZPrepassAlphaTest) {
 				pass->passType = kPassTypeUnregistered;
@@ -278,7 +278,7 @@ namespace cs::features
 
 		auto* context = cs::engine::GetImmediateContext();
 		if (!context || !CopyObjectDepth(context)) {
-			// Landscape still draws, opaque and unblended, exactly as the stock pass would have.
+			// Falls back to the stock opaque landscape draw.
 			_unblendedReplays.fetch_add(1, std::memory_order_relaxed);
 			DrawHeld(a_buckets, kStock);
 			return;
