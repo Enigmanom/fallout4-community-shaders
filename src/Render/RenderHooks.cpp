@@ -8,6 +8,8 @@
 #include "Render/HookRegistry.h"
 #include "Render/ShaderInjection.h"
 
+#include "RE/B/BSGeometry.h"
+
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -17,6 +19,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <winrt/base.h>
 
 namespace
 {
@@ -54,8 +57,15 @@ namespace cs::engine
 		};
 
 		std::vector<PrepassHold> g_prepassHolds;
+		struct ZPrepassShaderSelection
+		{
+			HookPriority priority;
+			ZPrepassVertexShaderSelector selector;
+		};
+		std::vector<ZPrepassShaderSelection> g_zPrepassShaders;
 		bool g_prePassInstalled = false;
 		bool g_prepassHoldInstalled = false;
+		bool g_zPrepassDrawInstalled = false;
 		bool g_insideWorldPrepassBatch = false;
 		bool g_lightsImplInstalled = false;
 		bool g_compositeInstalled = false;
@@ -426,6 +436,37 @@ namespace cs::engine
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
+		// DoZPrePass world-camera opaque loop; first-person entries are left alone.
+		struct WorldZPrepassDraw_Hook
+		{
+			static void thunk(
+				RE::BSGraphics::RendererShadowState& a_state,
+				RE::BSGraphics::ZPrePassDrawData& a_data,
+				std::uint64_t& a_vertexDesc,
+				std::uint16_t& a_cullMode,
+				std::uint16_t& a_depthBiasMode)
+			{
+				// RegisterObject_Standard, the sole producer, queues &geometry->world.
+				const auto* object = reinterpret_cast<const RE::NiAVObject*>(
+					reinterpret_cast<std::uintptr_t>(a_data.world) - offsetof(RE::NiAVObject, world));
+				const auto& geometry = static_cast<const RE::BSGeometry&>(*object);
+				ID3D11VertexShader* shader = nullptr;
+				for (const auto& entry : g_zPrepassShaders) {
+					if ((shader = entry.selector(geometry)))
+						break;
+				}
+				auto* context = shader ? GetImmediateContext() : nullptr;
+				if (!context)
+					return func(a_state, a_data, a_vertexDesc, a_cullMode, a_depthBiasMode);
+				winrt::com_ptr<ID3D11VertexShader> engineShader;
+				context->VSGetShader(engineShader.put(), nullptr, nullptr);
+				context->VSSetShader(shader, nullptr, 0);
+				func(a_state, a_data, a_vertexDesc, a_cullMode, a_depthBiasMode);
+				context->VSSetShader(engineShader.get(), nullptr, 0);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
 		template <class Hook>
 		bool EnsureDetourInstalled(bool& a_installed, REL::VariantID a_id, const char* a_name)
 		{
@@ -565,6 +606,27 @@ namespace cs::engine
 			EnsureDeferredPrePassInstalled();
 			g_prepassHoldInstalled = true;
 			L->info("Hooks installed on world batch-4 render, bucket render and opaque decals (prepass hold)");
+			return true;
+		}
+
+		bool EnsureWorldZPrepassDrawInstalled()
+		{
+			if (g_zPrepassDrawInstalled)
+				return true;
+			constexpr CallSiteAnchor kWorldDraw{
+				.name = "DoZPrePass -> world BSGraphics::RenderZPrePass",
+				.function = RE::ID::BSGraphics::Renderer::DoZPrePass,
+				.offset = { 0x429, 0x42A, 0x42A },
+				.target = RE::ID::BSGraphics::RenderZPrePass
+			};
+			const auto site = ResolveCallSite(kWorldDraw);
+			if (!site) {
+				L->error("World Z-prepass draw hook unavailable: {}", site.error());
+				return false;
+			}
+			stl::write_thunk_call<WorldZPrepassDraw_Hook>(*site);
+			g_zPrepassDrawInstalled = true;
+			L->info("Hook installed on {}", kWorldDraw.name);
 			return true;
 		}
 
@@ -754,6 +816,14 @@ namespace cs::engine
 	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket)
 	{
 		PrepassBucket_Hook::func(a_bucket.renderer, a_bucket.head, a_bucket.technique, a_bucket.alpha);
+	}
+
+	bool RegisterWorldZPrepassVertexShader(ZPrepassVertexShaderSelector a_selector, HookPriority a_priority)
+	{
+		if (!RegistrationAllowed("WorldZPrepassVertexShader") || !EnsureWorldZPrepassDrawInstalled())
+			return false;
+		InsertByPriority(g_zPrepassShaders, ZPrepassShaderSelection{ a_priority, a_selector });
+		return true;
 	}
 
 	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority)

@@ -4,9 +4,12 @@
 #include <functional>
 #include <span>
 
+struct ID3D11VertexShader;
+
 namespace RE
 {
 	class BSBatchRenderer;
+	class BSGeometry;
 	class BSRenderPass;
 }
 
@@ -65,6 +68,13 @@ namespace cs::engine
 		HookPriority a_priority = HookPriority::Default);
 	// Draws a held bucket via the engine; valid only inside the replay callback.
 	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket);
+
+	// Vertex shader for one opaque world Z-prepass draw; null keeps the engine's.
+	using ZPrepassVertexShaderSelector = ID3D11VertexShader* (*)(const RE::BSGeometry& a_geometry) noexcept;
+	// The first non-null selection binds for that draw only.
+	bool RegisterWorldZPrepassVertexShader(
+		ZPrepassVertexShaderSelector a_selector,
+		HookPriority a_priority = HookPriority::Default);
 
 	// Install the post-dirty-state deferred draw anchor.
 	bool EnsureDeferredDrawAnchorInstalled();
