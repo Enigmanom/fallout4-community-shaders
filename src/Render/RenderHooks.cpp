@@ -44,7 +44,18 @@ namespace cs::engine
 		std::vector<PrioritizedCallback> g_postSunShadowRender;
 		std::vector<PrioritizedCallback> g_preWaterUpdate;
 		std::vector<PrioritizedCallback> g_postResetState;
+		struct PrepassHold
+		{
+			HookPriority priority;
+			PrepassBucketPredicate predicate;
+			HeldPrepassBucketsCallback replay;
+			std::vector<HeldPrepassBucket> held;
+		};
+
+		std::vector<PrepassHold> g_prepassHolds;
 		bool g_prePassInstalled = false;
+		bool g_prepassHoldInstalled = false;
+		bool g_insideWorldPrepassBatch = false;
 		bool g_lightsImplInstalled = false;
 		bool g_compositeInstalled = false;
 		bool g_deferredDrawAnchorInstalled = false;
@@ -148,13 +159,37 @@ namespace cs::engine
 			const std::vector<PrioritizedCallback>& _callbacks;
 		};
 
+		// Profiled passes are disjoint, so nested callbacks pause the segment around their own timing.
+		class ProfiledSegment
+		{
+		public:
+			explicit ProfiledSegment(std::string_view a_name) noexcept :
+				_name(a_name)
+			{}
+
+			void Begin() noexcept { _active = render::profiling::BeginPass(_name); }
+			void End() noexcept
+			{
+				if (std::exchange(_active, false))
+					render::profiling::EndPass();
+			}
+
+		private:
+			std::string_view _name;
+			bool _active = false;
+		};
+
+		ProfiledSegment g_deferredPrePassTiming{ "DeferredPrePass" };
+
 		struct DeferredPrePass_Hook
 		{
 			static void thunk()
 			{
 				MarkRegistrationClosed();
 				Dispatch(g_preDeferredPrePass);
+				g_deferredPrePassTiming.Begin();
 				func();
+				g_deferredPrePassTiming.End();
 				Dispatch(g_postDeferredPrePass);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -319,6 +354,60 @@ namespace cs::engine
 			static inline std::atomic<Callback> original{ nullptr };
 		};
 
+		// The world accumulator renders batch 4 here; the first-person call is left alone.
+		struct WorldPrepassBatches_Hook
+		{
+			static void thunk(RE::BSShaderAccumulator* a_accumulator, std::int32_t a_shaderType, bool a_alpha, std::int32_t a_group)
+			{
+				for (auto& hold : g_prepassHolds)
+					hold.held.clear();
+				ScopedRenderPhase phase(g_insideWorldPrepassBatch);
+				func(a_accumulator, a_shaderType, a_alpha, a_group);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		// Sole caller of RenderPassImpl: every bucket without a command buffer lands here.
+		struct PrepassBucket_Hook
+		{
+			static bool thunk(RE::BSBatchRenderer* a_renderer, RE::BSRenderPass* a_head, std::uint32_t a_technique, bool a_alpha)
+			{
+				if (g_insideWorldPrepassBatch) {
+					for (auto& hold : g_prepassHolds) {
+						if (hold.predicate(a_technique)) {
+							hold.held.push_back({ a_renderer, a_head, a_technique, a_alpha });
+							return false;
+						}
+					}
+				}
+				return func(a_renderer, a_head, a_technique, a_alpha);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		struct WorldOpaqueDecals_Hook
+		{
+			static void thunk(RE::BSShaderAccumulator* a_accumulator)
+			{
+				for (auto& hold : g_prepassHolds) {
+					if (hold.held.empty())
+						continue;
+					g_deferredPrePassTiming.End();
+					try {
+						hold.replay(hold.held);
+					} catch (const std::exception& e) {
+						L->error("Prepass hold replay failed: {}", e.what());
+					} catch (...) {
+						L->error("Prepass hold replay failed.");
+					}
+					hold.held.clear();
+					g_deferredPrePassTiming.Begin();
+				}
+				func(a_accumulator);
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
 		template <class Hook>
 		bool EnsureDetourInstalled(bool& a_installed, REL::VariantID a_id, const char* a_name)
 		{
@@ -419,6 +508,46 @@ namespace cs::engine
 			stl::detour_thunk<DeferredComposite_Hook>(RE::ID::DrawWorld::DeferredComposite);
 			g_compositeInstalled = true;
 			L->info("Hook installed on DrawWorld::DeferredComposite");
+		}
+
+		bool EnsurePrepassHoldInstalled()
+		{
+			if (g_prepassHoldInstalled)
+				return true;
+			constexpr CallSiteAnchor kWorldBatches{
+				.name = "DeferredPrePass -> world BSShaderAccumulator::RenderBatches",
+				.function = RE::ID::DrawWorld::DeferredPrePass,
+				.offset = { 0x36A, 0x371, 0x371 },
+				.target = RE::ID::BSShaderAccumulator::RenderBatches
+			};
+			constexpr CallSiteAnchor kWorldOpaqueDecals{
+				.name = "DeferredPrePass -> world BSShaderAccumulator::RenderOpaqueDecals",
+				.function = RE::ID::DrawWorld::DeferredPrePass,
+				.offset = { 0x384, 0x38B, 0x38B },
+				.target = RE::ID::BSShaderAccumulator::RenderOpaqueDecals
+			};
+			constexpr CallSiteAnchor kBucket{
+				.name = "BSBatchRenderer::RenderBatches -> RenderPassImpl",
+				.function = RE::ID::BSBatchRenderer::RenderBatches,
+				.offset = { 0xD0, 0x257, 0x257 },
+				.target = RE::ID::BSBatchRenderer::RenderPassImpl
+			};
+			const auto batches = ResolveCallSite(kWorldBatches);
+			const auto decals = ResolveCallSite(kWorldOpaqueDecals);
+			const auto bucket = ResolveCallSite(kBucket);
+			for (const auto* site : { &batches, &decals, &bucket }) {
+				if (!*site) {
+					L->error("Prepass hold unavailable: {}", site->error());
+					return false;
+				}
+			}
+			stl::write_thunk_call<WorldPrepassBatches_Hook>(*batches);
+			stl::write_thunk_call<WorldOpaqueDecals_Hook>(*decals);
+			stl::write_thunk_call<PrepassBucket_Hook>(*bucket);
+			EnsureDeferredPrePassInstalled();
+			g_prepassHoldInstalled = true;
+			L->info("Hooks installed on world batch-4 render, bucket render and opaque decals (prepass hold)");
+			return true;
 		}
 
 		void InstallDeferredDrawAnchor()
@@ -531,6 +660,23 @@ namespace cs::engine
 			return false;
 		InsertPrioritized(g_preWaterUpdate, std::move(callback), priority);
 		return EnsureWaterUpdateInstalled();
+	}
+
+	bool RegisterWorldPrepassHold(
+		PrepassBucketPredicate a_predicate,
+		HeldPrepassBucketsCallback a_replay,
+		HookPriority a_priority)
+	{
+		if (!RegistrationAllowed("WorldPrepassHold") || !EnsurePrepassHoldInstalled())
+			return false;
+		g_prepassHolds.push_back({ a_priority, a_predicate, std::move(a_replay), {} });
+		std::ranges::stable_sort(g_prepassHolds, {}, [](const PrepassHold& a_hold) { return static_cast<int>(a_hold.priority); });
+		return true;
+	}
+
+	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket)
+	{
+		PrepassBucket_Hook::func(a_bucket.renderer, a_bucket.head, a_bucket.technique, a_bucket.alpha);
 	}
 
 	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority)
