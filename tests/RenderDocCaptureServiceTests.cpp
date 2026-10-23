@@ -83,9 +83,11 @@ namespace
 		using namespace cs::renderdoc;
 		std::filesystem::create_directories(a_directory / "nested");
 		const auto first = a_directory / "first.rdc";
-		const auto second = a_directory / "runtime.log";
+		const auto second = a_directory / "second.RDC";
+		const auto log = a_directory / "runtime.log";
 		std::ofstream(first, std::ios::binary) << "abc";
 		std::ofstream(second, std::ios::binary) << "defgh";
+		std::ofstream(log, std::ios::binary) << "not a capture";
 		std::ofstream(a_directory / "nested" / "ignored.rdc") << "not a top-level capture";
 		const auto timestamp = std::filesystem::file_time_type::clock::now();
 		std::filesystem::last_write_time(first, timestamp - std::chrono::seconds(10));
@@ -114,6 +116,7 @@ namespace
 		service.ClearCaptures();
 		CHECK(service.Inventory().empty());
 		CHECK(std::filesystem::exists(a_directory / "nested" / "ignored.rdc"));
+		CHECK(std::filesystem::exists(log));
 
 		service.SetDirectory(first);
 		std::ofstream(first) << "not a directory";
