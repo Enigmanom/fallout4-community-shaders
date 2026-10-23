@@ -174,6 +174,7 @@ namespace cs::render
 			a_data.feature.skylightingSettings = a_features.skylightingSettings.shared;
 			a_data.feature.iblSettings = a_features.iblSettings;
 			a_data.feature.extendedMaterialSettings = a_features.extendedMaterialsSettings;
+			a_data.feature.terrainBlendingSettings = a_features.terrainBlendingSettings;
 			fo4.EnabledTerrainVariation = a_features.terrainVariationSettings.Enabled;
 			fo4.EnabledSkylighting = a_features.skylightingSettings.Enabled;
 			fo4.EnabledScreenSpaceGI = a_features.screenSpaceGISettings.Enabled;

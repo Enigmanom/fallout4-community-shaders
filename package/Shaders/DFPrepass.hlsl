@@ -111,6 +111,11 @@
 #		define FO4_PREPASS_VERTEX_AO 1
 #	endif
 
+// FO4: loaded landscape replays after the objects with alpha-blended G-buffer writes.
+#	if defined(TERRAIN_BLENDING) && LANDSCAPE && !BLEND && !INSTANCED
+#		define FO4_TERRAIN_BLENDING
+#	endif
+
 #	if defined(OG)
 // OG blends have no motion target or tessellated frame-position inputs.
 #		define PREPASS_MOTION_VECTOR (!BLEND)
@@ -129,7 +134,7 @@
 #		endif
 #	endif
 
-#	if defined(LOD_BLENDING) || defined(TERRAIN_VARIATION) || defined(FO4_PREPASS_VERTEX_AO) || defined(EMAT)
+#	if defined(LOD_BLENDING) || defined(TERRAIN_VARIATION) || defined(FO4_PREPASS_VERTEX_AO) || defined(EMAT) || defined(FO4_TERRAIN_BLENDING)
 #		include "FO4/FO4ShaderData.hlsli"
 #	endif
 
@@ -146,6 +151,19 @@
 #	if defined(TERRAIN_VARIATION) && ((LANDSCAPE && !INSTANCED) || defined(TERRAIN_VARIATION_LOD) || defined(TERRAIN_VARIATION_MESH))
 #		include "Common/Random.hlsli"
 #		include "TerrainVariation/TerrainVariation.hlsli"
+#	endif
+
+#	if defined(FO4_TERRAIN_BLENDING)
+#		include "FO4/Depth.hlsli"
+#		include "TerrainBlending/TerrainBlending.hlsli"
+// FO4: b8 is bound only while the host replays landscape; unbound reads zero, the stock draw.
+cbuffer TerrainBlendingDraw : register(b8)
+{
+	uint TerrainBlendingPass;  // 1 colour lerp, 2 data replace
+	uint3 TerrainBlendingPad;
+};
+// Upstream blends terrain within 1024 units of the eye.
+static const float TerrainBlendingRange = 1024.0;
 #	endif
 
 #	if defined(TERRAIN_VARIATION) && LANDSCAPE && !INSTANCED
@@ -556,20 +574,24 @@ struct PS_INPUT
 struct PS_OUTPUT
 {
 	float4 albedo: SV_Target0;
-#	if BLEND
+#	if BLEND || defined(FO4_TERRAIN_BLENDING)
 	float4 normalOct: SV_Target1;
 #	else
 	float2 normalOct: SV_Target1;
 #	endif
 	float4 material: SV_Target2;
 	float4 auxA: SV_Target3;
-#	if BLEND || defined(FO4_PREPASS_VERTEX_AO)
+#	if BLEND || defined(FO4_PREPASS_VERTEX_AO) || defined(FO4_TERRAIN_BLENDING)
 	float4 specTint: SV_Target4;
 #	else
 	float3 specTint: SV_Target4;
 #	endif
 #	if PREPASS_MOTION_VECTOR
+#		if defined(FO4_TERRAIN_BLENDING)
+	float4 motionVec: SV_Target5;
+#		else
 	float2 motionVec: SV_Target5;
+#		endif
 #	endif
 #	if defined(EXTENDED_MATERIALS)
 	// FO4: upstream shades parallax shadows forward; DFLight reads them from here.
@@ -577,11 +599,30 @@ struct PS_OUTPUT
 #	endif
 };
 
-#	if EARLYDEPTH && !TREE_ANIM && !DISMEMBERMENT_MEATCUFF
+// FO4: early depth would write depth for pixels the blend clip discards.
+#	if EARLYDEPTH && !TREE_ANIM && !DISMEMBERMENT_MEATCUFF && !defined(FO4_TERRAIN_BLENDING)
 [earlydepthstencil]
 #	endif
 	PS_OUTPUT main(PS_INPUT input) {
-		PS_OUTPUT output;
+#	if defined(FO4_TERRAIN_BLENDING)
+		PS_OUTPUT output = (PS_OUTPUT)0;
+		float terrainBlendFactor = 1.0;
+		[branch] if (TerrainBlendingPass != 0)
+		{
+			const float depthSampled = TerrainBlending::TerrainBlendingMaskTexture[uint2(input.position.xy)].x;
+			const float depthSampledLinear = SharedData::GetScreenDepth(FO4Depth::ProjectionDepth(depthSampled));
+			const float depthPixelLinear = SharedData::GetScreenDepth(FO4Depth::ProjectionDepth(input.position.z));
+			terrainBlendFactor = saturate((depthSampledLinear - depthPixelLinear) / 10.0);
+			if (input.position.z == depthSampled)
+				terrainBlendFactor = 1;
+			if (depthPixelLinear > TerrainBlendingRange)
+				terrainBlendFactor = 1;
+			// The data draw owns pixels where terrain is at least half in.
+			clip(terrainBlendFactor - (TerrainBlendingPass == 1 ? 1.0 / 255.0 : 0.5));
+		}
+#	else
+	PS_OUTPUT output;
+#	endif
 #	if defined(EXTENDED_MATERIALS)
 		float parallaxShadow = 1.0;
 #	endif
@@ -1646,7 +1687,11 @@ struct PS_OUTPUT
 		float2 prevNDC = float2(prevClipX, prevClipY) / prevClipW.xx;
 #		endif
 
+#		if defined(FO4_TERRAIN_BLENDING)
+		output.motionVec.xy = (currNDC - prevNDC) * float2(-0.5, 0.5);
+#		else
 		output.motionVec = (currNDC - prevNDC) * float2(-0.5, 0.5);
+#		endif
 #	endif
 #	if defined(EXTENDED_MATERIALS)
 	// Every draw writes, so surfaces drawn over parallax never keep its shadow.
@@ -1655,6 +1700,22 @@ struct PS_OUTPUT
 #		else
 		output.parallaxShadow = float4(parallaxShadow, 0, 0, 1);
 #		endif
+#	endif
+#	if defined(FO4_TERRAIN_BLENDING)
+		// The colour draw reads every blended target's alpha as the lerp factor.
+		[branch] if (TerrainBlendingPass == 1)
+		{
+			output.albedo.w = terrainBlendFactor;
+			output.normalOct.w = terrainBlendFactor;
+			output.auxA.w = terrainBlendFactor;
+			output.specTint.w = terrainBlendFactor;
+#		if PREPASS_MOTION_VECTOR
+			output.motionVec.w = terrainBlendFactor;
+#		endif
+#		if defined(EXTENDED_MATERIALS)
+			output.parallaxShadow.w = terrainBlendFactor;
+#		endif
+		}
 #	endif
 		return output;
 	}

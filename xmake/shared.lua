@@ -31,6 +31,7 @@ function main(target)
             "features/Screen-Space Shadows/Shaders/ScreenSpaceShadows/RaymarchCS.hlsl",
             "features/Screen-Space Shadows/Shaders/ScreenSpaceShadows/bend_sss_gpu.hlsli",
             "features/Screen-Space Shadows/Shaders/ScreenSpaceShadows/ScreenSpaceShadows.hlsli",
+            "features/Terrain Blending/Shaders/TerrainBlending/TerrainBlending.hlsli",
             "features/Terrain Shadows/Shaders/TerrainShadows/ShadowUpdate.cs.hlsl",
             "features/Terrain Shadows/Shaders/TerrainShadows/TerrainShadows.hlsli",
             "features/Terrain Variation/Shaders/TerrainVariation/TerrainVariation.hlsli",

@@ -6,6 +6,7 @@
 #include "LODBlending.h"
 #include "ScreenSpaceGI.h"
 #include "Skylighting.h"
+#include "TerrainBlending.h"
 #include "TerrainShadows.h"
 #include "TerrainVariation.h"
 #include "UnifiedWater.h"
@@ -56,7 +57,10 @@ namespace cs
 					features::UnifiedWater::GetSingleton()),
 			.extendedMaterialsSettings =
 				CollectFeatureData<ExtendedMaterialsFeatureData>(
-					features::ExtendedMaterials::GetSingleton())
+					features::ExtendedMaterials::GetSingleton()),
+			.terrainBlendingSettings =
+				CollectFeatureData<TerrainBlendingFeatureData>(
+					features::TerrainBlending::GetSingleton())
 		};
 	}
 }
