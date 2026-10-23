@@ -31,7 +31,7 @@ namespace FO4VolumetricShadows
 		return softShadow;
 	}
 
-	// FO4: lobes keep the native shadow without a VSM, as upstream does when off.
+	// FO4: without a VSM the lobes keep the pass shadow, as when unloaded.
 	float BlendNativeShadow(float softShadow, float nativeShadow)
 	{
 		if (!Published)
