@@ -39,6 +39,12 @@ namespace cs::features
 		constexpr std::array<std::array<std::string_view, 2>, kMipCount> kBlurPasses{ { { "VolumetricShadows/BlurHMip0", "VolumetricShadows/BlurVMip0" },
 			{ "VolumetricShadows/BlurHMip1", "VolumetricShadows/BlurVMip1" } } };
 
+		// A group covers 16 source texels per axis; a 32x reduction gathers 2x2 quads.
+		std::uint32_t DownsampleGroups(std::uint32_t a_sourceSize, std::uint32_t a_mapSize)
+		{
+			return a_sourceSize / 16 / std::max(a_sourceSize / a_mapSize / 16, 1u);
+		}
+
 		winrt::com_ptr<ID3D11ComputeShader> CompileCompute(const wchar_t* a_path, const char* a_define)
 		{
 			winrt::com_ptr<ID3D11ComputeShader> shader;
@@ -151,7 +157,7 @@ namespace cs::features
 	{
 		D3D11_TEXTURE2D_DESC source{};
 		a_snapshot.texture->GetDesc(&source);
-		// The 2x2 gather and three reductions only fill the map from 2x to 16x.
+		// The map's 512 mip reduces 2x to 16x; the 256 mip takes up to 32x.
 		if (source.Format != DXGI_FORMAT_R16_TYPELESS || source.ArraySize != a_snapshot.count || source.MipLevels != 1 || source.SampleDesc.Count != 1 ||
 			!(source.BindFlags & D3D11_BIND_SHADER_RESOURCE) || source.Width != source.Height || source.Width < 2 * kMapSize || source.Width > 16 * kMapSize || !std::has_single_bit(source.Width))
 			return false;
@@ -235,12 +241,13 @@ namespace cs::features
 
 		// FO4: a single cascade leaves cascade 1 without a slice, so it reads lit.
 		const bool hasCascade1 = snapshot.count > 1;
-		const std::uint32_t groups = _sourceDesc.Width / 16;
-		if (hasCascade1)
+		if (hasCascade1) {
+			const std::uint32_t groups = DownsampleGroups(_sourceDesc.Width, kMapSize);
 			Dispatch(a_context, kDownsamplePasses[0], _downsampleMip0.get(), _sourceSRV.get(), _map.mipUAV[0].get(), groups, groups);
-		else
+		} else
 			a_context->ClearUnorderedAccessViewFloat(_map.mipUAV[0].get(), kLit);
-		Dispatch(a_context, kDownsamplePasses[1], _downsampleMip1.get(), _sourceSRV.get(), _map.mipUAV[1].get(), groups, groups);
+		const std::uint32_t groups1 = DownsampleGroups(_sourceDesc.Width, kMapSize >> 1);
+		Dispatch(a_context, kDownsamplePasses[1], _downsampleMip1.get(), _sourceSRV.get(), _map.mipUAV[1].get(), groups1, groups1);
 		if (hasCascade1)
 			Blur(a_context, 0);
 		Blur(a_context, 1);
