@@ -66,7 +66,7 @@ namespace cs::features
 			FailLoad("Volumetric Shadows shader contribution registration failed.");
 			return;
 		}
-		if (!cs::engine::AcquireSunShadowLights()) {
+		if (!cs::engine::AcquireSunShadowLights<2>()) {
 			FailLoad("Volumetric Shadows needs the shared sun shadow light data");
 			return;
 		}
@@ -293,7 +293,7 @@ namespace cs::features
 		if (!a_water && !ActiveLightReadsSoftShadow())
 			return;
 		ID3D11ShaderResourceView* const map = _map.srv.get();
-		ID3D11ShaderResourceView* const lights = cs::engine::GetSunShadowLightsSRV();
+		ID3D11ShaderResourceView* const lights = cs::engine::GetSunShadowLightsSRV<2>();
 		cs::engine::BindInjectionShaderResources(a_context, volumetric_shadows_shader::kSharedShadowMapSlot, 1, &map);
 		cs::engine::BindInjectionShaderResources(a_context, volumetric_shadows_shader::kShadowLightsSlot, 1, &lights);
 		(a_water ? _counters.waterDraws : _counters.lightDraws).fetch_add(1, std::memory_order_relaxed);

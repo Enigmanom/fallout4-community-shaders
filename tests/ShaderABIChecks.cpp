@@ -310,7 +310,7 @@ namespace
 	{
 		std::string error;
 		auto blob = cs::util::CompileShaderToBlob((a_root / "Skylighting/UpdateProbesCS.hlsl").c_str(),
-			{ { "FO4CS_SUBSTRATE", "1" } }, "cs_5_0", "main", &error, a_root);
+			{ { "FO4CS_SUBSTRATE", "1" }, { "SKYLIGHTING_SUN_CASCADES", cs::engine::kSunCascadesDefine } }, "cs_5_0", "main", &error, a_root);
 		if (!blob)
 			return error;
 		Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;
@@ -319,7 +319,7 @@ namespace
 		D3D11_SHADER_INPUT_BIND_DESC binding{};
 		if (FAILED(reflection->GetResourceBindingDescByName("DirectionalShadowLights", &binding)) || binding.BindPoint != 2)
 			return "DirectionalShadowLights: ABI slot mismatch";
-		if (binding.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))
+		if (binding.NumSamples != sizeof(cs::engine::DirectionalShadowLightData<cs::engine::kMaxSunCascades>))
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
@@ -392,7 +392,7 @@ namespace
 		if (!use || !use->hostLinearClamp)
 			return "consumer: host sampler not detected by name and slot";
 		D3D11_SHADER_INPUT_BIND_DESC lights{};
-		if (FAILED(consumer->GetResourceBindingDescByName("DirectionalShadowLights", &lights)) || lights.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))
+		if (FAILED(consumer->GetResourceBindingDescByName("DirectionalShadowLights", &lights)) || lights.NumSamples != sizeof(cs::engine::DirectionalShadowLightData<2>))
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}

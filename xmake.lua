@@ -348,10 +348,7 @@ target("DirectionalShadowLightDataTests", function()
     set_kind("binary")
     set_default(false)
     set_group("unit")
-    add_files(
-        "tests/DirectionalShadowLightDataTests.cpp",
-        "src/Render/DirectionalShadowLightData.cpp"
-    )
+    add_files("tests/DirectionalShadowLightDataTests.cpp")
     add_defines("NOMINMAX")
     add_packages("vcpkg::directxmath")
     add_tests("DirectionalShadowLightData")
@@ -478,6 +475,7 @@ target("RuntimeShaderTests", function()
     add_deps("ShaderStage")
     add_files("tests/RuntimeShaderTests.cpp", "src/Utils/ShaderCompile.cpp")
     add_files(shader_cache_sources)
+    add_packages("vcpkg::directxmath")
     add_syslinks("bcrypt", "d3dcompiler", "version")
     after_build(stage_shader_compiler)
     add_tests("RuntimeShaderCompile", {

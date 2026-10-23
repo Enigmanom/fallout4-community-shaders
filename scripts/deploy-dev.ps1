@@ -19,13 +19,17 @@
 
 .PARAMETER ModsRoot
 	Folder holding named mods.
+
+.PARAMETER RenderDoc
+	Also force-load the RenderDoc feature; its API hooks skew performance, so it is off by default.
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
 	[string]$Mod = 'Community Shaders - Dev',
 	[string]$Toml,
 	[string]$Preset = 'taa-all',
-	[string]$ModsRoot = 'C:\Games\Modding\Nucleus\mods'
+	[string]$ModsRoot = 'C:\Games\Modding\Nucleus\mods',
+	[switch]$RenderDoc
 )
 
 $ErrorActionPreference = 'Stop'
@@ -52,7 +56,8 @@ if ($PSCmdlet.ShouldProcess($modPath, "build, install and deploy with $Toml")) {
 	New-Item -ItemType Directory -Force (Join-Path $modPath $plugin) | Out-Null
 	# Force the dev tools on so every deployed build can be inspected.
 	$settings = Get-Content -LiteralPath $Toml -Raw
-	foreach ($tool in 'RenderDoc', 'RemoteControl', 'CSEditor') {
+	$tools = @('RemoteControl', 'CSEditor') + ($RenderDoc ? @('RenderDoc') : @())
+	foreach ($tool in $tools) {
 		$section = "(?ms)^\[features\.$tool\][ \t]*\r?\n(?:(?!^\[).)*?^[ \t]*#?[ \t]*load[ \t]*=[ \t]*\w+[^\r\n]*"
 		if ($settings -match "(?m)^\[features\.$tool\][ \t]*\r?$") {
 			if ($settings -match $section) {

@@ -1,17 +1,44 @@
 #pragma once
 
+#include "Render/DirectionalShadowLightData.h"
 #include "Render/ShadowCascades.h"
 
+#include <cstddef>
 #include <cstdint>
 
 struct ID3D11ShaderResourceView;
 
 namespace cs::engine
 {
-	// Sun cascade light block (t98); zeroed before each DeferredLightsImpl.
+	// Sun cascade light blocks, one per consumer layout, filled from one snapshot;
+	// zeroed before each DeferredLightsImpl.
 
-	// Call in Load or OnPostPostLoad; idle until a consumer acquires.
-	[[nodiscard]] bool AcquireSunShadowLights();
+	// Type-erased DirectionalShadowLightData<N>; use the templates below.
+	struct SunShadowLightLayout
+	{
+		std::size_t cascades;
+		std::size_t stride;
+		bool (*build)(const SunCascadeSnapshot&, void*) noexcept;
+	};
+
+	template <std::size_t N>
+	inline constexpr SunShadowLightLayout kSunShadowLightLayout{
+		N, sizeof(DirectionalShadowLightData<N>),
+		[](const SunCascadeSnapshot& a_snapshot, void* a_out) noexcept {
+			return BuildDirectionalShadowLightData<N>(a_snapshot, *static_cast<DirectionalShadowLightData<N>*>(a_out));
+		}
+	};
+
+	[[nodiscard]] bool AcquireSunShadowLights(const SunShadowLightLayout& a_layout);
+	[[nodiscard]] ID3D11ShaderResourceView* GetSunShadowLightsSRV(const SunShadowLightLayout& a_layout) noexcept;
+
+	// Call in Load or OnPostPostLoad; idle until a consumer acquires. Buffers exist
+	// only for acquired layouts.
+	template <std::size_t N>
+	[[nodiscard]] bool AcquireSunShadowLights()
+	{
+		return AcquireSunShadowLights(kSunShadowLightLayout<N>);
+	}
 
 	struct SunShadowLightState
 	{
@@ -25,6 +52,10 @@ namespace cs::engine
 	// Render thread.
 	[[nodiscard]] const SunShadowLightState& GetSunShadowLightState() noexcept;
 
-	// Zeroed while unpublished; null before D3D is ready.
-	[[nodiscard]] ID3D11ShaderResourceView* GetSunShadowLightsSRV() noexcept;
+	// Zeroed while unpublished; null before D3D is ready or when not acquired.
+	template <std::size_t N>
+	[[nodiscard]] ID3D11ShaderResourceView* GetSunShadowLightsSRV() noexcept
+	{
+		return GetSunShadowLightsSRV(kSunShadowLightLayout<N>);
+	}
 }

@@ -33,16 +33,29 @@ namespace
 	}
 
 	// Mirrors the upstream shader's blend factor.
-	float CascadeSelect(const DirectionalShadowLightData& a_data, float a_depth)
+	float CascadeSelect(const DirectionalShadowLightData<2>& a_data, float a_depth)
 	{
 		const float t = (a_depth - a_data.StartSplitDistances.y) /
 		                (a_data.EndSplitDistances.x - a_data.StartSplitDistances.y);
 		return std::fmin(std::fmax(t, 0.0f), 1.0f);
 	}
 
+	// Mirrors UpdateProbesCS cascade selection; N means lit past the last end.
+	template <std::size_t N, typename Splits>
+	std::size_t ProbeCascade(const Splits& a_end, float a_depth)
+	{
+		const float* ends = &a_end.x;
+		if (a_depth >= ends[N - 1])
+			return N;
+		std::size_t index = 0;
+		for (std::size_t i = 0; i + 1 < N; ++i)
+			index += a_depth > ends[i] ? 1 : 0;
+		return index;
+	}
+
 	void TestTwoCascadesBlendAroundSplit()
 	{
-		DirectionalShadowLightData data;
+		DirectionalShadowLightData<2> data;
 		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(2, 512.0f), data));
 		CHECK(data.StartSplitDistances.y == 288.0f);
 		CHECK(data.EndSplitDistances.x == 1312.0f);
@@ -54,27 +67,47 @@ namespace
 
 	void TestZeroOverlapKeepsBandFinite()
 	{
-		DirectionalShadowLightData data;
+		DirectionalShadowLightData<2> data;
 		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(2, 0.0f), data));
 		CHECK(data.EndSplitDistances.x > data.StartSplitDistances.y);
 		CHECK(std::isfinite(CascadeSelect(data, 800.0f)));
 	}
 
-	void TestSingleCascadeNeverSelectsSecond()
+	void TestSingleCascadeNeverSelectsMissingSlice()
 	{
-		DirectionalShadowLightData data;
-		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(1, 512.0f), data));
-		CHECK(data.EndSplitDistances.y == 1312.0f);
-		CHECK(CascadeSelect(data, 1311.0f) == 0.0f);
-		CHECK(std::memcmp(&data.ShadowProj[0], &data.ShadowProj[1], sizeof(data.ShadowProj[0])) == 0);
+		DirectionalShadowLightData<2> two;
+		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(1, 512.0f), two));
+		CHECK(two.EndSplitDistances.y == 1312.0f);
+		CHECK(CascadeSelect(two, 1311.0f) == 0.0f);
+		CHECK(std::memcmp(&two.ShadowProj[0], &two.ShadowProj[1], sizeof(two.ShadowProj[0])) == 0);
+
+		DirectionalShadowLightData<3> three;
+		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(1, 512.0f), three));
+		CHECK(ProbeCascade<3>(three.EndSplitDistances, 1311.0f) == 0);
+		CHECK(ProbeCascade<3>(three.EndSplitDistances, 1312.0f) == 3);
+	}
+
+	void TestTwoLiveCascadesNeverSelectSlotTwo()
+	{
+		DirectionalShadowLightData<3> data;
+		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(2, 512.0f), data));
+		CHECK(data.EndSplitDistances.x == 1312.0f);
+		CHECK(data.EndSplitDistances.y == 6656.0f);
+		CHECK(data.EndSplitDistances.z == 6656.0f);
+		CHECK(data.EndSplitDistances.w == 6656.0f);
+		CHECK(ProbeCascade<3>(data.EndSplitDistances, 2000.0f) == 1);
+		CHECK(ProbeCascade<3>(data.EndSplitDistances, 6655.0f) == 1);
+		CHECK(ProbeCascade<3>(data.EndSplitDistances, 6656.0f) == 3);
 	}
 
 	void TestSingularMatrixIsRejected()
 	{
 		auto snapshot = MakeSnapshot(2, 512.0f);
 		snapshot.worldToShadow[1] = {};
-		DirectionalShadowLightData data;
-		CHECK(!BuildDirectionalShadowLightData(snapshot, data));
+		DirectionalShadowLightData<2> two;
+		DirectionalShadowLightData<3> three;
+		CHECK(!BuildDirectionalShadowLightData(snapshot, two));
+		CHECK(!BuildDirectionalShadowLightData(snapshot, three));
 	}
 }
 
@@ -82,7 +115,8 @@ int main()
 {
 	TestTwoCascadesBlendAroundSplit();
 	TestZeroOverlapKeepsBandFinite();
-	TestSingleCascadeNeverSelectsSecond();
+	TestSingleCascadeNeverSelectsMissingSlice();
+	TestTwoLiveCascadesNeverSelectSlotTwo();
 	TestSingularMatrixIsRejected();
 	return failures == 0 ? 0 : 1;
 }

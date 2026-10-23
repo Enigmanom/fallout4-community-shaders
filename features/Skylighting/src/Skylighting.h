@@ -119,7 +119,7 @@ namespace cs::features
 		// After the sun's Render(7); copies the cascades the shared block describes.
 		void CopySunCascades();
 		CascadeSkip PublishSunCascades(ID3D11DeviceContext* a_context);
-		bool EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source);
+		bool EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source, std::uint32_t a_count);
 		void RenderDebug(ID3D11DeviceContext* a_context);
 		// Healthy with probes created, whether or not the feature is enabled.
 		ID3D11ShaderResourceView* GetBindableProbeArraySRV() const noexcept;
@@ -163,8 +163,6 @@ namespace cs::features
 		D3D11_TEXTURE2D_DESC _cascadeDesc{};
 		// Render thread only: light data generation the copy was taken for; 0 is none.
 		std::uint64_t _copyGeneration = 0;
-		// The probe shader and light block fix the cascade count at two.
-		static constexpr std::uint32_t kCopiedCascades = 2;
 		std::atomic_bool _probesReady{ false };
 
 		std::array<winrt::com_ptr<ID3D11ComputeShader>, 2> _debugCompute;
