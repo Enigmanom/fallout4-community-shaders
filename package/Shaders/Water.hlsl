@@ -471,11 +471,11 @@ float3 surfaceColor(
 		if (SharedData::InInterior) {
 			dynamicCubemap = DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz;
 		} else {
-			float3 specularIrradiance = 1.0;
+			float3 specularIrradiance = 0.0;
 			if (skylightingSpecular < 1.0)
 				specularIrradiance = DynamicCubemaps::EnvTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz;
 
-			float3 specularIrradianceReflections = 1.0;
+			float3 specularIrradianceReflections = 0.0;
 			if (skylightingSpecular > 0.0)
 				specularIrradianceReflections = DynamicCubemaps::EnvReflectionsTexture.SampleLevel(sampler3, reflectionDirection, 0).xyz;
 
@@ -484,7 +484,7 @@ float3 surfaceColor(
 
 		float reflectionAmount = saturate(cameraDistance / 1024.0);
 
-		if (SharedData::HideSky)
+		if (SharedData::HideSky || SharedData::InInterior)
 			reflectionAmount = 0.0;
 
 		float3 debugColor;
