@@ -1,6 +1,7 @@
 #include "Render/LightingRenderPasses.h"
 
 #include "Log.h"
+#include "Render/HookRegistry.h"
 
 #include <algorithm>
 #include <vector>
@@ -28,8 +29,7 @@ namespace cs::engine
 		template <class Callback>
 		void Insert(std::vector<Entry<Callback>>& a_entries, Callback a_callback, HookPriority a_priority)
 		{
-			a_entries.push_back({ a_priority, a_callback });
-			std::ranges::stable_sort(a_entries, {}, [](const auto& a_entry) { return static_cast<int>(a_entry.priority); });
+			InsertByPriority(a_entries, Entry<Callback>{ a_priority, a_callback });
 		}
 
 		struct BSLightingShaderProperty_GetRenderPasses

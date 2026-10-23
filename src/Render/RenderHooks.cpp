@@ -5,6 +5,7 @@
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
 #include "Render/FrameProfiler.h"
+#include "Render/HookRegistry.h"
 #include "Render/ShaderInjection.h"
 
 #include <algorithm>
@@ -91,11 +92,7 @@ namespace cs::engine
 
 		void InsertPrioritized(std::vector<PrioritizedCallback>& v, RenderHookCallback&& cb, HookPriority p)
 		{
-			v.push_back({ p, std::move(cb) });
-			std::stable_sort(v.begin(), v.end(),
-				[](const PrioritizedCallback& a, const PrioritizedCallback& b) {
-					return static_cast<int>(a.priority) < static_cast<int>(b.priority);
-				});
+			InsertByPriority(v, PrioritizedCallback{ p, std::move(cb) });
 		}
 
 		void Dispatch(const std::vector<PrioritizedCallback>& v)
@@ -159,7 +156,7 @@ namespace cs::engine
 			const std::vector<PrioritizedCallback>& _callbacks;
 		};
 
-		// Profiled passes are disjoint, so nested callbacks pause the segment around their own timing.
+		// Passes are disjoint, so nested callbacks pause this segment.
 		class ProfiledSegment
 		{
 		public:
@@ -354,7 +351,7 @@ namespace cs::engine
 			static inline std::atomic<Callback> original{ nullptr };
 		};
 
-		// The world accumulator renders batch 4 here; the first-person call is left alone.
+		// World accumulator batch 4; the first-person call is left alone.
 		struct WorldPrepassBatches_Hook
 		{
 			static void thunk(RE::BSShaderAccumulator* a_accumulator, std::int32_t a_shaderType, bool a_alpha, std::int32_t a_group)
@@ -367,7 +364,7 @@ namespace cs::engine
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// Sole caller of RenderPassImpl: every bucket without a command buffer lands here.
+		// Sole RenderPassImpl caller: every command-buffer-less bucket.
 		struct PrepassBucket_Hook
 		{
 			static bool thunk(RE::BSBatchRenderer* a_renderer, RE::BSRenderPass* a_head, std::uint32_t a_technique, bool a_alpha)
@@ -669,8 +666,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("WorldPrepassHold") || !EnsurePrepassHoldInstalled())
 			return false;
-		g_prepassHolds.push_back({ a_priority, a_predicate, std::move(a_replay), {} });
-		std::ranges::stable_sort(g_prepassHolds, {}, [](const PrepassHold& a_hold) { return static_cast<int>(a_hold.priority); });
+		InsertByPriority(g_prepassHolds, PrepassHold{ a_priority, a_predicate, std::move(a_replay), {} });
 		return true;
 	}
 
