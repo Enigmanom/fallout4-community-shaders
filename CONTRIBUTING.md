@@ -89,9 +89,7 @@ CI runs `scripts\format.ps1 -Check` on C++ and HLSL. Run
 `CHANGELOG.md` is the only maintained release history. It feeds the in-game
 **General > Changelog** page and stable release notes. Keep versions newest first,
 using only the `# Changelog` title, `## MAJOR.MINOR.PATCH` headings, single-line
-`- ` bullets, and blank lines. Add new entries under `## Unreleased` at the top;
-the release commit renames it to `## MAJOR.MINOR.PATCH` (`scripts\publish-release.sh`
-requires the version heading). Builds embed the file directly in the DLL.
+`- ` bullets, and blank lines. Builds embed the file directly in the DLL.
 
 ## Install or deploy
 

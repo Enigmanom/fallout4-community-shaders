@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Skylighting: fixed a bright patch around the player with 3 shadow cascades (`iDirShadowSplits=3`, the High/Ultra default).
 
