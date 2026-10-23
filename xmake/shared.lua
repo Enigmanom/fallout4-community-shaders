@@ -91,12 +91,7 @@ function main(target)
         assert(extension == ".h" or extension == ".hpp" or extension == ".cpp",
             "unsupported shared C++ entry: " .. entry)
         if target then
-            if entry == "src/Features/PerformanceOverlay/ABTesting/ABTestAggregator.cpp" then
-                -- FO4: scope the upstream size_t-to-float mean warning to this unchanged source.
-                target:add("files", source, { cxxflags = { "/wd4267" } })
-            else
-                target:add(extension == ".cpp" and "files" or "headerfiles", source)
-            end
+            target:add(extension == ".cpp" and "files" or "headerfiles", source)
         end
     end
     for _, entry in ipairs(shared.licenses) do
