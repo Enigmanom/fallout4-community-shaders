@@ -7,4 +7,13 @@ namespace cs::env
 
 	// Cached result of DetectENB. False before DetectENB has run.
 	bool IsENBLoaded() noexcept;
+
+	// One-shot scan of Data/F4SE/Plugins; same call contract as DetectENB.
+	void DetectPluginConflicts();
+
+	// True when DetectPluginConflicts found anything; CS must then stay inert.
+	bool IsBlocked() noexcept;
+
+	// Shows one message box per conflict. Call once game data is ready.
+	void ShowBlockingErrors();
 }
