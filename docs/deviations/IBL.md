@@ -5,7 +5,6 @@
 | Divergence | Always on | Defaults off | |
 | Divergence | Consumers `#undef` `IBL` without `DYNAMIC_CUBEMAPS` | `Load` fails unless Dynamic Cubemaps is loaded | Effect and DistantTree are not DC targets |
 | Forced | Sky SH from the reflections cube, rendered every frame | Host `SkyReflectionCube` ([Dynamic Cubemaps](DynamicCubemaps.md)), rendered only while IBL asks; a stale or interior cube clears the sky SH to zero | Vanilla FO4 never writes the engine cube |
-| Forced | Disabled scenes: main/loading menu, map menu, `Util::IsInterior` | `MainMenu`/`LoadingMenu` and `engine::IsInterior()` | FO4 interior test; see [README](README.md) |
 | Forced | Lighting replaces `directionalAmbientColor`, then Skylighting scales it | Replaces the vanilla diffuse ambient in DFLight and the tiled pass before the Skylighting scale; reflection-direction ambient keeps only the Skylighting scale | Deferred ambient is a separate linear DALC addend |
 | Forced | SSGI recompose uses `Masks.z` luminance | Luminance from a replay of the lighting ambient (ambient times albedo) | FO4 has no `Masks.z` |
 | Forced | Specular IBL in `DeferredCompositeCS`: `reflectance * (envSpecular + skySpecular)` | Evaluated at every composite probe site for all `DALCMode` values; radiance terms are divided by the native surface light sum so the native product restores them; mode 2/3 uses that sum as DALC brightness; `ReflectionNormalisationScale` is unused | The native composite multiplies the probe by surface light and has no reflectance channel |

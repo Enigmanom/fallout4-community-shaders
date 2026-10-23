@@ -163,9 +163,7 @@ namespace cs::features
 
 	bool ImageBasedLighting::IsSceneDisabled(const Settings& a_settings)
 	{
-		const bool inLoadingScreen = a_settings.DisableInLoadingScreen && engine::IsMainOrLoadingMenuOpen();
-		const bool inInterior = a_settings.DisableInInteriors && engine::IsInterior();
-		return inLoadingScreen || inInterior;
+		return a_settings.DisableInLoadingScreen && engine::IsMainOrLoadingMenuOpen();
 	}
 
 	const ImageBasedLighting::FrameState& ImageBasedLighting::EvaluateFrame()
@@ -316,7 +314,6 @@ namespace cs::features
 		};
 
 		if (const ui::Section section{ "ibl-general", "General" }; section) {
-			toggle("Disable in interiors", _settings.DisableInInteriors, "Disables IBL in interior cells.");
 			toggle("Disable in loading screens", _settings.DisableInLoadingScreen,
 				"Disables IBL during loading screens and the main menu.");
 		}

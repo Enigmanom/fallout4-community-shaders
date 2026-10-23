@@ -22,7 +22,6 @@ namespace cs::features::image_based_lighting
 		float FogAmount = 0.0f;
 		// 0: Luminance Ratio, 1: Color Ratio, 2: DALC + Sky, 3: DALC + Sky (Directional)
 		std::uint32_t DALCMode = 2;
-		bool DisableInInteriors = true;
 		bool DisableInLoadingScreen = true;
 	};
 
@@ -41,7 +40,6 @@ namespace cs::features::image_based_lighting
 			settings::Field{ "DALCMode", "DALC Mode", &Settings::DALCMode, settings::Range{ 0u, 3u } },
 			settings::Field{ "FogAmount", "Fog Mix", &Settings::FogAmount, settings::Range{ 0.0f, 1.0f } },
 			settings::Field{ "PreserveFogLuminance", "Preserve Fog Luminance", &Settings::PreserveFogLuminance },
-			settings::Field{ "DisableInInteriors", "Disable in interiors", &Settings::DisableInInteriors },
 			settings::Field{ "DisableInLoadingScreen", "Disable in loading screens", &Settings::DisableInLoadingScreen } }
 	};
 
