@@ -1,6 +1,5 @@
 #pragma once
 
-#include "RE/B/BSShaderProperty.h"
 #include "Render/RenderHooks.h"
 
 #include <cstdint>
@@ -24,11 +23,7 @@ namespace cs::engine
 
 	// Runs before the engine builds or reuses the property's pass list.
 	using PreLightingRenderPassesCallback = void (*)(const LightingRenderPassesCall&) noexcept;
-	// Runs after it, with the list the accumulator is about to register.
-	using PostLightingRenderPassesCallback =
-		void (*)(const LightingRenderPassesCall&, RE::BSShaderProperty::RenderPassArray*) noexcept;
 
 	// Register in Load/OnPostPostLoad; callbacks run on accumulation threads.
 	bool RegisterPreLightingRenderPasses(PreLightingRenderPassesCallback a_callback, HookPriority a_priority = HookPriority::Default);
-	bool RegisterPostLightingRenderPasses(PostLightingRenderPassesCallback a_callback, HookPriority a_priority = HookPriority::Default);
 }

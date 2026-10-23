@@ -3,6 +3,8 @@
 #include "Log.h"
 #include "Render/HookRegistry.h"
 
+#include "RE/B/BSShaderProperty.h"
+
 #include <algorithm>
 #include <vector>
 
@@ -23,7 +25,6 @@ namespace cs::engine
 		};
 
 		std::vector<Entry<PreLightingRenderPassesCallback>> g_pre;
-		std::vector<Entry<PostLightingRenderPassesCallback>> g_post;
 		bool g_installed = false;
 
 		struct BSLightingShaderProperty_GetRenderPasses
@@ -37,10 +38,7 @@ namespace cs::engine
 				const LightingRenderPassesCall call{ a_property, a_geometry, a_renderMode, a_accumulator };
 				for (const auto& entry : g_pre)
 					entry.callback(call);
-				auto* passes = func(a_property, a_geometry, a_renderMode, a_accumulator);
-				for (const auto& entry : g_post)
-					entry.callback(call, passes);
-				return passes;
+				return func(a_property, a_geometry, a_renderMode, a_accumulator);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -67,14 +65,6 @@ namespace cs::engine
 		if (!RenderHookRegistrationAllowed("PreLightingRenderPasses") || !EnsureInstalled())
 			return false;
 		InsertByPriority(g_pre, Entry<PreLightingRenderPassesCallback>{ a_priority, a_callback });
-		return true;
-	}
-
-	bool RegisterPostLightingRenderPasses(PostLightingRenderPassesCallback a_callback, HookPriority a_priority)
-	{
-		if (!RenderHookRegistrationAllowed("PostLightingRenderPasses") || !EnsureInstalled())
-			return false;
-		InsertByPriority(g_post, Entry<PostLightingRenderPassesCallback>{ a_priority, a_callback });
 		return true;
 	}
 }
