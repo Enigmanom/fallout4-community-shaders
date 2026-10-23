@@ -1,7 +1,7 @@
 #ifndef FO4_INVERSE_SQUARE_LIGHTING_CONSUMER_HLSLI
 #define FO4_INVERSE_SQUARE_LIGHTING_CONSUMER_HLSLI
 
-#include "Common/Color.hlsli"
+#include "Common/ColorManagement.hlsli"
 #include "LightLimitFix/Attenuation.hlsli"
 
 namespace FO4InverseSquareLighting
@@ -24,10 +24,12 @@ namespace FO4InverseSquareLighting
 			return 0.0;
 		if ((data.lightFlags & LightLimitFix::LightFlags::InverseSquare) == 0)
 			return nativeColor;
+		// FO4: upstream decodes on the CPU; FO4 local-light color keeps native power 2.2.
+		float3 color = (data.lightFlags & LightLimitFix::LightFlags::Linear) != 0 ?
+		                   data.color :
+		                   TransferFunctions::Gamma22ToLinear(data.color);
 		// FO4: native local BRDF lacks upstream's Lambert 1/pi, so apply it where ISL radiance enters.
-		return Color::PointLight(data.color,
-				   (data.lightFlags & LightLimitFix::LightFlags::Linear) != 0) *
-		       data.fade * Color::VanillaNormalization();
+		return Color::PointLight(color) * data.fade * Color::BRDFScale;
 	}
 
 	float GetAttenuation(PerLightData data, float distance, float nativeAttenuation)

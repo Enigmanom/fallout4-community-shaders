@@ -16,10 +16,12 @@ namespace SharedData
 #	include "FO4/FO4SharedData.hlsli"
 namespace FO4SharedData
 {
-	// Upstream GetAmbient is pre-power. FO4 native lighting consumers expect linear colour.
+	// FO4: replay vanilla pow(dot(row, (N, 1)), 2.2) exactly, not the linear SH.
 	float3 GetAmbientLinear(float3 normalWS)
 	{
-		return pow(max(0.0, SharedData::GetAmbient(normalWS)), 2.2);
+		float4 normal = float4(normalWS, 1.0);
+		float3 ambient = float3(dot(DirectionalAmbient[0], normal), dot(DirectionalAmbient[1], normal), dot(DirectionalAmbient[2], normal));
+		return pow(max(0.0, ambient), 2.2);
 	}
 }
 #endif

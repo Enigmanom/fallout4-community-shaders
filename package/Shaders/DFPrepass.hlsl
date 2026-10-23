@@ -688,8 +688,7 @@ struct PS_OUTPUT
 		StochasticOffsets meshOffset = (StochasticOffsets)0;
 		[branch] if (applyMeshTV)
 		{
-			g_terrainStochasticLodBase = ComputeTerrainStochasticLodBase(uv);
-			meshOffset = ComputeStochasticOffsetsMesh(uv);
+			meshOffset = ComputeStochasticOffsetsMesh(uv, input.position.xy);
 		}
 #		define MESH_TV_SAMPLE(DEST, TEX, SAMP, UV)                 \
 			float4 DEST;                                            \
@@ -806,7 +805,7 @@ struct PS_OUTPUT
 		// FO4: lodAlbedoUV is layerUV/48, Skyrim's zw is /96.
 		StochasticOffsets sharedOffset = (StochasticOffsets)0;
 		[branch] if (FO4SharedData::EnabledTerrainVariation != 0)
-			sharedOffset = ComputeStochasticOffsets(input.lodAlbedoUV * 0.5);
+			sharedOffset = ComputeStochasticOffsets(input.lodAlbedoUV * 0.5, input.position.xy);
 #		elif defined(EMAT_LANDSCAPE)
 		StochasticOffsets sharedOffset = (StochasticOffsets)0;
 #		endif
@@ -871,8 +870,6 @@ struct PS_OUTPUT
 		}
 #		endif
 #		if defined(TERRAIN_VARIATION) && !INSTANCED
-		[branch] if (FO4SharedData::EnabledTerrainVariation != 0)
-			g_terrainStochasticLodBase = ComputeTerrainStochasticLodBase(uv);
 #			define SampleTerrain(TEX, SAMP, UV, OFFSET) SampleTerrainVariation(TEX, SAMP, UV, OFFSET)
 #		else
 #			define SampleTerrain(TEX, SAMP, UV, OFFSET) TEX.Sample(SAMP, UV)
@@ -925,7 +922,12 @@ struct PS_OUTPUT
 		[branch] if (FO4SharedData::EnabledTerrainVariation == 0)
 			landLodAlbedo = g_tLandLodAlbedo.Sample(g_sLandLodAlbedo, input.lodAlbedoUV).xyz;
 		else[branch] if (SharedData::terrainVariationSettings.enableLODTerrainTilingFix)
-			landLodAlbedo = StochasticSampleLOD(screenNoise, g_tLandLodAlbedo, g_sLandLodAlbedo, input.lodAlbedoUV).xyz;
+		{
+			// FO4: prepass albedo is raw, so the DiffuseToWorking result is unused.
+			float4 sampledLodLandColor;
+			StochasticSampleLOD(screenNoise, g_tLandLodAlbedo, g_sLandLodAlbedo, input.lodAlbedoUV, sampledLodLandColor);
+			landLodAlbedo = sampledLodLandColor.xyz;
+		}
 		else landLodAlbedo = g_tLandLodAlbedo.SampleBias(g_sLandLodAlbedo, input.lodAlbedoUV, SharedData::MipBias).xyz;
 #			else
 		float3 landLodAlbedo = g_tLandLodAlbedo.Sample(
@@ -981,11 +983,12 @@ struct PS_OUTPUT
 #	if defined(LOD_BLENDING)
 #		if LOD_LANDSCAPE && !BONE_TINTING
 #			if defined(TERRAIN_VARIATION)
-		// FO4: prepass albedo is raw, so Color::Diffuse is omitted.
+		// FO4: prepass albedo is raw, so the DiffuseToWorking result is unused.
 		[branch] if (FO4SharedData::EnabledTerrainVariation != 0 && SharedData::terrainVariationSettings.enableLODTerrainTilingFix)
 		{
-			float4 lodStochasticColor = StochasticSampleLOD(screenNoise, g_tAlbedo, g_sAlbedo, uv);
-			albedoSample.xyz = lodStochasticColor.rgb;
+			float4 sampledLodColor;
+			StochasticSampleLOD(screenNoise, g_tAlbedo, g_sAlbedo, uv, sampledLodColor);
+			albedoSample.xyz = sampledLodColor.rgb;
 		}
 #			endif
 		// FO4: maps Skyrim's LODLANDSCAPE onto the prepass LOD terrain variant.

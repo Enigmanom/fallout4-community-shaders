@@ -33,6 +33,8 @@ namespace cs::render
 		std::uint32_t EnableLightsVisualisation, LightsVisualisationMode;
 		float pad0[2];
 		std::uint32_t ClusterSize[4];
+		std::uint32_t EnableLocalShadows, LocalShadowSamples;
+		float LocalShadowFilterRadius, LocalShadowTexelSize;
 	};
 	struct WetnessEffectsSettings
 	{
@@ -88,8 +90,8 @@ namespace cs::render
 	{
 		std::uint32_t EnableIBL, PreserveFogLuminance, UseStaticIBL;
 		float DALCAmount, EnvIBLScale, SkyIBLScale, EnvIBLSaturation, SkyIBLSaturation, FogAmount;
-		std::uint32_t DALCMode;
-		float pad0, pad1;
+		std::uint32_t DALCMode, ENBSkyFalloff;
+		float pad0;
 	};
 	struct ExtendedTranslucencySettings
 	{
@@ -98,20 +100,17 @@ namespace cs::render
 	};
 	struct LinearLightingSettings
 	{
-		std::uint32_t enableLinearLighting, isDirLightLinear;
-		float dirLightMult, lightGamma, colorGamma, emitColorGamma, glowmapGamma, ambientGamma;
-		float fogGamma, fogAlphaGamma, effectGamma, effectAlphaGamma, skyGamma, waterGamma;
-		float vlGamma, vanillaDiffuseColorMult, directionalLightMult, pointLightMult, ambientMult;
-		float emitColorMult, glowmapMult, effectLightingMult, membraneEffectMult, bloodEffectMult;
-		float projectedEffectMult, deferredEffectMult, otherEffectMult;
-		std::uint32_t pad0;
+		std::uint32_t isMainOrLoadingMenu;
+		float diffuseGamma, directionalLightMult, pointLightMult, ambientMult, glowmapMult;
+		float effectLightingMult, membraneEffectMult, bloodEffectMult, projectedEffectMult;
+		float deferredEffectMult, otherEffectMult, particleEffectMult, lightSpriteEffectMult;
+		float fireEffectMult, fireEffectCurve, diffuseCurve, diffuseWhiteReflectance, pad[2];
 	};
 	struct ENBSettings
 	{
 		std::uint32_t Enable;
 		float ColorPow, LightSpriteIntensity, FireIntensity, FireCurve;
-		std::uint32_t EnableRain;
-		float RainMotionStretch, RainMotionTransparency, CloudsCurve, CloudsDesaturation;
+		float pad0[3], CloudsCurve, CloudsDesaturation;
 		float CloudsEdgeIntensity, CloudsEdgeMoonMultiplier;
 		std::uint32_t EnableProceduralSun;
 		float ProceduralSunDiskRadiusSq, ProceduralSunDiskEdgeScale, ProceduralSunGlowIntensity;
@@ -120,7 +119,7 @@ namespace cs::render
 		float ProceduralGradientWeightCurve, LightSpriteCurve, pad1[3];
 		float ParticleIntensity, ParticleLightingInfluence, ParticleAmbientInfluence, ParticlePointLightingInfluence;
 		std::uint32_t EnableVolumetricRays;
-		float VolumetricRaysIntensity, VolumetricRaysExtinction, VolumetricRaysSkyColorAmount;
+		float VolumetricRaysIntensity, VolumetricRaysDensity, VolumetricRaysSkyColorAmount;
 		float VolumetricRaysDesaturation, VolumetricRaysColorFilter[3];
 		// Effects11 blocks; FO4 has no Effects11, so they stay zero.
 		std::uint32_t EnableCloudsScattering;
@@ -146,6 +145,13 @@ namespace cs::render
 		float AuroraCurve;
 		std::uint32_t FixBlackCrush;
 		float NightSkyPad0[2];
+		float VolumetricFogColorFilter[3], VolumetricFogIntensity;
+		float VolumetricFogCurve, VolumetricFogOpacity, VolumetricFogShadowAmount;
+		std::uint32_t VolumetricFogEnableLighting;
+		float VolumetricRaysSkyColor[3];
+		std::uint32_t VolumetricFogEnableShadows, VolumetricRaysSampleCount, GameVolumetricRaysDisableDithering;
+		float GameVolumetricRaysPad0[2], GameVolumetricRaysLightScale[3], GameVolumetricRaysCustomContribution;
+		float GameVolumetricRaysCustomColor[3], GameVolumetricRaysPad1;
 	};
 	struct TerrainBlendingSettings
 	{
@@ -191,6 +197,11 @@ namespace cs::render
 	{
 		float farWaterDistance, pad[3];
 	};
+	struct RainRefractionSettings
+	{
+		std::uint32_t Enable;
+		float MotionStretch, MotionTransparency, pad0;
+	};
 
 	struct alignas(16) SharedFeatureDataCB
 	{
@@ -214,6 +225,7 @@ namespace cs::render
 		TruePBRSettings truePBRSettings{};
 		SkinData skinData{};
 		HorizonFixSettings horizonFixSettings{};
+		RainRefractionSettings rainRefractionSettings{};
 	};
 #define CS_FEATURE_LAYOUT(member, offset, size)                     \
 	static_assert(offsetof(SharedFeatureDataCB, member) == offset); \
@@ -222,22 +234,23 @@ namespace cs::render
 	CS_FEATURE_LAYOUT(extendedMaterialSettings, 32, 32);
 	CS_FEATURE_LAYOUT(cubemapCreatorSettings, 64, 32);
 	CS_FEATURE_LAYOUT(terraOccSettings, 96, 48);
-	CS_FEATURE_LAYOUT(lightLimitFixSettings, 144, 32);
-	CS_FEATURE_LAYOUT(wetnessEffectsSettings, 176, 192);
-	CS_FEATURE_LAYOUT(skylightingSettings, 368, 144);
-	CS_FEATURE_LAYOUT(cloudShadowsSettings, 512, 16);
-	CS_FEATURE_LAYOUT(lodBlendingSettings, 528, 32);
-	CS_FEATURE_LAYOUT(hairSpecularSettings, 560, 80);
-	CS_FEATURE_LAYOUT(terrainVariationSettings, 640, 16);
-	CS_FEATURE_LAYOUT(iblSettings, 656, 48);
-	CS_FEATURE_LAYOUT(extendedTranslucencySettings, 704, 16);
-	CS_FEATURE_LAYOUT(linearLightingSettings, 720, 112);
-	CS_FEATURE_LAYOUT(enbSettings, 832, 416);
-	CS_FEATURE_LAYOUT(terrainBlendingSettings, 1248, 16);
-	CS_FEATURE_LAYOUT(exponentialHeightFogSettings, 1264, 240);
-	CS_FEATURE_LAYOUT(truePBRSettings, 1504, 16);
-	CS_FEATURE_LAYOUT(skinData, 1520, 112);
-	CS_FEATURE_LAYOUT(horizonFixSettings, 1632, 16);
+	CS_FEATURE_LAYOUT(lightLimitFixSettings, 144, 48);
+	CS_FEATURE_LAYOUT(wetnessEffectsSettings, 192, 192);
+	CS_FEATURE_LAYOUT(skylightingSettings, 384, 144);
+	CS_FEATURE_LAYOUT(cloudShadowsSettings, 528, 16);
+	CS_FEATURE_LAYOUT(lodBlendingSettings, 544, 32);
+	CS_FEATURE_LAYOUT(hairSpecularSettings, 576, 80);
+	CS_FEATURE_LAYOUT(terrainVariationSettings, 656, 16);
+	CS_FEATURE_LAYOUT(iblSettings, 672, 48);
+	CS_FEATURE_LAYOUT(extendedTranslucencySettings, 720, 16);
+	CS_FEATURE_LAYOUT(linearLightingSettings, 736, 80);
+	CS_FEATURE_LAYOUT(enbSettings, 816, 512);
+	CS_FEATURE_LAYOUT(terrainBlendingSettings, 1328, 16);
+	CS_FEATURE_LAYOUT(exponentialHeightFogSettings, 1344, 240);
+	CS_FEATURE_LAYOUT(truePBRSettings, 1584, 16);
+	CS_FEATURE_LAYOUT(skinData, 1600, 112);
+	CS_FEATURE_LAYOUT(horizonFixSettings, 1712, 16);
+	CS_FEATURE_LAYOUT(rainRefractionSettings, 1728, 16);
 #undef CS_FEATURE_LAYOUT
-	static_assert(sizeof(SharedFeatureDataCB) == 1648);
+	static_assert(sizeof(SharedFeatureDataCB) == 1744);
 }

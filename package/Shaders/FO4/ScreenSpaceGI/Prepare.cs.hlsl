@@ -1,4 +1,4 @@
-#include "Common/Color.hlsli"
+#include "Common/ColorManagement.hlsli"
 #include "FO4/ScreenSpaceGI/Contracts.hlsli"
 #include "ScreenSpaceGI/common.hlsli"
 
@@ -38,6 +38,6 @@ RWTexture2D<float3> ShadedDiffuse : register(u1);
 	if (ScreenSpaceGI::Tiled)
 		diffuse += DiffuseTiled[pixel];
 	// FO4: encode native linear radiance only at the unchanged RadianceToLinear input boundary.
-	ShadedDiffuse[pixel] = Color::IrradianceToGamma(max(0, 3.0 * Albedo[pixel].rgb * diffuse + Emissive[pixel].rgb));
+	ShadedDiffuse[pixel] = ColorManagement::LinearToScene(max(0, 3.0 * Albedo[pixel].rgb * diffuse + Emissive[pixel].rgb));
 #endif
 }

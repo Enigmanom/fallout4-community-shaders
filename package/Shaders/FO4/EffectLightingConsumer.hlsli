@@ -41,7 +41,7 @@ namespace FO4EffectLighting
 		float3 viewPosition = FO4Forward::ViewPosition(screenPosition);
 		float3 worldPosition = FrameBuffer::ViewToWorld(viewPosition);
 
-		float3 color = dLightColor * Color::EffectLightingMult();
+		float3 color = dLightColor * Color::EffectLightingScale;
 		bool suppressExternalEmittance = SharedData::InInterior && (Permutation::ExtraShaderDescriptor & Permutation::ExtraFlags::SuppressExternalEmittance);
 		if (suppressExternalEmittance) {
 			color = ShadowSampling::GetAmbientLighting() + ShadowSampling::GetDirectionalLighting();
@@ -78,9 +78,7 @@ namespace FO4EffectLighting
 		if (!SharedData::iblSettings.EnableIBL)
 #			endif
 		{
-			ambientColor = Color::IrradianceToLinear(ambientColor);
-			ambientColor *= skylightingDiffuse;
-			ambientColor = Color::IrradianceToGamma(ambientColor);
+			ambientColor = ColorManagement::SceneColor::ScaleByLinear(ambientColor, skylightingDiffuse);
 		}
 #		endif
 

@@ -13,6 +13,7 @@
 #include "Render/SharedDataLayout.h"
 #include "Render/TemporalRenderer.h"
 #include "Utils/CSBuffer.h"
+#include "Utils/SphericalHarmonics.h"
 #include "World/Sky.h"
 #include "World/Water.h"
 
@@ -20,10 +21,12 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <d3d11.h>
 #include <exception>
 #include <mutex>
+#include <numbers>
 #include <stdexcept>
 #include <winrt/base.h>
 
@@ -78,9 +81,31 @@ namespace cs::render
 			return timer ? timer->realTimeDelta : 0.0f;
 		}
 
+		// Upstream projects linearized DALC axes; FO4 DALC decodes with power 2.2.
+		void PackLinearAmbient(const DirectX::XMFLOAT4 (&a_rows)[3], SharedDataCB& a_data)
+		{
+			float3 axes[6]{};
+			for (std::size_t channel = 0; channel < 3; ++channel) {
+				const auto& row = a_rows[channel];
+				const float terms[3]{ row.x, row.y, row.z };
+				for (std::size_t axis = 0; axis < 6; ++axis) {
+					const float term = axis % 2 == 0 ? terms[axis / 2] : -terms[axis / 2];
+					(&axes[axis].x)[channel] = std::pow((std::max)(row.w + term, 0.0f), 2.2f);
+				}
+			}
+			const auto sh = SphericalHarmonics::DALCToSH(axes);
+			const auto pack = [](const SphericalHarmonics::SH2& a_sh) {
+				return DirectX::XMFLOAT4{ a_sh.c0, a_sh.c1[0], a_sh.c1[1], a_sh.c1[2] };
+			};
+			a_data.AmbientSHR = pack(sh.r);
+			a_data.AmbientSHG = pack(sh.g);
+			a_data.AmbientSHB = pack(sh.b);
+		}
+
 		SharedDataCB BuildSharedData(
 			float a_timer,
-			const engine::WorldCameraRecord& a_camera)
+			const engine::WorldCameraRecord& a_camera,
+			FO4SharedDataCB& a_fo4)
 		{
 			SharedDataCB data{};
 			data.Timer = a_timer;
@@ -111,12 +136,8 @@ namespace cs::render
 			DirectX::XMFLOAT3 sunColor{};
 			if (engine::TryGetSunLightColor(sunColor))
 				data.DirLightColor = { sunColor.x, sunColor.y, sunColor.z, 1.0f };
-			DirectX::XMFLOAT4 ambient[3]{};
-			if (engine::TryGetDirectionalAmbientRows(ambient)) {
-				data.AmbientSHR = PackAmbientSH(ambient[0]);
-				data.AmbientSHG = PackAmbientSH(ambient[1]);
-				data.AmbientSHB = PackAmbientSH(ambient[2]);
-			}
+			if (engine::TryGetDirectionalAmbientRows(a_fo4.DirectionalAmbient))
+				PackLinearAmbient(a_fo4.DirectionalAmbient, data);
 			data.HideSky = engine::IsSkyHidden() ? 1u : 0u;
 
 			data.InInterior = engine::IsInterior() ? 1u : 0u;
@@ -128,35 +149,27 @@ namespace cs::render
 
 		void PackFeatures(SubstrateData& a_data, const FeatureDataCB& a_features)
 		{
-			// FO4 HDR and sun radiance are linear; DALC and local-light color keep native power 2.2.
+			// FO4 colors are linear: identity diffuse decode, no pi on sun radiance.
 			a_data.feature.linearLightingSettings = {
-				.enableLinearLighting = 1,
-				.isDirLightLinear = 1,
-				.dirLightMult = 1.0f,
-				.lightGamma = 2.2f,
-				.colorGamma = 1.0f,
-				.emitColorGamma = 1.0f,
-				.glowmapGamma = 1.0f,
-				.ambientGamma = 2.2f,
-				.fogGamma = 1.0f,
-				.fogAlphaGamma = 1.0f,
-				.effectGamma = 1.0f,
-				.effectAlphaGamma = 1.0f,
-				.skyGamma = 1.0f,
-				.waterGamma = 1.0f,
-				.vlGamma = 1.0f,
-				.vanillaDiffuseColorMult = 1.0f,
+				.isMainOrLoadingMenu = 0,
+				.diffuseGamma = 1.0f,
 				.directionalLightMult = 1.0f,
-				.pointLightMult = 1.0f,
+				// Upstream: legacy point-light colors are a white Lambert response.
+				.pointLightMult = std::numbers::pi_v<float>,
 				.ambientMult = 1.0f,
-				.emitColorMult = 1.0f,
 				.glowmapMult = 1.0f,
 				.effectLightingMult = 1.0f,
 				.membraneEffectMult = 1.0f,
 				.bloodEffectMult = 1.0f,
 				.projectedEffectMult = 1.0f,
 				.deferredEffectMult = 1.0f,
-				.otherEffectMult = 1.0f
+				.otherEffectMult = 1.0f,
+				.particleEffectMult = 1.0f,
+				.lightSpriteEffectMult = 1.0f,
+				.fireEffectMult = 1.0f,
+				.fireEffectCurve = 1.0f,
+				.diffuseCurve = 1.0f,
+				.diffuseWhiteReflectance = 1.0f
 			};
 			auto& fo4 = a_data.fo4;
 			fo4.EnabledSSR = a_features.dynamicCubemapsSettings.EnabledSSR;
@@ -250,7 +263,7 @@ namespace cs::render
 				}
 				const auto delta = GetRealTimeDelta();
 				const auto nextTimer = state.timer + delta;
-				data.shared = BuildSharedData(nextTimer, *camera);
+				data.shared = BuildSharedData(nextTimer, *camera, data.fo4);
 				const auto* manager = engine::GetRenderTargetManager();
 				// OG deferred, water and tiled-lighting shaders carry no dynamic-resolution constants.
 				const bool fullScale = REX::FModule::IsRuntimeOG();

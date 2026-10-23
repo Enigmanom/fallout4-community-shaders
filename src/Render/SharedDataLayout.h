@@ -9,11 +9,6 @@
 
 namespace cs::render
 {
-	[[nodiscard]] inline DirectX::XMFLOAT4 PackAmbientSH(const DirectX::XMFLOAT4& a_row) noexcept
-	{
-		return { a_row.w / 0.2820948f, -a_row.y / 0.4886025f, a_row.z / 0.4886025f, -a_row.x / 0.4886025f };
-	}
-
 	struct alignas(16) FrameDataCB
 	{
 		DirectX::XMFLOAT4X4 CameraView{}, CameraProj{}, CameraViewProj{};
@@ -57,7 +52,7 @@ namespace cs::render
 		std::uint32_t HasDirectionalShadows = 0, InMapMenu = 0, HideSky = 0;
 		float MipBias = 0.0f;
 		float WaterSystemHeight = -(std::numeric_limits<float>::max)();
-		float pad0[3]{};
+		std::uint32_t PostWaterComposite = 0, ResetHistory = 0, TonemapOwner = 0;
 		DirectX::XMFLOAT4 AmbientSHR{}, AmbientSHG{}, AmbientSHB{}, HDRData{};
 	};
 #define CS_SHARED_OFFSET(member, offset) static_assert(offsetof(SharedDataCB, member) == offset)
@@ -81,7 +76,9 @@ namespace cs::render
 	CS_SHARED_OFFSET(HideSky, 584);
 	CS_SHARED_OFFSET(MipBias, 588);
 	CS_SHARED_OFFSET(WaterSystemHeight, 592);
-	CS_SHARED_OFFSET(pad0, 596);
+	CS_SHARED_OFFSET(PostWaterComposite, 596);
+	CS_SHARED_OFFSET(ResetHistory, 600);
+	CS_SHARED_OFFSET(TonemapOwner, 604);
 	CS_SHARED_OFFSET(AmbientSHR, 608);
 	CS_SHARED_OFFSET(AmbientSHG, 624);
 	CS_SHARED_OFFSET(AmbientSHB, 640);
@@ -101,8 +98,10 @@ namespace cs::render
 		std::uint32_t EnabledSkylighting = 0, EnabledScreenSpaceGI = 0;
 		std::uint32_t EnabledUnifiedWater = 0;
 		std::uint32_t pad0 = 0;
+		// Engine DALC rows, so vanilla ambient replays exactly beside the linear SH.
+		DirectX::XMFLOAT4 DirectionalAmbient[3]{};
 	};
-	static_assert(sizeof(FO4SharedDataCB) == 64);
+	static_assert(sizeof(FO4SharedDataCB) == 112);
 	static_assert(offsetof(FO4SharedDataCB, DebugOwner) == 0);
 	static_assert(offsetof(FO4SharedDataCB, DebugMode) == 4);
 	static_assert(offsetof(FO4SharedDataCB, EnabledSSR) == 8);
@@ -116,6 +115,7 @@ namespace cs::render
 	static_assert(offsetof(FO4SharedDataCB, EnabledScreenSpaceGI) == 52);
 	static_assert(offsetof(FO4SharedDataCB, EnabledUnifiedWater) == 56);
 	static_assert(offsetof(FO4SharedDataCB, pad0) == 60);
+	static_assert(offsetof(FO4SharedDataCB, DirectionalAmbient) == 64);
 
 	[[nodiscard]] inline FrameDataCB PackFrameData(
 		const engine::WorldCameraRecord& a_camera, DirectX::XMFLOAT2 a_ratio,

@@ -18,9 +18,9 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 | Forced | World shading in forward `Lighting` passes | Deferred prepass, light, composite and tiled families (`DFPrepass`, `DFLight`, `DFComposite`, `DFTiledLighting`) host the consumers | FO4 world draws emit no forward BSLighting passes |
 | Forced | FrameBuffer at b12 | FrameBuffer binds at b4 | Reconstructed engine shaders own b12 |
 | Forced | Single perspective depth | One R32_FLOAT canonical world-projection depth at t17 | Native depth combines first-person and world projections |
-| Forced | Ambient SH is pre-power | FO4's 2.2 DALC power is applied once at linear consumer boundaries | Native lighting evaluates DALC with power 2.2 |
-| Forced | Color/gamma conversions | b6 publishes identity linear-lighting inputs | FO4 deferred HDR and sun inputs are already linear |
-| Divergence | b7 ISL block; zero `cubemapCreatorSettings` semantics | One FO4-only 64-byte b7 holds debug-view state, `DeltaTime` and per-feature enable flags; b6 `cubemapCreatorSettings` stays zero | Single-substrate ABI |
+| Forced | Ambient SH projects sRGB-decoded DALC axis colors | Axis colors decode with power 2.2; vanilla ambient replays from b7 DALC rows | Native lighting evaluates DALC with power 2.2 |
+| Forced | Linear Lighting is optional | Shaders always compile with `ENABLE_LL`; b6 publishes identity diffuse decode and no pi on sun radiance | FO4 deferred HDR and sun inputs are already linear |
+| Divergence | b7 ISL block; zero `cubemapCreatorSettings` semantics | One FO4-only 112-byte b7 holds debug-view state, `DeltaTime`, per-feature enable flags and DALC rows; b6 `cubemapCreatorSettings` stays zero | Single-substrate ABI |
 | Forced | `Util::IsInterior()`: interior cell, or `kNoSky`/`kFixedDimensions` worldspace | `engine::IsInterior()`: interior cell, `kNoSky`, or `Sky::mode != kFull`; shared by Skylighting, IBL, Dynamic Cubemaps | FO4 sets `kFixedDimensions` on open-sky worldspaces such as Diamond City |
 | Pending | FrameParams, celestial/HDR/map/shadow fields | Zero or absent | No FO4 source is consumed yet |
 | Divergence | Water refraction samples the offset texel | Shore blend falls back to the mask-accepted sample above the water plane | Stock reads the unmasked texel, fringing first-person hands and weapons into water |

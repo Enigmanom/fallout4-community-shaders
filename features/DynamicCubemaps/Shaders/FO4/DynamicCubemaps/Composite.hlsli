@@ -48,11 +48,11 @@ namespace DynamicCubemaps
 		if (SharedData::iblSettings.DALCMode >= 2) {
 			// Mode 2/3: DALC-normalized env scaled by DALCAmount + sky overlay
 			float envLum = Color::RGBToLuminance(EnvTexture.SampleLevel(probeSampler, direction, 15));
-			envNative = Color::IrradianceToLinear((envSample / max(envLum, 0.001)) * authored);
+			envNative = ColorManagement::SceneToLinear((envSample / max(envLum, 0.001)) * authored);
 			// FO4: native weighting multiplies an LDR authored pattern by surface light.
 			envNative /= max(1.0, max(envNative.r, max(envNative.g, envNative.b)));
 			envNative *= SharedData::iblSettings.DALCAmount;
-			skySpecular = Color::IrradianceToLinear(max(0, fullSample - envSample)) * SharedData::iblSettings.SkyIBLScale;
+			skySpecular = ColorManagement::SceneToLinear(max(0, fullSample - envSample)) * SharedData::iblSettings.SkyIBLScale;
 #	ifdef SKYLIGHTING
 			envNative *= (SharedData::iblSettings.DALCMode == 3) ? skylighting.visibility : 1.0;
 			skySpecular *= skylighting.specular;
@@ -60,8 +60,8 @@ namespace DynamicCubemaps
 		} else {
 			// Mode 0/1: IBL ratio-based
 			float3 ratio = ImageBasedLighting::GetIBLRatio();
-			envRadiance = Color::IrradianceToLinear(envSample * ratio) * SharedData::iblSettings.EnvIBLScale;
-			skySpecular = Color::IrradianceToLinear(max(0, fullSample - envSample)) * SharedData::iblSettings.SkyIBLScale;
+			envRadiance = ColorManagement::SceneToLinear(envSample * ratio) * SharedData::iblSettings.EnvIBLScale;
+			skySpecular = ColorManagement::SceneToLinear(max(0, fullSample - envSample)) * SharedData::iblSettings.SkyIBLScale;
 #	ifdef SKYLIGHTING
 			skySpecular *= skylighting.specular;
 #	endif

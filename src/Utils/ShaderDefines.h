@@ -32,6 +32,8 @@ namespace cs::util
 		defines.emplace_back("WINPC", "");
 		defines.emplace_back("DX11", "");
 		defines.emplace_back("FRAMEBUFFER_REGISTER", "b4");
+		// FO4 lighting is linear, so shared code takes its Linear Lighting paths.
+		defines.emplace_back("ENABLE_LL", "");
 		return defines;
 	}
 

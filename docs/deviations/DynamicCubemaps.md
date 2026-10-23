@@ -24,4 +24,4 @@
 ## Upstream bugs
 
 - `InferCubemapCS.hlsl`, `SpecularIrradianceCS.hlsl` `GetSamplingVector`: integer texel addressing hits cube edges instead of centers; add 0.5.
-- `CaptureCommon.hlsli` `SampleCapture`: bilinear depth can blend foreground/sky or projection partitions into a nonexistent surface.
+- `CaptureCommon.hlsli` `SampleCapture`: bilinear depth can blend foreground/background or projection partitions into a nonexistent surface.

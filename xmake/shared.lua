@@ -7,6 +7,9 @@ function main(target)
             "package/Shaders/Common/Math.hlsli",
             "package/Shaders/Common/Game.hlsli",
             "package/Shaders/Common/Color.hlsli",
+            "package/Shaders/Common/ColorManagement.hlsli",
+            "package/Shaders/Common/ColorSpaces.hlsli",
+            "package/Shaders/Common/TransferFunctions.hlsli",
             "package/Shaders/Common/FastMath.hlsli",
             "package/Shaders/Common/SharedData.hlsli",
             "package/Shaders/Common/BRDF.hlsli",
@@ -17,8 +20,6 @@ function main(target)
             "package/Shaders/Common/Shading.hlsli",
             "package/Shaders/Common/ShadowSampling.hlsli",
             "package/Shaders/Common/Spherical Harmonics/SphericalHarmonics.hlsli",
-            "package/Shaders/LICENSE",
-            "package/Shaders/Common/Spherical Harmonics/LICENSE",
             "features/Dynamic Cubemaps/Shaders/DynamicCubemaps",
             "features/Extended Materials/Shaders/ExtendedMaterials",
             "features/IBL/Shaders/IBL/DiffuseIBLCS.hlsl",
@@ -59,6 +60,9 @@ function main(target)
             "src/Utils/VTableHookFallback.cpp",
             "src/Features/ScreenSpaceShadows/bend_sss_cpu.h"
         },
+        licenses = {
+            "package/SKSE/Plugins/CommunityShaders/Licenses/LICENSE-SebH-MIT.txt"
+        },
         includedirs = {
             "src",
             "src/Features/ScreenSpaceShadows"
@@ -93,6 +97,13 @@ function main(target)
             else
                 target:add(extension == ".cpp" and "files" or "headerfiles", source)
             end
+        end
+    end
+    for _, entry in ipairs(shared.licenses) do
+        local source = checked(entry, false)
+        if target then
+            target:add("installfiles", source,
+                { prefixdir = "F4SE/Plugins/FO4CommunityShaders/Licenses" })
         end
     end
     for _, entry in ipairs(shared.includedirs) do
