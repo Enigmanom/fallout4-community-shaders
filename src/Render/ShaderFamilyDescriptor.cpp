@@ -38,84 +38,85 @@ namespace cs::engine
 			ShaderInjectionDefines& a_defines,
 			const ShaderFamilyDescriptor& a_family)
 		{
+			using namespace prepass_technique;
 			auto a_descriptor = a_family.descriptor;
 			const bool tessellatedVertex =
-				a_family.stage == ShaderStage::kVertex && (a_descriptor & ((1U << 19) | (1U << 20))) != 0;
+				a_family.stage == ShaderStage::kVertex && (a_descriptor & (kTessellateDispHeight | kTessellateDispNormals)) != 0;
 			// FO4 vertex normalization is fitted to the pinned AE 1.11.240 route population.
 			if (a_family.stage == ShaderStage::kVertex) {
-				if (!tessellatedVertex && (a_descriptor & 0x220U) == 0)
-					a_descriptor &= ~(1U << 25);
-				if ((a_descriptor & 0x2000U) != 0)
-					a_descriptor &= ~0x18U;
-				else if ((a_descriptor & 0x2U) != 0 && (a_descriptor & 0x4240U) != 0)
-					a_descriptor |= 0x18U;
+				if (!tessellatedVertex && (a_descriptor & (kLandscape | kLodLandscape)) == 0)
+					a_descriptor &= ~kLandLodBlend;
+				if ((a_descriptor & kModelSpaceNormals) != 0)
+					a_descriptor &= ~(kNormals | kBinormalTangent);
+				else if ((a_descriptor & kTexture) != 0 && (a_descriptor & (kEye | kLodLandscape | kGlowMap)) != 0)
+					a_descriptor |= kNormals | kBinormalTangent;
 				if (tessellatedVertex)
-					a_descriptor &= ~(1U << 10);
+					a_descriptor &= ~kTreeAnim;
 			}
-			DefineBit(a_defines, a_descriptor, 1U << 0, "VC");
+			DefineBit(a_defines, a_descriptor, kVertexColor, "VC");
 			Define(
 				a_defines,
 				"TEXTURE",
-				(a_descriptor & (1U << 1)) != 0 ? "1" : "0");
-			DefineBit(a_defines, a_descriptor, 1U << 2, "SKINNED");
-			DefineBit(a_defines, a_descriptor, 1U << 3, "NORMALS");
-			DefineBit(a_defines, a_descriptor, 1U << 4, "BINORMAL_TANGENT");
-			DefineBit(a_defines, a_descriptor, prepass_technique::kLandscape, "LANDSCAPE");
-			DefineBit(a_defines, a_descriptor, 1U << 6, "EYE");
+				(a_descriptor & kTexture) != 0 ? "1" : "0");
+			DefineBit(a_defines, a_descriptor, kSkinned, "SKINNED");
+			DefineBit(a_defines, a_descriptor, kNormals, "NORMALS");
+			DefineBit(a_defines, a_descriptor, kBinormalTangent, "BINORMAL_TANGENT");
+			DefineBit(a_defines, a_descriptor, kLandscape, "LANDSCAPE");
+			DefineBit(a_defines, a_descriptor, kEye, "EYE");
 			const auto grassBit =
-				(a_descriptor & (1U << 7)) != 0;
+				(a_descriptor & kGrass) != 0;
 			if (grassBit) {
 				Define(a_defines, "GRASS");
 				if (a_family.stage == ShaderStage::kVertex)
 					Define(a_defines, "MAX_ACTOR_VEGETATION_COLLISION", "4");
 			}
-			DefineBit(a_defines, a_descriptor, 1U << 8, "ALPHA_TEST");
-			if ((a_descriptor & prepass_technique::kLodLandscape) != 0 || (a_family.stage == ShaderStage::kVertex && !tessellatedVertex && (a_descriptor & prepass_technique::kLodLandscapeVertex) != 0)) {
+			DefineBit(a_defines, a_descriptor, kAlphaTest, "ALPHA_TEST");
+			if ((a_descriptor & kLodLandscape) != 0 || (a_family.stage == ShaderStage::kVertex && !tessellatedVertex && (a_descriptor & kLodLandscapeVertex) != 0)) {
 				Define(a_defines, "LOD_LANDSCAPE");
 			}
-			if ((a_descriptor & (1U << 10)) != 0 && (a_family.stage == ShaderStage::kVertex || !grassBit))
-				Define(a_defines, (a_descriptor & (1U << 23)) != 0 ?
+			if ((a_descriptor & kTreeAnim) != 0 && (a_family.stage == ShaderStage::kVertex || !grassBit))
+				Define(a_defines, (a_descriptor & kPipboyScreen) != 0 ?
 									  "SPLINE" :
 									  "TREE_ANIM");
-			DefineBit(a_defines, a_descriptor, 1U << 12, "CHARACTER_LIGHT_MASK");
-			DefineBit(a_defines, a_descriptor, 1U << 13, "MODELSPACENORMALS");
-			DefineBit(a_defines, a_descriptor, 1U << 14, "GLOWMAP");
-			DefineBit(a_defines, a_descriptor, prepass_technique::kBlend, "BLEND");
-			if ((a_descriptor & (1U << 11)) != 0)
-				Define(a_defines, (a_descriptor & (1U << 16)) != 0 ?
+			DefineBit(a_defines, a_descriptor, kCharacterLightMask, "CHARACTER_LIGHT_MASK");
+			DefineBit(a_defines, a_descriptor, kModelSpaceNormals, "MODELSPACENORMALS");
+			DefineBit(a_defines, a_descriptor, kGlowMap, "GLOWMAP");
+			DefineBit(a_defines, a_descriptor, kBlend, "BLEND");
+			if ((a_descriptor & kLodObjectInstanced) != 0)
+				Define(a_defines, (a_descriptor & kMenuScreen) != 0 ?
 									  "SKEW_SPECULAR_ALPHA" :
 									  "LOD_OBJECT_INSTANCED");
 			else
-				DefineBit(a_defines, a_descriptor, 1U << 16, "MENU_SCREEN");
-			if ((a_descriptor & (1U << 10)) == 0)
-				DefineBit(a_defines, a_descriptor, 1U << 23, "PIPBOY_SCREEN");
-			DefineBit(a_defines, a_descriptor, 1U << 17, "HAIR");
-			DefineBit(a_defines, a_descriptor, 1U << 18, "SKIN_TINT");
-			DefineBit(a_defines, a_descriptor, 1U << 19, "TESSELLATE_DISP_HEIGHT");
-			DefineBit(a_defines, a_descriptor, 1U << 20, "TESSELLATE_DISP_NORMALS");
-			DefineBit(a_defines, a_descriptor, 1U << 21, "DISMEMBERMENT");
-			DefineBit(a_defines, a_descriptor, 1U << 22, "DISMEMBERMENT_MEATCUFF");
-			DefineBit(a_defines, a_descriptor, 1U << 24, "ADDITIONAL_ALPHA_MASK");
+				DefineBit(a_defines, a_descriptor, kMenuScreen, "MENU_SCREEN");
+			if ((a_descriptor & kTreeAnim) == 0)
+				DefineBit(a_defines, a_descriptor, kPipboyScreen, "PIPBOY_SCREEN");
+			DefineBit(a_defines, a_descriptor, kHair, "HAIR");
+			DefineBit(a_defines, a_descriptor, kSkinTint, "SKIN_TINT");
+			DefineBit(a_defines, a_descriptor, kTessellateDispHeight, "TESSELLATE_DISP_HEIGHT");
+			DefineBit(a_defines, a_descriptor, kTessellateDispNormals, "TESSELLATE_DISP_NORMALS");
+			DefineBit(a_defines, a_descriptor, kDismemberment, "DISMEMBERMENT");
+			DefineBit(a_defines, a_descriptor, kDismembermentMeatCuff, "DISMEMBERMENT_MEATCUFF");
+			DefineBit(a_defines, a_descriptor, kAdditionalAlphaMask, "ADDITIONAL_ALPHA_MASK");
 			if (a_family.stage == ShaderStage::kPixel || tessellatedVertex)
 				DefineBit(
 					a_defines,
 					a_descriptor,
-					1U << 25,
+					kLandLodBlend,
 					"LAND_LOD_BLEND");
-			DefineBit(a_defines, a_descriptor, 1U << 26, "GRADIENT_REMAP");
-			if ((a_descriptor & (1U << 27)) != 0) {
-				if ((a_descriptor & (1U << 28)) != 0)
+			DefineBit(a_defines, a_descriptor, kGradientRemap, "GRADIENT_REMAP");
+			if ((a_descriptor & kInstanced) != 0) {
+				if ((a_descriptor & kCombined) != 0)
 					Define(a_defines, "MERGE_INSTANCED");
 				else {
 					Define(a_defines, "INSTANCED");
 					Define(a_defines, "WIN32_MAX_BATCH_INSTANCES", "455");
 				}
 			} else {
-				DefineBit(a_defines, a_descriptor, 1U << 28, "COMBINED");
+				DefineBit(a_defines, a_descriptor, kCombined, "COMBINED");
 			}
-			DefineBit(a_defines, a_descriptor, 1U << 29, "CLIP_VOLUME");
-			DefineBit(a_defines, a_descriptor, 1U << 30, "BONE_TINTING");
-			DefineBit(a_defines, a_descriptor, 1U << 31, "FACE");
+			DefineBit(a_defines, a_descriptor, kClipVolume, "CLIP_VOLUME");
+			DefineBit(a_defines, a_descriptor, kBoneTinting, "BONE_TINTING");
+			DefineBit(a_defines, a_descriptor, kFace, "FACE");
 			Define(a_defines, "MOTION_VECTORS");
 			return true;
 		}
