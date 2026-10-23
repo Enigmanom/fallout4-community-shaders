@@ -161,6 +161,7 @@ namespace cs::telemetry
 				.Field("draw_captures", TomlInteger(summary.draw.captures))
 				.Field("draw_restores", TomlInteger(summary.draw.restores))
 				.Field("draw_d3d_binds", TomlInteger(summary.draw.d3dBinds))
+				.Field("draw_undispatched", TomlInteger(summary.draw.undispatchedDraws))
 				.Field("frame_binding_checks", TomlInteger(summary.draw.frameBindings.checks))
 				.Field("frame_binding_lost", TomlInteger(summary.draw.frameBindings.lost))
 				.Field("frame_binding_lost_total", TomlInteger(summary.draw.frameBindings.lostTotal))

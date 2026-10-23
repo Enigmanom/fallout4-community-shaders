@@ -2374,35 +2374,47 @@ namespace cs::engine
 		service.nativeShaderMetadata.insert_or_assign(a_shader, metadata);
 	}
 
+	namespace
+	{
+		std::shared_ptr<NativeVariant> FindBoundPixelVariant(
+			ID3D11DeviceContext* a_context) noexcept
+		{
+			auto& service = GetService();
+			if (!a_context || !service.published.load(std::memory_order_acquire))
+				return nullptr;
+
+			ID3D11PixelShader* boundShader = nullptr;
+			a_context->PSGetShader(&boundShader, nullptr, nullptr);
+			if (!boundShader)
+				return nullptr;
+
+			std::shared_ptr<NativeVariant> variant;
+			{
+				std::scoped_lock lock(service.nativeVariantMutex);
+				const auto identity =
+					service.nativeShaderIdentities.find(boundShader);
+				if (identity != service.nativeShaderIdentities.end())
+					variant = identity->second.variant;
+			}
+			boundShader->Release();
+			return variant;
+		}
+	}
+
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept
 	{
-		if (!a_context)
-			return;
-
-		const auto plan = GetService().published.load(std::memory_order_acquire);
-		if (!plan)
-			return;
-
-		ID3D11PixelShader* boundShader = nullptr;
-		a_context->PSGetShader(&boundShader, nullptr, nullptr);
-		if (!boundShader)
-			return;
-
-		auto& service = GetService();
-		std::shared_ptr<NativeVariant> activeVariant;
-		{
-			std::scoped_lock lock(service.nativeVariantMutex);
-			const auto identity =
-				service.nativeShaderIdentities.find(boundShader);
-			if (identity != service.nativeShaderIdentities.end())
-				activeVariant = identity->second.variant;
+		if (const auto variant = FindBoundPixelVariant(a_context)) {
+			const ActiveVariantScope scope(variant.get());
+			DispatchShaderInjections(variant->target, a_context, variant->samplers.load(std::memory_order_relaxed));
 		}
-		if (activeVariant) {
-			const ActiveVariantScope scope(activeVariant.get());
-			DispatchShaderInjections(activeVariant->target, a_context, activeVariant->samplers.load(std::memory_order_relaxed));
-		}
-		boundShader->Release();
+	}
+
+	void RecordUndispatchedInjectedDraw(
+		ID3D11DeviceContext* a_context) noexcept
+	{
+		if (FindBoundPixelVariant(a_context))
+			++t_drawMetrics.undispatchedDraws;
 	}
 
 	bool ActiveShaderInjectionVariantHasDefine(

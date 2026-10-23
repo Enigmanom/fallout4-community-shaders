@@ -60,6 +60,8 @@ namespace cs::engine
 		bool g_lightsImplInstalled = false;
 		bool g_compositeInstalled = false;
 		bool g_deferredDrawAnchorInstalled = false;
+		bool g_drawProfilingInstalled = false;
+		bool g_drawFlushInstalled = false;
 		bool g_forwardSkyInstalled = false;
 		bool g_precipitationOcclusionInstalled = false;
 		bool g_sunShadowRenderInstalled = false;
@@ -207,8 +209,92 @@ namespace cs::engine
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
+		// Routes flush once, then draw; command-buffer records bind their own state.
+		enum class DrawRoute : std::uint8_t
+		{
+			kNone,
+			kTriShape,
+			kTriShapeIndexed,
+			kTriShapeLargeIndices,
+			kInstancedTriShape,
+			kDynamicTriShape,
+			kParticleShaderTriShape,
+			kCommandBuffer,
+			kCommandBufferRecord
+		};
+
+		thread_local DrawRoute t_drawRoute = DrawRoute::kNone;
+
+		// Injection binds made inside the scope are restored when its draw returns.
+		class DrawRouteScope
+		{
+		public:
+			explicit DrawRouteScope(DrawRoute a_route) noexcept :
+				_previous(std::exchange(t_drawRoute, a_route))
+			{
+				if (const auto* state = GetGraphicsState())
+					BeginShaderInjectionFrame(state->frameCount);
+			}
+			~DrawRouteScope() { t_drawRoute = _previous; }
+
+			DrawRouteScope(const DrawRouteScope&) = delete;
+			DrawRouteScope& operator=(const DrawRouteScope&) = delete;
+
+		private:
+			DrawRoute _previous;
+			ScopedPixelShaderInjectionBindings _bindings;
+		};
+
+		template <DrawRoute Route, class Signature>
+		struct DrawRouteScope_Hook;
+
+		template <DrawRoute Route, class... Args>
+		struct DrawRouteScope_Hook<Route, void(Args...)>
+		{
+			static void thunk(Args... a_args)
+			{
+				const DrawRouteScope scope(Route);
+				func(a_args...);
+			}
+			static inline REL::Relocation<void(Args...)> func;
+			static inline bool installed = false;
+		};
+
+		// Replaces a record's context draw; its bindings are final at this point.
+		template <auto Draw, class... Args>
+		void STDMETHODCALLTYPE CommandBufferRecordDraw(ID3D11DeviceContext* a_context, Args... a_args)
+		{
+			const DrawRouteScope scope(DrawRoute::kCommandBufferRecord);
+			if (g_deferredDrawAnchorInstalled)
+				DispatchInjectionsForBoundPixelShader(a_context);
+			(a_context->*Draw)(a_args...);
+		}
+
+		void OnDrawStateFlushed(bool a_force, bool a_clear, std::uint32_t a_residualR9d) noexcept
+		{
+			auto* rendererData = RE::BSGraphics::GetRendererData();
+			auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
+			if (t_drawRoute == DrawRoute::kNone) {
+				// Flush and RunComputeShader pass force or clear; draw callers pass neither.
+				if (!a_force && !a_clear)
+					RecordUndispatchedInjectedDraw(context);
+				return;
+			}
+			if (t_drawRoute == DrawRoute::kCommandBuffer)
+				return;
+			const auto decision = SelectDeferredDrawAnchorDecision(
+				g_insideDeferredLightsImpl,
+				g_insideDeferredComposite,
+				t_drawRoute == DrawRoute::kTriShape,
+				a_residualR9d);
+			if (decision.dispatchFullscreenLightCallbacks)
+				Dispatch(g_preFullscreenDeferredLightDraw);
+			if (decision.dispatchInjections)
+				DispatchInjectionsForBoundPixelShader(context);
+		}
+
 		// The fourth argument is residual r9d state, not a call parameter.
-		struct DeferredDrawAnchor_Hook
+		struct SetDirtyStates_Hook
 		{
 			static void thunk(
 				bool a_force,
@@ -217,19 +303,10 @@ namespace cs::engine
 				std::uint32_t a_residualR9d)
 			{
 				func(a_force, a_clear);
-				const auto decision = SelectDeferredDrawAnchorDecision(
-					g_insideDeferredLightsImpl,
-					g_insideDeferredComposite,
-					a_residualR9d);
-				if (decision.dispatchFullscreenLightCallbacks) {
-					Dispatch(g_preFullscreenDeferredLightDraw);
-				}
-				if (decision.dispatchInjections) {
-					auto* rendererData = RE::BSGraphics::GetRendererData();
-					DispatchInjectionsForBoundPixelShader(rendererData ?
-															  reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) :
-															  nullptr);
-				}
+				if (g_drawProfilingInstalled)
+					render::profiling::RecordDraw();
+				if (g_deferredDrawAnchorInstalled)
+					OnDrawStateFlushed(a_force, a_clear, a_residualR9d);
 			}
 			static inline REL::Relocation<void(bool, bool)> func;
 		};
@@ -255,32 +332,6 @@ namespace cs::engine
 					func();
 				}
 				Dispatch(g_postDeferredComposite);
-			}
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
-		struct DrawProfiling_Hook
-		{
-			static void thunk(bool a_force, bool a_clear)
-			{
-				func(a_force, a_clear);
-				render::profiling::RecordDraw();
-			}
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
-		struct TriShapeDrawScope_Hook
-		{
-			static void thunk(
-				RE::BSGraphics::Renderer* a_this,
-				RE::BSGraphics::TriShape* a_shape,
-				std::uint32_t a_start,
-				std::uint32_t a_triangles)
-			{
-				if (const auto* state = GetGraphicsState())
-					BeginShaderInjectionFrame(state->frameCount);
-				const ScopedPixelShaderInjectionBindings bindings;
-				func(a_this, a_shape, a_start, a_triangles);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -548,6 +599,80 @@ namespace cs::engine
 			return true;
 		}
 
+		// FO4: SetDirtyStates is the native draw submission boundary on OG/NG/AE.
+		bool EnsureDrawFlushInstalled()
+		{
+			return EnsureDetourInstalled<SetDirtyStates_Hook>(
+				g_drawFlushInstalled, RE::ID::BSGraphics::SetDirtyStates, "BSGraphics::SetDirtyStates");
+		}
+
+		bool InstallCommandBufferRecordDraws()
+		{
+			static bool installed = false;
+			if (installed)
+				return true;
+			constexpr ContextCallSiteAnchor kDrawIndexed{
+				.name = "ProcessCommandBuffer -> ID3D11DeviceContext::DrawIndexed",
+				.function = RE::ID::BSGraphics::Renderer::ProcessCommandBuffer,
+				.offset = { 0x919, 0x8F3, 0x8F3 },
+				.target = { 0x60 }
+			};
+			constexpr ContextCallSiteAnchor kDraw{
+				.name = "ProcessCommandBuffer -> ID3D11DeviceContext::Draw",
+				.function = RE::ID::BSGraphics::Renderer::ProcessCommandBuffer,
+				.offset = { 0x96F, 0x943, 0x943 },
+				.target = { 0x68 }
+			};
+			// Prove both sites before patching either.
+			const auto drawIndexed = ResolveCallSite(kDrawIndexed);
+			const auto draw = ResolveCallSite(kDraw);
+			for (const auto* site : { &drawIndexed, &draw }) {
+				if (!*site) {
+					L->error("Command-buffer record draws unavailable: {}", site->error());
+					return false;
+				}
+			}
+			using Context = ID3D11DeviceContext;
+			for (const auto& [site, thunk] : { std::pair{ *drawIndexed, reinterpret_cast<std::uintptr_t>(&CommandBufferRecordDraw<&Context::DrawIndexed, UINT, UINT, INT>) },
+					 std::pair{ *draw, reinterpret_cast<std::uintptr_t>(&CommandBufferRecordDraw<&Context::Draw, UINT, UINT>) } }) {
+				if (const auto redirected = RedirectContextCall(site, thunk); !redirected) {
+					L->error("Command-buffer record draws unavailable: {}", redirected.error());
+					return false;
+				}
+			}
+			installed = true;
+			return true;
+		}
+
+		template <DrawRoute Route, class Signature>
+		bool InstallDrawRoute(REL::VariantID a_id, const char* a_name)
+		{
+			using Hook = DrawRouteScope_Hook<Route, Signature>;
+			return EnsureDetourInstalled<Hook>(Hook::installed, a_id, a_name);
+		}
+
+		bool InstallDrawRoutes()
+		{
+			using namespace RE::BSGraphics;
+			namespace ID = RE::ID::BSGraphics::Renderer;
+			using UInt = std::uint32_t;
+			return InstallDrawRoute<DrawRoute::kTriShape, void(Renderer*, TriShape*, UInt, UInt)>(
+					   ID::DrawTriShape, "DrawTriShape") &&
+			       InstallDrawRoute<DrawRoute::kTriShapeIndexed, void(Renderer*, TriShape*, UInt, UInt, IndexBuffer*)>(
+					   ID::DrawTriShapeIndexed, "DrawTriShape(IndexBuffer)") &&
+			       InstallDrawRoute<DrawRoute::kTriShapeLargeIndices, void(Renderer*, TriShape*, UInt, UInt)>(
+					   ID::DrawTriShapeLargeIndices, "DrawTriShapeLargeIndices") &&
+			       InstallDrawRoute<DrawRoute::kInstancedTriShape, void(Renderer*, TriShape*, UInt, UInt, UInt, std::uint64_t, VertexBuffer*)>(
+					   ID::DrawInstancedTriShape, "DrawInstancedTriShape") &&
+			       InstallDrawRoute<DrawRoute::kDynamicTriShape, void(Renderer*, DynamicTriShape*, DynamicTriShapeDrawData*, UInt, UInt, IndexBuffer*)>(
+					   ID::DrawDynamicTriShape, "DrawDynamicTriShape") &&
+			       InstallDrawRoute<DrawRoute::kParticleShaderTriShape, void(Renderer*, const void*, UInt)>(
+					   ID::DrawParticleShaderTriShape, "DrawParticleShaderTriShape") &&
+			       InstallDrawRoute<DrawRoute::kCommandBuffer, void(Renderer*, char**)>(
+					   ID::ProcessCommandBuffer, "ProcessCommandBuffer") &&
+			       InstallCommandBufferRecordDraws();
+		}
+
 		void InstallDeferredDrawAnchor()
 		{
 			EnsureDeferredLightsImplInstalled();
@@ -555,22 +680,12 @@ namespace cs::engine
 			if (g_deferredDrawAnchorInstalled) {
 				return;
 			}
-			constexpr cs::engine::CallSiteAnchor kDrawTriShapeSetDirtyStates{
-				.name = "DrawTriShape -> BSGraphics::SetDirtyStates",
-				.function = RE::ID::BSGraphics::Renderer::DrawTriShape,
-				.offset = { 0x9C, 0x9A, 0x9A },
-				.target = RE::ID::BSGraphics::SetDirtyStates
-			};
-			const auto site = cs::engine::ResolveCallSite(kDrawTriShapeSetDirtyStates);
-			if (!site) {
-				L->error("Deferred draw anchor unavailable: {}", site.error());
+			if (!InstallDrawRoutes() || !EnsureDrawFlushInstalled()) {
+				L->error("Deferred draw anchor unavailable");
 				return;
 			}
-			stl::write_thunk_call<DeferredDrawAnchor_Hook>(*site);
-			// FO4: forward consumers bind after dirty state and restore at the draw boundary.
-			stl::detour_thunk<TriShapeDrawScope_Hook>(kDrawTriShapeSetDirtyStates.function);
 			g_deferredDrawAnchorInstalled = true;
-			L->info("Hook installed on DrawTriShape SetDirtyStates call (deferred draw anchor)");
+			L->info("Hooks installed on engine draw routes and SetDirtyStates (deferred draw anchor)");
 		}
 	}
 
@@ -584,14 +699,11 @@ namespace cs::engine
 
 	bool EnsureDrawProfilingInstalled()
 	{
-		static bool installed{};
-		if (installed)
+		if (g_drawProfilingInstalled)
 			return true;
-		if (!RegistrationAllowed("DrawProfiling"))
+		if (!RegistrationAllowed("DrawProfiling") || !EnsureDrawFlushInstalled())
 			return false;
-		// FO4: SetDirtyStates is the shared native draw submission boundary on OG/NG/AE.
-		stl::detour_thunk<DrawProfiling_Hook>(RE::ID::BSGraphics::SetDirtyStates);
-		installed = true;
+		g_drawProfilingInstalled = true;
 		return true;
 	}
 

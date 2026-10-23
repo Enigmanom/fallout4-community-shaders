@@ -71,6 +71,7 @@ namespace cs::engine
 		std::uint64_t captures = 0;
 		std::uint64_t restores = 0;
 		std::uint64_t d3dBinds = 0;
+		std::uint64_t undispatchedDraws = 0;
 		FrameBindingMetrics frameBindings;
 	};
 
@@ -254,6 +255,9 @@ namespace cs::engine
 		ID3D11DeviceContext* a_context,
 		util::ShaderSamplerUse a_samplers = {}) noexcept;
 	void DispatchInjectionsForBoundPixelShader(
+		ID3D11DeviceContext* a_context) noexcept;
+	// Counts draw flushes outside every route that bind an injected pixel shader.
+	void RecordUndispatchedInjectedDraw(
 		ID3D11DeviceContext* a_context) noexcept;
 	NativeGraphicsShaderBinding ResolveNativeGraphicsShaderBinding(
 		RE::BSShader* a_shader,
