@@ -165,9 +165,9 @@ namespace cs::features
 	{
 		D3D11_TEXTURE2D_DESC source{};
 		a_snapshot.texture->GetDesc(&source);
-		// The downsample reduces by a power-of-two ratio into the fixed map.
+		// The 2x2 gather and up to three group reductions only fill the map from 2x to 16x.
 		if (source.Format != DXGI_FORMAT_R16_TYPELESS || source.ArraySize != a_snapshot.count || source.MipLevels != 1 || source.SampleDesc.Count != 1 ||
-			!(source.BindFlags & D3D11_BIND_SHADER_RESOURCE) || source.Width != source.Height || source.Width < kMapSize || !std::has_single_bit(source.Width))
+			!(source.BindFlags & D3D11_BIND_SHADER_RESOURCE) || source.Width != source.Height || source.Width < 2 * kMapSize || source.Width > 16 * kMapSize || !std::has_single_bit(source.Width))
 			return false;
 		if (_sourceSRV && _sourceTexture == a_snapshot.texture && _sourceDesc.Width == source.Width && _sourceDesc.ArraySize == source.ArraySize)
 			return true;
