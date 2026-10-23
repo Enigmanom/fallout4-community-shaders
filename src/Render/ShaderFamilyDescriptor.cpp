@@ -2,6 +2,7 @@
 
 #include "Log.h"
 #include "Render/ImageSpacePassthroughVertex.h"
+#include "Render/PrepassTechnique.h"
 
 #include <algorithm>
 #include <array>
@@ -59,7 +60,7 @@ namespace cs::engine
 			DefineBit(a_defines, a_descriptor, 1U << 2, "SKINNED");
 			DefineBit(a_defines, a_descriptor, 1U << 3, "NORMALS");
 			DefineBit(a_defines, a_descriptor, 1U << 4, "BINORMAL_TANGENT");
-			DefineBit(a_defines, a_descriptor, 1U << 5, "LANDSCAPE");
+			DefineBit(a_defines, a_descriptor, prepass_technique::kLandscape, "LANDSCAPE");
 			DefineBit(a_defines, a_descriptor, 1U << 6, "EYE");
 			const auto grassBit =
 				(a_descriptor & (1U << 7)) != 0;
@@ -69,7 +70,7 @@ namespace cs::engine
 					Define(a_defines, "MAX_ACTOR_VEGETATION_COLLISION", "4");
 			}
 			DefineBit(a_defines, a_descriptor, 1U << 8, "ALPHA_TEST");
-			if ((a_descriptor & (1U << 9)) != 0 || (a_family.stage == ShaderStage::kVertex && !tessellatedVertex && (a_descriptor & (1U << 25)) != 0)) {
+			if ((a_descriptor & prepass_technique::kLodLandscape) != 0 || (a_family.stage == ShaderStage::kVertex && !tessellatedVertex && (a_descriptor & prepass_technique::kLodLandscapeVertex) != 0)) {
 				Define(a_defines, "LOD_LANDSCAPE");
 			}
 			if ((a_descriptor & (1U << 10)) != 0 && (a_family.stage == ShaderStage::kVertex || !grassBit))
@@ -79,7 +80,7 @@ namespace cs::engine
 			DefineBit(a_defines, a_descriptor, 1U << 12, "CHARACTER_LIGHT_MASK");
 			DefineBit(a_defines, a_descriptor, 1U << 13, "MODELSPACENORMALS");
 			DefineBit(a_defines, a_descriptor, 1U << 14, "GLOWMAP");
-			DefineBit(a_defines, a_descriptor, 1U << 15, "BLEND");
+			DefineBit(a_defines, a_descriptor, prepass_technique::kBlend, "BLEND");
 			if ((a_descriptor & (1U << 11)) != 0)
 				Define(a_defines, (a_descriptor & (1U << 16)) != 0 ?
 									  "SKEW_SPECULAR_ALPHA" :

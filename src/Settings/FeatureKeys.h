@@ -19,6 +19,7 @@ namespace cs::feature_config
 		"VolumetricShadows",
 		"LODBlending",
 		"TerrainVariation",
+		"TerrainBlending",
 		"ExtendedMaterials",
 		"MotionVectorFixes",
 		"Upscaling",

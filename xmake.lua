@@ -21,6 +21,7 @@ local features = {
     "VolumetricShadows",
     "LODBlending",
     "TerrainVariation",
+    "TerrainBlending",
     "ExtendedMaterials",
     "ScreenSpaceGI",
     "Skylighting",

@@ -88,6 +88,7 @@ namespace
 			std::pair{ "VolumetricShadows", SchemaView{} },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
 			std::pair{ "TerrainVariation", MakeSchemaView(terrain_variation::kSchema) },
+			std::pair{ "TerrainBlending", SchemaView{} },
 			std::pair{ "ExtendedMaterials", MakeSchemaView(extended_materials::kSchema) },
 			std::pair{ "MotionVectorFixes", SchemaView{} },
 			std::pair{ "Upscaling", MakeSchemaView(cs::render::temporal::kSchema) },

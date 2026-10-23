@@ -22,7 +22,7 @@ namespace cs::render::profiling
 	void MarkEngineFrame(bool a_telemetryEnabled) noexcept;
 
 	Profiler& GetProfiler() noexcept;
-	// Controls overlay CPU draw sampling only; GPU queries follow telemetry at the frame boundary.
+	// Overlay consumer; GPU queries run while it or telemetry is enabled.
 	void SetEnabled(bool a_enabled) noexcept;
 	bool BeginPass(std::string_view a_name);
 	void EndPass() noexcept;

@@ -8,6 +8,7 @@
 #include "../features/ScreenSpaceGI/src/ShaderDefines.h"
 #include "../features/ScreenSpaceShadows/src/ShaderDefines.h"
 #include "../features/Skylighting/src/ShaderDefines.h"
+#include "../features/TerrainBlending/src/ShaderDefines.h"
 #include "../features/TerrainShadows/src/ShaderDefines.h"
 #include "../features/TerrainVariation/src/ShaderDefines.h"
 #include "../features/UnifiedWater/src/ShaderDefines.h"
@@ -34,6 +35,7 @@ namespace cs::engine
 				{ "VolumetricShadows", &volumetric_shadows_shader::kShaderDefines },
 				{ "LODBlending", &lod_blending_shader::kShaderDefines },
 				{ "TerrainVariation", &terrain_variation_shader::kShaderDefines },
+				{ "TerrainBlending", &terrain_blending_shader::kShaderDefines },
 				{ "ExtendedMaterials", &extended_materials_shader::kShaderDefines },
 				{ "WaterEffects", &water_effects::kShaderDefines },
 				{ "UnifiedWater", &unified_water::kShaderDefines },

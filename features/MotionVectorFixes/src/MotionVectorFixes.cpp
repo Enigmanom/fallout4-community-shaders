@@ -8,6 +8,7 @@
 
 #include "Log.h"
 #include "Render/EngineCallSite.h"
+#include "Render/LightingRenderPasses.h"
 #include "Telemetry/Telemetry.h"
 
 namespace cs::features
@@ -128,32 +129,23 @@ namespace cs::features
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		struct BSLightingShaderProperty_GetRenderPasses
+		void CorrectPreviousWorld(const cs::engine::LightingRenderPassesCall& a_call) noexcept
 		{
-			static RE::BSShaderProperty::RenderPassArray* thunk(
-				RE::BSLightingShaderProperty* a_property,
-				RE::BSGeometry* a_geometry,
-				std::uint32_t a_renderMode,
-				RE::BSShaderAccumulator* a_accumulator)
-			{
-				auto* main = RE::Main::GetSingleton();
-				const bool frozen =
-					main && main->gameActive && (main->inMenuMode || main->freezeTime);
-				const bool lod =
-					a_property && a_property->flags.any(
-									  ShaderFlag::kLODObjects,
-									  ShaderFlag::kLODLandscape,
-									  ShaderFlag::kLODLandBlend,
-									  ShaderFlag::kMultiTextureLandscape);
-				if (a_geometry && Enabled() && !g_loadingMenuOpen.load(std::memory_order_relaxed) &&
-					(frozen || lod)) {
-					a_geometry->previousWorld = a_geometry->world;
-					g_corrections.fetch_add(1, std::memory_order_relaxed);
-				}
-				return func(a_property, a_geometry, a_renderMode, a_accumulator);
+			auto* main = RE::Main::GetSingleton();
+			const bool frozen =
+				main && main->gameActive && (main->inMenuMode || main->freezeTime);
+			const bool lod =
+				a_call.property && a_call.property->flags.any(
+									   ShaderFlag::kLODObjects,
+									   ShaderFlag::kLODLandscape,
+									   ShaderFlag::kLODLandBlend,
+									   ShaderFlag::kMultiTextureLandscape);
+			if (a_call.geometry && Enabled() && !g_loadingMenuOpen.load(std::memory_order_relaxed) &&
+				(frozen || lod)) {
+				a_call.geometry->previousWorld = a_call.geometry->world;
+				g_corrections.fetch_add(1, std::memory_order_relaxed);
 			}
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
+		}
 	}
 
 	MotionVectorFixes* MotionVectorFixes::GetSingleton()
@@ -181,8 +173,10 @@ namespace cs::features
 			L->warn("Animated-object correction unavailable: {}", site.error());
 		}
 
-		stl::write_vfunc<43, BSLightingShaderProperty_GetRenderPasses>(
-			RE::VTABLE::BSLightingShaderProperty[0]);
+		if (!cs::engine::RegisterPreLightingRenderPasses(&CorrectPreviousWorld)) {
+			FailLoad("Motion Vector Fixes pass-list hook registration failed.");
+			return;
+		}
 		L->info("Installed previous-transform corrections");
 	}
 

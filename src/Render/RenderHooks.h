@@ -1,6 +1,14 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
+#include <span>
+
+namespace RE
+{
+	class BSBatchRenderer;
+	class BSRenderPass;
+}
 
 namespace cs::engine
 {
@@ -38,6 +46,25 @@ namespace cs::engine
 
 	// After every engine ResetState, including loading-screen and UI callers.
 	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+
+	// One world batch-4 bucket: every pass in it shares the technique.
+	struct HeldPrepassBucket
+	{
+		RE::BSBatchRenderer* renderer;
+		RE::BSRenderPass* head;
+		std::uint32_t technique;
+		bool alpha;
+	};
+	using PrepassBucketPredicate = bool (*)(std::uint32_t a_technique) noexcept;
+	using HeldPrepassBucketsCallback = std::function<void(std::span<const HeldPrepassBucket>)>;
+
+	// Holds matching world batch-4 buckets; replays them before opaque decals.
+	bool RegisterWorldPrepassHold(
+		PrepassBucketPredicate a_predicate,
+		HeldPrepassBucketsCallback a_replay,
+		HookPriority a_priority = HookPriority::Default);
+	// Draws a held bucket via the engine; valid only inside the replay callback.
+	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket);
 
 	// Install the post-dirty-state deferred draw anchor.
 	bool EnsureDeferredDrawAnchorInstalled();

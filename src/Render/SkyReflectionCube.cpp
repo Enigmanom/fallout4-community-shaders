@@ -325,12 +325,62 @@ namespace cs::engine
 		constexpr auto kLandscapeBlendFlag = RE::BSShaderProperty::EShaderPropertyFlag::kMultiTextureLandscape;
 		constexpr std::uint32_t kMaxLodDepth = 16;
 
+		// Side-face view axes (forward, up, right); the engine's face basis table.
+		struct FaceBasis
+		{
+			RE::NiPoint3 forward, up, right;
+		};
+		constexpr std::array<FaceBasis, 4> kSideBasis{ {
+			{ { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, -1 } },
+			{ { -1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } },
+			{ { 0, 1, 0 }, { 0, 0, -1 }, { 1, 0, 0 } },
+			{ { 0, -1, 0 }, { 0, 0, 1 }, { 1, 0, 0 } },
+		} };
+
+		// Side planes of the face pyramid; near and far are left to the engine.
+		class FaceFrustum
+		{
+		public:
+			[[nodiscard]] static std::optional<FaceFrustum> Make(const CubeCamera& a_camera, std::uint32_t a_face)
+			{
+				if (a_face >= kSideBasis.size())
+					return std::nullopt;
+				const auto& f = a_camera.viewFrustum;
+				// Widest edge keeps the test conservative for any sign convention.
+				const float slope = std::max({ std::abs(f.left), std::abs(f.right), std::abs(f.top), std::abs(f.bottom) });
+				if (f.ortho || !std::isfinite(slope) || slope <= 0.0f)
+					return std::nullopt;
+				return FaceFrustum{ a_camera.local.translate, kSideBasis[a_face], slope };
+			}
+
+			// Inclusive; bounds the engine cannot cull on count as visible.
+			[[nodiscard]] bool Sees(const RE::NiBound& a_bound) const noexcept
+			{
+				const float radius = a_bound.fRadius;
+				if (!std::isfinite(radius) || radius <= 0.0f)
+					return true;
+				const auto offset = a_bound.center - _eye;
+				const float reach = _slope * offset.Dot(_basis.forward) + radius * std::sqrt(1.0f + _slope * _slope);
+				return std::abs(offset.Dot(_basis.right)) <= reach && std::abs(offset.Dot(_basis.up)) <= reach;
+			}
+
+		private:
+			FaceFrustum(const RE::NiPoint3& a_eye, const FaceBasis& a_basis, float a_slope) noexcept :
+				_eye(a_eye), _basis(a_basis), _slope(a_slope)
+			{}
+
+			RE::NiPoint3 _eye;
+			FaceBasis _basis;
+			float _slope;
+		};
+
 		// Clearing the LOD flags makes mode 0 resolve the base technique.
 		class ScopedLodLightingFlags
 		{
 		public:
-			ScopedLodLightingFlags() noexcept
+			explicit ScopedLodLightingFlags(const std::optional<FaceFrustum>& a_frustum) noexcept
 			{
+				const FaceFrustum* frustum = a_frustum ? &*a_frustum : nullptr;
 				const auto* land = RE::BGSTerrainManager::GetLandNode();
 				const auto* objects = RE::BGSTerrainManager::GetObjectsNode();
 				if (!land && !objects) {
@@ -338,8 +388,8 @@ namespace cs::engine
 					return;
 				}
 				try {
-					Visit(land, 0);
-					Visit(objects, 0);
+					Visit(land, 0, frustum);
+					Visit(objects, 0, frustum);
 				} catch (...) {
 					Restore();
 					CS_LOG_ONCE(L, spdlog::level::warn, "LOD flag clearing failed; flags were restored.");
@@ -358,15 +408,15 @@ namespace cs::engine
 				std::uint64_t bits;
 			};
 
-			void Visit(const RE::NiNode* a_node, std::uint32_t a_depth)
+			void Visit(const RE::NiNode* a_node, std::uint32_t a_depth, const FaceFrustum* a_frustum)
 			{
 				if (!a_node || a_depth > kMaxLodDepth)
 					return;
 				for (const auto& child : a_node->children) {
-					if (!child || child->GetAppCulled())
+					if (!child || child->GetAppCulled() || (a_frustum && !a_frustum->Sees(child->worldBound)))
 						continue;
 					if (const auto* node = child->IsNode()) {
-						Visit(node, a_depth + 1);
+						Visit(node, a_depth + 1, a_frustum);
 					} else if (auto* geometry = child->IsGeometry()) {
 						Clear(geometry);
 					}
@@ -467,7 +517,7 @@ namespace cs::engine
 			std::optional<ScopedLodLightingFlags> lodFlags;
 			if (a_lod) {
 				preCull.emplace();
-				lodFlags.emplace();
+				lodFlags.emplace(FaceFrustum::Make(a_camera, a_face));
 				AddLodScenes(a_camera);
 				g_counters.lodFaces.fetch_add(1, std::memory_order_relaxed);
 			}

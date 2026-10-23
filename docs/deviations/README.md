@@ -39,6 +39,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 - [Terrain Shadows](TerrainShadows.md)
 - [LOD Blending](LODBlending.md)
 - [Terrain Variation](TerrainVariation.md)
+- [Terrain Blending](TerrainBlending.md)
 - [Extended Materials](ExtendedMaterials.md)
 - [Dynamic Cubemaps](DynamicCubemaps.md)
 - [Image Based Lighting](IBL.md)

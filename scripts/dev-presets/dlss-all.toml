@@ -39,6 +39,9 @@ load = true
 [features.TerrainVariation]
 load = true
 
+[features.TerrainBlending]
+load = true
+
 [features.ExtendedMaterials]
 load = true
 

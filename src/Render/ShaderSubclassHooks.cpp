@@ -5,6 +5,7 @@
 #include "Render/Engine.h"
 #include "Render/FrameProfiler.h"
 #include "Render/NativeShaderFamily.h"
+#include "Render/PrepassTechnique.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassContext.h"
 #include "Telemetry/Telemetry.h"
@@ -243,7 +244,7 @@ namespace cs::engine
 		constexpr std::size_t kPrepassMaterialFlagsSlot = 0x60 - 0x58;
 		constexpr std::uint64_t kLaneDiagnosticLimit = 16;
 		// Landscape draws lay that register out as WetnessControl_Reflect, which stock reads.
-		constexpr std::uint32_t kPrepassLandscapeBit = 1U << 5;
+		constexpr std::uint32_t kPrepassLandscapeBit = prepass_technique::kLandscape;
 		// Context::GetConstantBuffer level of the per-geometry cb2.
 		constexpr std::uint32_t kPerGeometryConstantLevel = 2;
 
