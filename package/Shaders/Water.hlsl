@@ -455,17 +455,19 @@ float3 surfaceColor(
 {
 	float3 color = lerp(perMaterial[3].xyz, perMaterial[4].xyz, saturate(slope + 0.75));
 	color = lerp(color, perMaterial[5].xyz, saturate(slope * 1.9 + 0.35));
-#	if defined(REFLECTIONS)
+#	if defined(REFLECTIONS) || defined(DYNAMIC_CUBEMAPS)
 #		ifdef DYNAMIC_CUBEMAPS
 	uint cubeWidth, cubeHeight, envWidth, envHeight;
 	DynamicCubemaps::EnvReflectionsTexture.GetDimensions(cubeWidth, cubeHeight);
 	DynamicCubemaps::EnvTexture.GetDimensions(envWidth, envHeight);
 	if (FO4SharedData::EnabledDynamicCubemaps != 0 && cubeWidth != 0 && envWidth != 0) {
+#			if defined(REFLECTIONS)
 		// FO4: without a fresh engine cube the sky gradient stays the far reflection.
 		uint engineWidth, engineHeight;
 		CubeMapTex.GetDimensions(engineWidth, engineHeight);
 		if (engineWidth != 0)
 			color = CubeMapTex.SampleLevel(sampler3, reflectionDirection, 0).xyz;
+#			endif
 
 		float3 dynamicCubemap;
 		if (SharedData::InInterior) {
@@ -486,6 +488,10 @@ float3 surfaceColor(
 
 		if (SharedData::HideSky || SharedData::InInterior)
 			reflectionAmount = 0.0;
+#			if !defined(REFLECTIONS)
+		// Upstream: water without the Reflections flag takes the dynamic cubemap alone.
+		reflectionAmount = 0.0;
+#			endif
 
 		float3 debugColor;
 		if (DynamicCubemaps::TryGetDebugEnvironment(reflectionDirection, sampler3, debugColor)) {
@@ -495,7 +501,7 @@ float3 surfaceColor(
 		color = lerp(dynamicCubemap, color, reflectionAmount);
 	}
 #		endif
-#		ifdef SSLR
+#		if defined(REFLECTIONS) && defined(SSLR)
 #			if defined(OG)
 	// OG 1.10.163 samples the reflection with the unclamped screen UV.
 	float2 clamped = screenUv;
@@ -526,7 +532,7 @@ float3 surfaceColor(
 float fresnelTerm(float grazing)
 {
 	float f0 = perMaterial[13].z;
-#	if defined(REFLECTIONS) && defined(DYNAMIC_CUBEMAPS)
+#	if defined(DYNAMIC_CUBEMAPS)
 	// FO4 translation: Skyrim-scale F0 is FO4's F0 times its reflection amount.
 	if (FO4SharedData::EnabledDynamicCubemaps != 0)
 		f0 *= perMaterial[8].y;
@@ -955,7 +961,7 @@ float4 main(PS_INPUT input) : SV_Target0
 #		endif
 
 	float reflectionWeight = fresnel * perMaterial[8].y;
-#		if defined(REFLECTIONS) && defined(DYNAMIC_CUBEMAPS)
+#		if defined(DYNAMIC_CUBEMAPS)
 	if (FO4SharedData::EnabledDynamicCubemaps != 0)
 		reflectionWeight = fresnel;
 #		endif
