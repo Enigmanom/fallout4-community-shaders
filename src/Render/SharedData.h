@@ -19,6 +19,8 @@ namespace cs::render
 	void InitializeSharedData(ID3D11Device* a_device, ID3D11DeviceContext* a_context);
 	bool IsSharedDataReady() noexcept;
 	bool IsSharedDataCurrent() noexcept;
+	// Host-owned linear clamp sampler; null until the substrate is initialized.
+	[[nodiscard]] ID3D11SamplerState* GetLinearClampSampler() noexcept;
 	// Debug producers invalidate the cached packet when replacing or updating its texture.
 	void InvalidateFullscreenDebugData() noexcept;
 

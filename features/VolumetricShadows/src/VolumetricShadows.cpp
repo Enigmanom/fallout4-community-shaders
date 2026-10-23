@@ -134,17 +134,6 @@ namespace cs::features
 
 	void VolumetricShadows::OnD3D11Ready(IDXGIAdapter*, ID3D11Device* a_device)
 	{
-		D3D11_SAMPLER_DESC samplerDesc{};
-		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samplerDesc.MaxAnisotropy = 1;
-		samplerDesc.MinLOD = 0;
-		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-		DX::ThrowIfFailed(a_device->CreateSamplerState(&samplerDesc, _linearClampSampler.put()));
-		cs::render::annotation::SetName(_linearClampSampler.get(), "VolumetricShadows/LinearClamp.Sampler");
-
 		_map = CreateMipChain(a_device, "VolumetricShadows/ShadowCopy");
 		_blurTemp = CreateMipChain(a_device, "VolumetricShadows/ShadowBlurTemp");
 
@@ -244,7 +233,7 @@ namespace cs::features
 
 		// The engine may still have the cascade array bound as a depth target.
 		cs::engine::ComputeOMScope scope(a_context, 2, 1, 1, 0);
-		ID3D11SamplerState* const sampler = _linearClampSampler.get();
+		ID3D11SamplerState* const sampler = cs::render::GetLinearClampSampler();
 		a_context->CSSetSamplers(0, 1, &sampler);
 
 		// FO4: a single cascade leaves cascade 1 without a slice, so it reads lit.
@@ -305,10 +294,8 @@ namespace cs::features
 			return;
 		ID3D11ShaderResourceView* const map = _map.srv.get();
 		ID3D11ShaderResourceView* const lights = cs::engine::GetSunShadowLightsSRV();
-		ID3D11SamplerState* const sampler = _linearClampSampler.get();
 		cs::engine::BindInjectionShaderResources(a_context, volumetric_shadows_shader::kSharedShadowMapSlot, 1, &map);
 		cs::engine::BindInjectionShaderResources(a_context, volumetric_shadows_shader::kShadowLightsSlot, 1, &lights);
-		cs::engine::BindInjectionSamplers(a_context, volumetric_shadows_shader::kSamplerSlot, 1, &sampler);
 		(a_water ? _counters.waterDraws : _counters.lightDraws).fetch_add(1, std::memory_order_relaxed);
 	}
 

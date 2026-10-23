@@ -392,14 +392,13 @@ namespace cs::features::terrain_shadows
 		bool registrationsInstalled = false;
 		bool renderCallbacksInstalled = false;
 		bool computeShaderReady = false;
-		bool samplerReady = false;
 		bool constantBufferReady = false;
 	};
 
 	[[nodiscard]] constexpr bool IsReadyForInjectionFreeze(
 		const BootstrapReadiness& a_readiness) noexcept
 	{
-		return a_readiness.registrationsInstalled && a_readiness.renderCallbacksInstalled && a_readiness.computeShaderReady && a_readiness.samplerReady && a_readiness.constantBufferReady;
+		return a_readiness.registrationsInstalled && a_readiness.renderCallbacksInstalled && a_readiness.computeShaderReady && a_readiness.constantBufferReady;
 	}
 
 	[[nodiscard]] inline std::string MissingBootstrapPrerequisites(
@@ -416,7 +415,6 @@ namespace cs::features::terrain_shadows
 		append(a_readiness.registrationsInstalled, "shader replacement registration");
 		append(a_readiness.renderCallbacksInstalled, "render callbacks");
 		append(a_readiness.computeShaderReady, "shadow update compute shader");
-		append(a_readiness.samplerReady, "dedicated sampler");
 		append(a_readiness.constantBufferReady, "shadow update constant buffer");
 		return missing;
 	}

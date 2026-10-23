@@ -284,11 +284,11 @@ namespace cs::features
 	{
 		if (!cs::engine::RegisterFeatureShaderBindings("TerrainShadows", *this, [this](cs::engine::ShaderReplacementRegistration& registration) {
 				const bool composite = registration.targetId == cs::engine::ShaderInjectionTarget::kBsdfComposite;
-				registration.bind = [this, composite](ID3D11DeviceContext* a_context) {
+				registration.bind = [this, composite](ID3D11DeviceContext*) {
 					if (composite)
-						BindCompositeResources(a_context);
+						CountCompositeDebugDraw();
 					else
-						BindShadowHeights(a_context);
+						CountLightDraw();
 				};
 			})) {
 			FailLoad("Terrain shadow shader contribution registration failed.");
@@ -312,7 +312,7 @@ namespace cs::features
 			"deferred_composite, consumers=BSDFLight+BSDFComposite t{}/s{}+host debug, "
 			"enabled={}, debug_views=shadow_term+heightmap.",
 			kShadowHeightPSSlot,
-			kShadowHeightSamplerPSSlot,
+			cs::render::kLinearClampSamplerSlot,
 			IsEnabled());
 	}
 
@@ -325,7 +325,6 @@ namespace cs::features
 			.renderCallbacksInstalled =
 				_renderCallbacksReady.load(std::memory_order_acquire),
 			.computeShaderReady = _computeShaderReady.load(std::memory_order_acquire),
-			.samplerReady = _samplerReady.load(std::memory_order_acquire),
 			.constantBufferReady =
 				_constantBufferReady.load(std::memory_order_acquire)
 		};
@@ -432,20 +431,6 @@ namespace cs::features
 			cs::render::annotation::SetName(
 				_shadowUpdateCB.get(), "TerrainShadows/UpdateConstants.Buffer");
 			_constantBufferReady.store(true, std::memory_order_release);
-
-			D3D11_SAMPLER_DESC samplerDesc{};
-			samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-			samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-			samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-			samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-			samplerDesc.MaxAnisotropy = 1;
-			samplerDesc.MinLOD = 0.0f;
-			samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-			DX::ThrowIfFailed(a_device->CreateSamplerState(
-				&samplerDesc, _linearClampSampler.put()));
-			cs::render::annotation::SetName(
-				_linearClampSampler.get(), "TerrainShadows/LinearClamp.Sampler");
-			_samplerReady.store(true, std::memory_order_release);
 		} catch (const std::exception& e) {
 			_resourceInitFailed = true;
 			L->error("Terrain shadow bootstrap resources failed: {}", e.what());
@@ -1065,7 +1050,7 @@ namespace cs::features
 			ID3D11Buffer* buffers[1] = { _shadowStatsCB.get() };
 			a_context->CSSetShaderResources(0, 1, &height);
 			a_context->CSSetShaderResources(kShadowHeightPSSlot, 1, &shadow);
-			ID3D11SamplerState* sampler = _linearClampSampler.get();
+			ID3D11SamplerState* sampler = cs::render::GetLinearClampSampler();
 			a_context->CSSetSamplers(0, 1, &sampler);
 			ID3D11Buffer* featureBuffer = _shadowStatsFeatureCB.get();
 			a_context->CSSetConstantBuffers(6, 1, &featureBuffer);
@@ -1142,15 +1127,12 @@ namespace cs::features
 		}
 	}
 
-	void TerrainShadows::BindShadowHeights(ID3D11DeviceContext* a_context)
+	void TerrainShadows::CountLightDraw()
 	{
-		if (!a_context || !_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_shadowTexture || !_shadowTexture->srv || !_linearClampSampler) {
+		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_shadowTexture || !_shadowTexture->srv) {
 			return;
 		}
-		ID3D11SamplerState* sampler = _linearClampSampler.get();
-		cs::engine::BindInjectionSamplers(a_context, kShadowHeightSamplerPSSlot, 1, &sampler);
 		_binds.fetch_add(1, std::memory_order_relaxed);
-		_samplerBinds.fetch_add(1, std::memory_order_relaxed);
 		if (cs::telemetry::pump::Enabled()) {
 			const auto* defines =
 				cs::engine::GetActiveShaderInjectionVariantDefines(
@@ -1170,7 +1152,7 @@ namespace cs::features
 			_debugVisualization.load(std::memory_order_acquire);
 		const bool heightmap =
 			visualization == DebugVisualization::kHeightmap;
-		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || (!heightmap && !_shadowPopulated.load(std::memory_order_acquire)) || (heightmap ? (!_heightTexture || !_heightTexture->srv) : (!_shadowTexture || !_shadowTexture->srv)) || !_linearClampSampler) {
+		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || (!heightmap && !_shadowPopulated.load(std::memory_order_acquire)) || (heightmap ? (!_heightTexture || !_heightTexture->srv) : (!_shadowTexture || !_shadowTexture->srv))) {
 			return {};
 		}
 		return { .owner = FullscreenDebugOwner::TerrainShadows,
@@ -1179,12 +1161,10 @@ namespace cs::features
 			.texture = heightmap ? _heightTexture->srv.get() : nullptr };
 	}
 
-	void TerrainShadows::BindCompositeResources(ID3D11DeviceContext* a_context)
+	void TerrainShadows::CountCompositeDebugDraw()
 	{
-		if (!a_context || GetFullscreenDebugData().mode == 0)
+		if (GetFullscreenDebugData().mode == 0)
 			return;
-		ID3D11SamplerState* sampler = _linearClampSampler.get();
-		cs::engine::BindInjectionSamplers(a_context, kShadowHeightSamplerPSSlot, 1, &sampler);
 		_debugBinds.fetch_add(1, std::memory_order_relaxed);
 		if (cs::telemetry::pump::Enabled()) {
 			const auto* defines =
@@ -1290,10 +1270,6 @@ namespace cs::features
 			.Field(
 				"binds",
 				static_cast<std::int64_t>(_binds.load(std::memory_order_relaxed)))
-			.Field(
-				"sampler_binds",
-				static_cast<std::int64_t>(
-					_samplerBinds.load(std::memory_order_relaxed)))
 			.Field(
 				"debug_visualization",
 				DebugVisualizationName(

@@ -3,12 +3,9 @@
 
 #include "FO4/FO4ShaderData.hlsli"
 
-namespace FO4VolumetricShadows
-{
-	// FO4: binds its own linear clamp sampler; the engine's slots are taken.
-	SamplerState Sampler : register(s15);
-}
-#define LinearSampler FO4VolumetricShadows::Sampler
+#include "FO4/TerrainShadowsSampler.hlsli"
+// FO4: the host-bound linear clamp sampler is shared with terrain shadows.
+#define LinearSampler TerrainShadows::TerrainShadowsSampler
 
 #include "Common/ShadowSampling.hlsli"
 

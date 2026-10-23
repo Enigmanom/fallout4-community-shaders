@@ -3,6 +3,7 @@
 #include "../features/VolumetricShadows/src/ShaderDefines.h"
 #include "Render/DirectionalShadowLightData.h"
 #include "Render/SharedDataLayout.h"
+#include "Render/SubstrateSlots.h"
 #include "ScreenSpaceGIConstants.h"
 #include "Utils/ShaderCompile.h"
 
@@ -379,7 +380,7 @@ namespace
 			return error;
 		if (BindPoint(consumer.Get(), "VolumetricShadows::SharedShadowMap") != slots::kSharedShadowMapSlot ||
 			BindPoint(consumer.Get(), "DirectionalShadowLights") != slots::kShadowLightsSlot ||
-			BindPoint(consumer.Get(), "FO4VolumetricShadows::Sampler") != slots::kSamplerSlot)
+			BindPoint(consumer.Get(), "TerrainShadows::TerrainShadowsSampler") != cs::render::kLinearClampSamplerSlot)
 			return "consumer: ABI slot mismatch";
 		D3D11_SHADER_INPUT_BIND_DESC lights{};
 		if (FAILED(consumer->GetResourceBindingDescByName("DirectionalShadowLights", &lights)) || lights.NumSamples != sizeof(cs::engine::DirectionalShadowLightData))

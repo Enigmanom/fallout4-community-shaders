@@ -26,7 +26,6 @@ namespace cs::features
 	{
 	public:
 		static constexpr std::uint32_t kShadowHeightPSSlot = 60;
-		static constexpr std::uint32_t kShadowHeightSamplerPSSlot = 13;
 
 		enum class DebugVisualization : std::uint32_t
 		{
@@ -123,8 +122,8 @@ namespace cs::features
 		void ReleaseLiveResources(ID3D11DeviceContext* a_context);
 		void UpdateShadowStatistics(ID3D11DeviceContext* a_context);
 
-		void BindShadowHeights(ID3D11DeviceContext* a_context);
-		void BindCompositeResources(ID3D11DeviceContext* a_context);
+		void CountLightDraw();
+		void CountCompositeDebugDraw();
 
 		void PublishStatus(
 			const std::string& a_worldspace,
@@ -141,7 +140,6 @@ namespace cs::features
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _renderCallbacksReady{ false };
 		std::atomic_bool _computeShaderReady{ false };
-		std::atomic_bool _samplerReady{ false };
 		std::atomic_bool _constantBufferReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
 		std::atomic_bool _shadowResourcesReady{ false };
@@ -158,7 +156,6 @@ namespace cs::features
 		std::atomic_uint64_t _updates{ 0 };
 		std::atomic_uint64_t _fullRefreshes{ 0 };
 		std::atomic_uint64_t _binds{ 0 };
-		std::atomic_uint64_t _samplerBinds{ 0 };
 		std::atomic_uint64_t _debugBinds{ 0 };
 		std::atomic_uint64_t _prepassRuns{ 0 };
 		std::atomic_size_t _discoveredMaps{ 0 };
@@ -212,7 +209,6 @@ namespace cs::features
 		// RendererData has no device during bootstrap.
 		winrt::com_ptr<ID3D11Buffer> _shadowUpdateCB;
 		winrt::com_ptr<ID3D11ComputeShader> _shadowUpdateCS;
-		winrt::com_ptr<ID3D11SamplerState> _linearClampSampler;
 		winrt::com_ptr<ID3D11ComputeShader> _shadowStatsCS;
 		winrt::com_ptr<ID3D11Buffer> _shadowStatsCB;
 		winrt::com_ptr<ID3D11Buffer> _shadowStatsFeatureCB;

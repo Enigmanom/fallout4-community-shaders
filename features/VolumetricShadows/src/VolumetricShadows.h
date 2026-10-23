@@ -87,7 +87,6 @@ namespace cs::features
 
 		MipChain _map;
 		MipChain _blurTemp;
-		winrt::com_ptr<ID3D11SamplerState> _linearClampSampler;
 		winrt::com_ptr<ID3D11ComputeShader> _downsampleMip0;
 		winrt::com_ptr<ID3D11ComputeShader> _downsampleMip1;
 		winrt::com_ptr<ID3D11ComputeShader> _blurHorizontal;

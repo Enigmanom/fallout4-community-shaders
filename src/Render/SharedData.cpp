@@ -58,6 +58,7 @@ namespace cs::render
 			std::uint32_t debugSelectionFrame = UINT32_MAX;
 			Feature* debugFeature = nullptr;
 			winrt::com_ptr<ID3D11ShaderResourceView> debugTexture;
+			winrt::com_ptr<ID3D11SamplerState> linearClamp;
 		};
 
 		SubstrateState& GetSubstrateState()
@@ -370,6 +371,16 @@ namespace cs::render
 		}
 		InitializeCanonicalDepth(a_device);
 
+		D3D11_SAMPLER_DESC samplerDesc{};
+		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.MaxAnisotropy = 1;
+		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+		DX::ThrowIfFailed(a_device->CreateSamplerState(&samplerDesc, state.linearClamp.put()));
+		annotation::SetName(state.linearClamp.get(), "Render/LinearClamp.Sampler");
+
 		// engine state is unavailable during D3D bootstrap
 		if (!WriteSubstrate(a_context, SubstrateData{})) {
 			for (auto& buffer : state.buffers)
@@ -378,8 +389,13 @@ namespace cs::render
 		}
 		state.ready.store(true, std::memory_order_release);
 		L->info(
-			"Shared substrate ready: b4/b5/b6/b7 sizes={}/{}/{}/{} bytes; canonical depth at t17.",
+			"Shared substrate ready: b4/b5/b6/b7 sizes={}/{}/{}/{} bytes; canonical depth at t17; linear clamp sampler at s13.",
 			kBufferSizes[0], kBufferSizes[1], kBufferSizes[2], kBufferSizes[3]);
+	}
+
+	ID3D11SamplerState* GetLinearClampSampler() noexcept
+	{
+		return GetSubstrateState().linearClamp.get();
 	}
 
 	bool IsSharedDataReady() noexcept
@@ -457,6 +473,7 @@ namespace cs::render
 		for (std::size_t index = 0; index < kSubstrateBufferCount; ++index)
 			buffers[index] = state.buffers[index].get();
 		auto* depth = GetCanonicalSceneDepthSRV();
+		auto* sampler = state.linearClamp.get();
 		switch (a_stage) {
 		case engine::ShaderStage::kVertex:
 			engine::BindFrameConstantBuffers(a_context, a_stage, kFrameDataSlot, kSubstrateBufferCount, buffers);
@@ -466,6 +483,7 @@ namespace cs::render
 			engine::BindFrameConstantBuffers(a_context, a_stage, kFrameDataSlot, kSubstrateBufferCount, buffers);
 			engine::BindFrameShaderResources(a_context, a_stage, kCanonicalDepthSlot, 1, &depth);
 			engine::BindFrameShaderResources(a_context, a_stage, kFullscreenDebugTextureSlot, 1, &debugTexture);
+			a_context->PSSetSamplers(kLinearClampSamplerSlot, 1, &sampler);
 			break;
 		case engine::ShaderStage::kCompute:
 			engine::BindFrameConstantBuffers(a_context, a_stage, kFrameDataSlot, kSubstrateBufferCount, buffers);
