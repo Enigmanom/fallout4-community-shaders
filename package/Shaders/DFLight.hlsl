@@ -2385,6 +2385,7 @@ float2 goboUV = float2(omniUV.x,
 		float dist4 = dist2 * dist2;
 		float fadeFactor = 1.0 - dist4 * dist4;
 		shadow = fadeFactor * (shadow - 1.0) + 1.0;
+		FO4_SOFT_SHADOW_NATIVE(softShadow, shadow);
 
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 		shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));
@@ -3179,6 +3180,7 @@ static const float FO4_DIRECTIONAL_SPECULAR_SCALE = 3.141593;
 #	else
 	float3 albedoPremult = albedoSample.w * albedoSample.xyz;
 #	endif
+			FO4_SOFT_SHADOW_NATIVE(softShadow, shadow);
 
 #	if defined(DIRECTIONAL) && defined(SCREEN_SPACE_SHADOWS)
 			shadow *= FO4DirectionalScreenSpaceShadow(input.position.xyz, depth, dot(normalView, LightVector.xyz));

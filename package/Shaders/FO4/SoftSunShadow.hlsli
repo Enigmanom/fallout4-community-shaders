@@ -14,9 +14,7 @@
 #	include "FO4/VolumetricShadowsConsumer.hlsli"
 #	define FO4_SOFT_SUN_SHADOW_ACTIVE
 #	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_VSM_SOFT_SHADOW(softShadow, viewPosition, normalView)
-#	ifdef BSDFLIGHT_PS_DIRSPLITS3
-#		define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow) FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow)
-#	endif
+#	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow) FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow)
 #endif
 #ifndef FO4_SOFT_SHADOW_NATIVE
 #	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow)

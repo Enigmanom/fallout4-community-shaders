@@ -38,10 +38,8 @@ namespace cs::features
 		constexpr std::uint32_t kMipCount = 2;
 
 		constexpr std::array<std::string_view, kMipCount> kDownsamplePasses{ "VolumetricShadows/DownsampleMip0", "VolumetricShadows/DownsampleMip1" };
-		constexpr std::array<std::array<std::string_view, 2>, kMipCount> kBlurPasses{ {
-			{ "VolumetricShadows/BlurHMip0", "VolumetricShadows/BlurVMip0" },
-			{ "VolumetricShadows/BlurHMip1", "VolumetricShadows/BlurVMip1" }
-		} };
+		constexpr std::array<std::array<std::string_view, 2>, kMipCount> kBlurPasses{ { { "VolumetricShadows/BlurHMip0", "VolumetricShadows/BlurVMip0" },
+			{ "VolumetricShadows/BlurHMip1", "VolumetricShadows/BlurVMip1" } } };
 
 		winrt::com_ptr<ID3D11ComputeShader> CompileCompute(const wchar_t* a_path, const char* a_define)
 		{
@@ -302,7 +300,7 @@ namespace cs::features
 
 	void VolumetricShadows::BindConsumer(ID3D11DeviceContext* a_context, bool a_water)
 	{
-		// Disabled leaves t98 unbound, so the consumers read the unlit block as lit.
+		// Disabled leaves t98 unbound; the zeroed block keeps native lobes.
 		if (!a_context || !IsHealthy() || !_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_map.srv)
 			return;
 		if (!a_water && !ActiveLightReadsSoftShadow())
@@ -326,13 +324,9 @@ namespace cs::features
 				.textureProvider = [](const Feature& a_feature) {
 					return static_cast<const VolumetricShadows&>(a_feature).GetCascadeDebugTexture(DebugCascade::kCascade0);
 				} },
-			FeatureDebugView{
-				.id = "cascade_1",
-				.label = "VSM cascade 1",
-				.kind = FeatureDebugViewKind::kTexturePreview,
-				.textureProvider = [](const Feature& a_feature) {
-					return static_cast<const VolumetricShadows&>(a_feature).GetCascadeDebugTexture(DebugCascade::kCascade1);
-				} }
+			FeatureDebugView{ .id = "cascade_1", .label = "VSM cascade 1", .kind = FeatureDebugViewKind::kTexturePreview, .textureProvider = [](const Feature& a_feature) {
+								 return static_cast<const VolumetricShadows&>(a_feature).GetCascadeDebugTexture(DebugCascade::kCascade1);
+							 } }
 		};
 		return views;
 	}

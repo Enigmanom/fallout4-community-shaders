@@ -16,9 +16,11 @@ namespace FO4VolumetricShadows
 {
 	// FO4: weight of the VSM against the native shadow in the last cascade range.
 	static float DistanceFade = 1.0;
+	static bool Published = false;
 
 	float GetSoftShadow(float3 viewPosition)
 	{
+		Published = DirectionalShadowLights[0].EndSplitDistances.y > 0.0;
 		float3 worldPosition = FrameBuffer::ViewToWorld(viewPosition);
 		float detailedShadow;
 		float softShadow = ShadowSampling::GetLightingShadow(worldPosition, detailedShadow);
@@ -29,9 +31,11 @@ namespace FO4VolumetricShadows
 		return softShadow;
 	}
 
-	// FO4: a third cascade has no VSM, so the fade lands on the native soft shadow.
+	// FO4: lobes keep the native shadow without a VSM, as upstream does when off.
 	float BlendNativeShadow(float softShadow, float nativeShadow)
 	{
+		if (!Published)
+			return nativeShadow;
 		return softShadow - (1.0 - DistanceFade) * (1.0 - nativeShadow);
 	}
 
