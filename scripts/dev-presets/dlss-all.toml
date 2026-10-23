@@ -17,6 +17,7 @@ load = true
 
 [features.ImageBasedLighting]
 load = true
+enabled = true
 
 [features.WaterEffects]
 load = true
