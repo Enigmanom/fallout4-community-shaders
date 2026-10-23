@@ -1,4 +1,5 @@
 #include "Render/ShaderInjection.h"
+#include "RE/B/BSComputeShader.h"
 
 #include "Log.h"
 #include "LogThrottle.h"
@@ -560,17 +561,12 @@ namespace cs::engine
 			       service.baselineOwnership[ToIndex(a_target)].load(std::memory_order_relaxed);
 		}
 
-		const char* NativeShaderFilename(const RE::BSShader* a_shader)
-		{
-			return native::FxpFilename(a_shader);
-		}
-
 		std::optional<ShaderInjectionTarget> ResolveNativeShaderTarget(
 			const RE::BSShader& a_shader)
 		{
-			const auto* name = NativeShaderFilename(&a_shader);
+			const auto* name = a_shader.GetFxpFilename();
 			return ResolveGraphicsShaderTarget(
-				static_cast<RE::BSShaderManager::ShaderEnum>(native::ShaderType(&a_shader)),
+				static_cast<RE::BSShaderManager::ShaderEnum>(a_shader.shaderType),
 				name ? name : "");
 		}
 
@@ -592,7 +588,7 @@ namespace cs::engine
 			const auto target = ResolveNativeShaderTarget(*a_shader);
 			if (!target)
 				return std::nullopt;
-			const auto nativeName = NativeShaderFilename(a_shader);
+			const auto nativeName = a_shader->GetFxpFilename();
 
 			NativeShaderFamilyContext result{
 				.target = *target,
@@ -603,8 +599,11 @@ namespace cs::engine
 
 			const char* sourceGroup = nullptr;
 			const char* className = nullptr;
-			sourceGroup = native::ImageSpaceShaderPrefix(a_shader);
-			className = native::ImageSpaceShaderClassName(a_shader);
+			if (a_shader && a_shader->shaderType == 0xC) {
+				const auto* imagespace = static_cast<const RE::BSImagespaceShader*>(a_shader);
+				sourceGroup = imagespace->GetSourcePrefix();
+				className = imagespace->GetShaderClassName();
+			}
 			const auto emitted = native::GetImageSpaceMacros(a_shader);
 			if (!sourceGroup || !className || !emitted)
 				return std::nullopt;
@@ -1975,9 +1974,9 @@ namespace cs::engine
 
 		void ObserveNativeShaderImpl(
 			RE::BSShader* a_shader,
-			bool a_hasPayload) noexcept
+			bool a_streamIsGood) noexcept
 		{
-			if (!a_shader || !a_hasPayload)
+			if (!a_shader || !a_streamIsGood)
 				return;
 			try {
 				const auto family =
@@ -1987,7 +1986,7 @@ namespace cs::engine
 				const auto supportedStages =
 					SupportedStages(family->target);
 				if ((supportedStages & ShaderStageBit(ShaderStage::kVertex)) != 0) {
-					for (auto* entry : native::VertexShaders(a_shader)) {
+					for (auto* entry : a_shader->GetVertexShaders()) {
 						if (!entry || !entry->shader)
 							continue;
 						std::ignore = QueueNativeVariant(
@@ -1998,7 +1997,7 @@ namespace cs::engine
 					}
 				}
 				if ((supportedStages & ShaderStageBit(ShaderStage::kPixel)) != 0) {
-					for (auto* entry : native::PixelShaders(a_shader)) {
+					for (auto* entry : a_shader->GetPixelShaders()) {
 						if (!entry || !entry->shader)
 							continue;
 						std::ignore = QueueNativeVariant(
@@ -2011,7 +2010,7 @@ namespace cs::engine
 					}
 				}
 				if ((supportedStages & ShaderStageBit(ShaderStage::kCompute)) != 0) {
-					for (auto* entry : native::ComputeShaders(a_shader)) {
+					for (auto* entry : a_shader->GetComputeShaders()) {
 						if (!entry || !entry->shader)
 							continue;
 						RecordNativeComputeShader(
@@ -2314,25 +2313,25 @@ namespace cs::engine
 
 	void ObserveNativeShader(
 		RE::BSShader* a_shader,
-		bool a_hasPayload) noexcept
+		bool a_streamIsGood) noexcept
 	{
-		ObserveNativeShaderImpl(a_shader, a_hasPayload);
+		ObserveNativeShaderImpl(a_shader, a_streamIsGood);
 	}
 
 	void ObserveNativeComputeOwner(
-		const void* a_owner,
+		const RE::BSComputeShader* a_owner,
 		ShaderInjectionTarget a_target,
 		std::string_view a_nativeName,
-		bool a_hasPayload) noexcept
+		bool a_streamIsGood) noexcept
 	{
 		if (!a_owner || !IsValidTarget(a_target))
 			return;
 		try {
-			for (auto* entry : native::StandaloneComputeShaders(a_owner)) {
+			for (auto* entry : a_owner->computeShaders) {
 				if (!entry || !entry->shader)
 					continue;
 				const bool prequeue =
-					a_hasPayload && a_target == ShaderInjectionTarget::kDfTiledLighting && a_nativeName == "DFTiledLighting" && (entry->id == 0 || entry->id == 3);
+					a_streamIsGood && a_target == ShaderInjectionTarget::kDfTiledLighting && a_nativeName == "DFTiledLighting" && (entry->id == 0 || entry->id == 3);
 				RecordNativeComputeShader(
 					MakeNativeVariantKey({ .target = a_target,
 						.stage = ShaderStage::kCompute,

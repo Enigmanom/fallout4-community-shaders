@@ -1,7 +1,6 @@
 #include "InverseSquareLightingData.h"
 
 #include "InverseSquareLightingMath.h"
-#include "Render/LocalLights.h"
 
 #include <algorithm>
 
@@ -65,7 +64,7 @@ namespace cs::features::inverse_square_lighting
 	{
 		for (auto& [light, entry] : _lights) {
 			(void)light;
-			engine::local_lights::SetRadius(*entry.owner, entry.data.nativeRadius);
+			entry.owner->SetRadius(entry.data.nativeRadius);
 			entry.data.shaderData.radius = entry.data.nativeRadius;
 		}
 	}
@@ -75,7 +74,7 @@ namespace cs::features::inverse_square_lighting
 		std::erase_if(_lights, [a_reference](const auto& a_entry) {
 			if (a_entry.second.data.referenceID != a_reference)
 				return false;
-			engine::local_lights::SetRadius(*a_entry.second.owner, a_entry.second.data.nativeRadius);
+			a_entry.second.owner->SetRadius(a_entry.second.data.nativeRadius);
 			return true;
 		});
 	}
@@ -85,7 +84,7 @@ namespace cs::features::inverse_square_lighting
 		const auto it = _lights.find(&a_light);
 		if (it == _lights.end())
 			return false;
-		engine::local_lights::SetRadius(*it->second.owner, it->second.data.nativeRadius);
+		it->second.owner->SetRadius(it->second.data.nativeRadius);
 		_lights.erase(it);
 		return true;
 	}

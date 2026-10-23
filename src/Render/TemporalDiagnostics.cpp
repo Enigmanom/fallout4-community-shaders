@@ -725,7 +725,6 @@ namespace cs::render
 			.Field("spatial_fallback_this_frame", _spatialFallbackThisFrame.load(std::memory_order_acquire))
 			.Field("missed_resolve_frames", static_cast<std::int64_t>(_missedResolveFrames.load(std::memory_order_relaxed)))
 			.Field("gamma_only_recovery_frames", static_cast<std::int64_t>(_gammaOnlyRecoveryFrames.load(std::memory_order_relaxed)))
-			.Field("render_ui_gate_valid", _renderUiPathGate.has_value())
 			.Field("render_ui_full_effects_path", _renderUiFullEffectsPath.load(std::memory_order_acquire))
 			.Field("render_ui_recovery_source_width", static_cast<std::int64_t>(_renderUiRecoverySourceWidth.load(std::memory_order_relaxed)))
 			.Field("render_ui_recovery_source_height", static_cast<std::int64_t>(_renderUiRecoverySourceHeight.load(std::memory_order_relaxed)))

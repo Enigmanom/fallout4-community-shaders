@@ -22,8 +22,6 @@ namespace cs::engine
 		REL::VariantID target;
 	};
 
-	[[nodiscard]] std::uintptr_t RuntimeSite(const REL::VariantID& a_function, const RuntimeOffsets& a_offset);
-
 	// Returns the call-site address once it is proven to call the anchor's target.
 	[[nodiscard]] std::expected<std::uintptr_t, std::string> ResolveCallSite(
 		const CallSiteAnchor& a_anchor) noexcept;

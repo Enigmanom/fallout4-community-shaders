@@ -15,7 +15,7 @@ namespace cs::render
 		auto* state = cs::engine::GetGraphicsState();
 		auto* context = cs::engine::GetImmediateContext();
 		auto* frameBufferRTV =
-			cs::engine::GetRenderTargetRTV(cs::engine::RenderTarget::kFrameBuffer);
+			cs::engine::GetRenderTargetRTV(RE::BSGraphics::RenderTargetID::kFrameBuffer);
 		const auto [renderWidth, renderHeight] = GetRenderSize();
 		winrt::com_ptr<ID3D11Texture2D> frameBuffer;
 		D3D11_TEXTURE2D_DESC frameBufferDesc{};
@@ -81,7 +81,7 @@ namespace cs::render
 				// Null t0 and the G-buffer normal's unused channel produce the accepted zero masks.
 				auto* normalsSRV = cs::engine::GetRenderTargetSRV(kNormalsTarget);
 				auto* depthSRV = cs::engine::GetDepthStencilDepthSRV(
-					cs::engine::DepthStencilTarget::kMain);
+					RE::BSGraphics::DepthStencilTargetID::kMain);
 				auto* encodeShader = GetEncodeTexturesCS();
 				if (!depthSRV || !encodeShader) {
 					return render::temporal::ProviderResultCode::kSkipped;
@@ -463,7 +463,7 @@ namespace cs::render
 	{
 		auto* context = cs::engine::GetImmediateContext();
 		auto* frameBufferRTV =
-			cs::engine::GetRenderTargetRTV(cs::engine::RenderTarget::kFrameBuffer);
+			cs::engine::GetRenderTargetRTV(RE::BSGraphics::RenderTargetID::kFrameBuffer);
 		auto* vertexShader = GetUpscaleVS();
 		auto* pixelShader = GetSpatialFallbackPS();
 		if (!context || !a_frameBuffer || !frameBufferRTV || !upscalingTexture ||
@@ -575,11 +575,11 @@ namespace cs::render
 		}
 
 		auto* depthTexture =
-			cs::engine::GetDepthStencilTexture(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilTexture(RE::BSGraphics::DepthStencilTargetID::kMain);
 		auto* depthDSV =
-			cs::engine::GetDepthStencilDSV(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilDSV(RE::BSGraphics::DepthStencilTargetID::kMain);
 		auto* depthSRV =
-			cs::engine::GetDepthStencilDepthSRV(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kMain);
 		auto* refractionNormalsTexture =
 			cs::engine::GetRenderTargetTexture(kRefractionNormalTarget);
 		auto* refractionNormalsRTV =

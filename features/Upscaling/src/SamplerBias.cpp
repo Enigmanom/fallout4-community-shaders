@@ -6,10 +6,10 @@
 
 namespace cs::features
 {
-	bool SamplerBias::Initialize(std::uintptr_t a_tableAddress) noexcept
+	void SamplerBias::Initialize() noexcept
 	{
-		_samplerTable = reinterpret_cast<ID3D11SamplerState**>(a_tableAddress);
-		return _samplerTable != nullptr;
+		static_assert(kSamplerCount == sizeof(RE::BSGraphics::SamplerStateTable) / sizeof(ID3D11SamplerState*));
+		_samplerTable = reinterpret_cast<ID3D11SamplerState**>(&RE::BSGraphics::GetSamplerStateTable());
 	}
 
 	bool SamplerBias::CacheOriginalsIfTableLive() noexcept

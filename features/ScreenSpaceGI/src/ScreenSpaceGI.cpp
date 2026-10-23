@@ -30,7 +30,7 @@ namespace cs::features
 	namespace
 	{
 		auto* L = cs::log::Get("cs.feature.screenspacegi");
-		using RT = cs::engine::RenderTarget;
+		using RT = RE::BSGraphics::RenderTargetID;
 		using Texture = std::unique_ptr<cs::buffer::Texture2D>;
 
 		Texture CreateTexture(UINT a_width, UINT a_height, DXGI_FORMAT a_format,
@@ -151,17 +151,17 @@ namespace cs::features
 
 	void ScreenSpaceGI::ApplyVanillaSSAO()
 	{
-		const auto state = cs::engine::GetScalableAOComputeState();
-		if (!state)
+		auto* sao = cs::engine::GetScalableAOCompute();
+		if (!sao)
 			return;
 		if (!_vanillaSSAOSnapshot)
-			_vanillaSSAOSnapshot = *state->applied;
+			_vanillaSSAOSnapshot = sao->saoToggleState;
 		// FO4: DrawModel and console commands rewrite both native AO bits.
 		const bool vanilla = !IsEnabled() || _settings.enableVanillaSSAO;
 		const bool applied = vanilla && *_vanillaSSAOSnapshot;
-		*state->applied = applied;
+		sao->saoToggleState = applied;
 		// Stays active: with applied clear, SAO_CS still builds the SSLR depth pyramid.
-		*state->active = *state->base || applied;
+		sao->isActive = sao->saoEnabled || applied;
 		_vanillaSSAOApplied = applied;
 	}
 
@@ -398,13 +398,14 @@ namespace cs::features
 		const bool tiled = cs::engine::QueryTiledLightingEnabled();
 		auto* manager = cs::engine::GetRenderTargetManager();
 		auto* depth = cs::render::GetCanonicalSceneDepthSRV();
-		auto* normals = cs::engine::GetRenderTargetSRV(RT::kGbufferNormal);
-		auto* material = cs::engine::GetRenderTargetSRV(RT::kGbufferMaterial);
-		auto* albedo = cs::engine::GetRenderTargetSRV(RT::kGbufferAlbedo);
-		auto* emissive = cs::engine::GetRenderTargetSRV(RT::kGbufferEmissive);
-		auto* diffuse = cs::engine::GetRenderTargetSRV(RT::kDiffuseBufferA);
-		auto* diffuseB = cs::engine::GetRenderTargetSRV(RT::kDiffuseBufferB);
-		auto* motion = cs::engine::GetRenderTargetSRV(RT::kMotionVectors);
+		auto* normals = cs::engine::GetRenderTargetSRV(RT::kGBufferNormal);
+		// FO4: GBufferAmbient carries glossiness, specular, backlighting and SSS.
+		auto* material = cs::engine::GetRenderTargetSRV(RT::kGBufferAmbient);
+		auto* albedo = cs::engine::GetRenderTargetSRV(RT::kGBufferAlbedoSpecular);
+		auto* emissive = cs::engine::GetRenderTargetSRV(RT::kGBufferEmissive);
+		auto* diffuse = cs::engine::GetRenderTargetSRV(RT::kDiffuseLight);
+		auto* diffuseB = cs::engine::GetRenderTargetSRV(RT::kDiffuseLightTiled);
+		auto* motion = cs::engine::GetRenderTargetSRV(RT::kGBufferMotionVectors);
 		_motionAvailable = motion != nullptr;
 		_tiledAvailable = diffuseB != nullptr;
 		if (!camera || !manager || !depth || !normals || !motion ||

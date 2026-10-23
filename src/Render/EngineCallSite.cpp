@@ -15,12 +15,12 @@ namespace cs::engine
 			return std::format(
 				"Fallout 4 {}", REX::FModule::GetExecutingModule().GetFileVersion());
 		}
-	}
 
-	std::uintptr_t RuntimeSite(const REL::VariantID& a_function, const RuntimeOffsets& a_offset)
-	{
-		return a_function.address() +
-		       a_offset[static_cast<std::size_t>(REX::FModule::GetRuntimeIndex())];
+		std::uintptr_t RuntimeSite(const REL::VariantID& a_function, const RuntimeOffsets& a_offset)
+		{
+			return a_function.address() +
+			       a_offset[static_cast<std::size_t>(REX::FModule::GetRuntimeIndex())];
+		}
 	}
 
 	std::expected<std::uintptr_t, std::string> ResolveCallSite(

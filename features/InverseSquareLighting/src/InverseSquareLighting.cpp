@@ -2,6 +2,7 @@
 #include "InverseSquareLightingData.h"
 #include "InverseSquareLightingMath.h"
 #include "LightDerivation.h"
+#include "RE/B/BSDFTiledLighting.h"
 
 #include <DearModdingUI/Client.h>
 #include <winrt/base.h>
@@ -37,7 +38,7 @@ namespace cs::features
 			LightSidecar sidecar;
 			std::vector<LightDefinition> definitions;
 			std::unordered_map<RE::TESFormID, AuthoredLight> forms, references;
-			std::array<std::array<PerLightData, native::kCapacity>, 2> snapshots{};
+			std::array<std::array<PerLightData, RE::BSDFTiledLighting::MAX_LIGHTS>, 2> snapshots{};
 			std::array<winrt::com_ptr<ID3D11Buffer>, 2> buffers;
 			std::array<winrt::com_ptr<ID3D11ShaderResourceView>, 2> views;
 			winrt::com_ptr<ID3D11Buffer> raster;
@@ -70,16 +71,16 @@ namespace cs::features
 		{
 			if (!a_light || !Enabled())
 				return {};
-			auto* light = native::Light(*a_light);
+			auto* light = a_light->GetSourceLight();
 			if (!light)
 				return {};
 			std::scoped_lock lock(g_state.mutex);
-			const auto* data = g_state.sidecar.Refresh(*light, native::IsShadowLight(*a_light));
+			const auto* data = g_state.sidecar.Refresh(*light, a_light->IsShadowLight());
 			if (!data)
 				return {};
 			auto result = data->shaderData;
 			if (a_renderFade)
-				result.fade *= native::CurrentFade(*a_light);
+				result.fade *= a_light->currentFade;
 			return result;
 		}
 
@@ -102,10 +103,10 @@ namespace cs::features
 				std::scoped_lock lock(g_state.mutex);
 				const auto referenceID = a_reference ? a_reference->GetFormID() : 0;
 				const auto* existing = g_state.sidecar.Find(*light);
-				const auto radius = existing && native::Radius(*light) == existing->shaderData.radius ?
+				const auto radius = existing && light->GetRadius() == existing->shaderData.radius ?
 				                        existing->nativeRadius :
-				                        native::Radius(*light);
-				const auto shadow = wrapper  ? native::IsShadowLight(*wrapper) :
+				                        light->GetRadius();
+				const auto shadow = wrapper  ? wrapper->IsShadowLight() :
 				                    existing ? existing->shadowCaster :
 				                               a_form->data.flags.any(Flag::kShadowSpotlight, Flag::kShadowHemisphere,
 												   Flag::kShadowOmnidirectional);
@@ -143,14 +144,14 @@ namespace cs::features
 					// A reused light may carry a stale entry from an earlier conversion.
 					if (existing) {
 						g_state.sidecar.Remove(*light);
-						native::SetRadius(*light, radius);
+						light->SetRadius(radius);
 					}
 					return light;
 				}
 				const auto& data = g_state.sidecar.CaptureAuthoredLight(*light, *a_form,
 					referenceID, authored, radius, shadow, intensityScale, fromDerivation);
 				if (IsInverseSquare(data.shaderData))
-					native::SetRadius(*light, data.shaderData.radius);
+					light->SetRadius(data.shaderData.radius);
 				++g_state.created;
 				return light;
 			}
@@ -186,7 +187,7 @@ namespace cs::features
 			static void thunk(void* a_scene, RE::BSLight** a_light)
 			{
 				if (*a_light) {
-					if (const auto* light = native::Light(**a_light)) {
+					if (const auto* light = (*a_light)->GetSourceLight()) {
 						std::scoped_lock lock(g_state.mutex);
 						if (g_state.sidecar.Remove(*light))
 							++g_state.removedLights;
@@ -209,7 +210,7 @@ namespace cs::features
 				std::scoped_lock lock(g_state.mutex);
 				if (const auto* data = g_state.sidecar.Refresh(*a_light);
 					data && IsInverseSquare(data->shaderData))
-					native::SetRadius(*a_light, data->shaderData.radius);
+					a_light->SetRadius(data->shaderData.radius);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -219,13 +220,13 @@ namespace cs::features
 			{
 				const auto data = Snapshot(a_light, false);
 				if (IsInverseSquare(data)) {
-					auto* light = native::Light(*a_light);
-					native::SetRadius(*light, data.radius);
+					auto* light = a_light->GetSourceLight();
+					light->SetRadius(data.radius);
 				}
-				if (auto* light = native::Light(*a_light)) {
+				if (auto* light = a_light->GetSourceLight()) {
 					std::scoped_lock lock(g_state.mutex);
 					if (g_state.sidecar.UpdateCullRadius(*light))
-						native::InvalidateSpotCone(*a_light);
+						a_light->InvalidateSpotCone();
 				}
 				return func(a_light, a_frustum);
 			}
@@ -238,7 +239,7 @@ namespace cs::features
 			static std::uint32_t thunk(void* a_callback, RE::BSLight** a_light, bool* a_remove)
 			{
 				if (*a_light) {
-					if (auto* light = native::Light(**a_light)) {
+					if (auto* light = (*a_light)->GetSourceLight()) {
 						std::scoped_lock lock(g_state.mutex);
 						// Native pruning requires the scene wrapper to be the sole NiLight owner.
 						if (std::atomic_ref(light->refCount).load() == 2 && g_state.sidecar.Remove(*light))
@@ -258,15 +259,15 @@ namespace cs::features
 				RE::NiColor& a_color, RE::NiPoint3& a_attenuation,
 				bool a_roughness, bool a_rim, bool a_attenuationOnly, bool a_specular)
 			{
-				const auto side = native::AppendSide();
-				const auto index = side < 2 ? native::AppendCount(side) : native::kCapacity;
+				const auto side = RE::BSDFTiledLighting::GetWriteSide();
+				const auto index = side < 2 ? RE::BSDFTiledLighting::GetLightCounts()[side] : static_cast<std::uint32_t>(RE::BSDFTiledLighting::MAX_LIGHTS);
 				const auto data = Snapshot(g_appendingLight, true);
-				if (side < 2 && index < native::kCapacity) {
+				if (side < 2 && index < RE::BSDFTiledLighting::MAX_LIGHTS) {
 					std::scoped_lock lock(g_state.mutex);
 					g_state.snapshots[side][index] = data;
 					if (IsInverseSquare(data)) {
 						++g_state.appended;
-						const auto* light = native::Light(*g_appendingLight);
+						const auto* light = g_appendingLight->GetSourceLight();
 						const auto* runtime = g_state.sidecar.Find(*light);
 						g_state.lastReference = runtime ? runtime->referenceID : 0;
 						g_state.lastForm = runtime ? runtime->formID : 0;
@@ -301,17 +302,17 @@ namespace cs::features
 			static void thunk(void* a_renderer, void* a_buffer, void* a_data,
 				std::uint32_t a_stride, std::uint32_t a_count)
 			{
-				if (Enabled() && g_state.resources.load() && a_stride == sizeof(native::TiledRecord)) {
+				if (Enabled() && g_state.resources.load() && a_stride == sizeof(RE::BSDFTiledLighting::TiledLightRecord)) {
 					for (std::uint32_t side = 0; side < 2; ++side) {
-						if (a_data != native::Records(side))
+						if (a_data != RE::BSDFTiledLighting::GetLightRecords()[side])
 							continue;
-						std::array<PerLightData, native::kCapacity> snapshot;
+						std::array<PerLightData, RE::BSDFTiledLighting::MAX_LIGHTS> snapshot;
 						{
 							std::scoped_lock lock(g_state.mutex);
 							snapshot = g_state.snapshots[side];
 						}
-						const auto count = a_count == 0 ? native::kCapacity : a_count;
-						if (count <= native::kCapacity &&
+						const auto count = a_count == 0 ? RE::BSDFTiledLighting::MAX_LIGHTS : a_count;
+						if (count <= RE::BSDFTiledLighting::MAX_LIGHTS &&
 							WriteBuffer(g_state.context.get(), g_state.buffers[side].get(),
 								snapshot.data(), count * sizeof(PerLightData))) {
 							g_state.uploadedSide = side;
@@ -358,8 +359,8 @@ namespace cs::features
 				const auto data = Snapshot(a_light, false);
 				if (!IsInverseSquare(data))
 					return func(a_light, a_position, a_ignore);
-				auto* light = native::Light(*a_light);
-				if (light == a_ignore || light->GetAppCulled() || native::GameplayExcluded(*a_light))
+				auto* light = a_light->GetSourceLight();
+				if (light == a_ignore || light->GetAppCulled() || a_light->excludeFromPointLuminance)
 					return 0;
 				const auto delta = light->world.translate - *a_position;
 				const float distance = std::sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
@@ -367,7 +368,7 @@ namespace cs::features
 				const float value = (data.color.r + data.color.g + data.color.b) *
 				                    data.fade * GetAttenuation(distance, data.radius, size) * (1.0f / 3.0f) *
 				                    native::ShapeAttenuation(*a_light, *a_position);
-				native::SetLuminance(*a_light, value);
+				a_light->luminance = value;
 				++g_state.luminance;
 				return value;
 			}
@@ -485,7 +486,7 @@ namespace cs::features
 	{
 		a_device->GetImmediateContext(g_state.context.put());
 		D3D11_BUFFER_DESC desc{};
-		desc.ByteWidth = sizeof(PerLightData) * native::kCapacity;
+		desc.ByteWidth = sizeof(PerLightData) * RE::BSDFTiledLighting::MAX_LIGHTS;
 		desc.Usage = D3D11_USAGE_DYNAMIC;
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;

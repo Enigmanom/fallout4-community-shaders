@@ -194,8 +194,8 @@ namespace cs::features
 		const bool shadowVisibility = a_consumer == Consumer::kLight;
 		const std::array<ID3D11ShaderResourceView*, 4> views{
 			probes,
-			lighting ? cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kGbufferAlbedo) : nullptr,
-			lighting ? cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kGbufferEmissive) : nullptr,
+			lighting ? cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kGBufferAlbedoSpecular) : nullptr,
+			lighting ? cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kGBufferEmissive) : nullptr,
 			shadowVisibility ? _texShadowVisibility->srv.get() : nullptr
 		};
 		cs::engine::BindInjectionShaderResources(a_context, kProbeArraySlot, shadowVisibility ? 4 : lighting ? 3 :
@@ -393,7 +393,7 @@ namespace cs::features
 		if (mode == DebugVisualization::kOff || !IsEnabled() || !_injectionsOperational.load(std::memory_order_acquire) || !_probesReady.load(std::memory_order_acquire))
 			return;
 		auto* shader = _debugCompute[mode == DebugVisualization::kUp ? 1 : 0].get();
-		auto* normals = cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kGbufferNormal);
+		auto* normals = cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kGBufferNormal);
 		const auto* graphics = cs::engine::GetGraphicsState();
 		if (!shader || !normals || !graphics || !cs::render::IsSharedDataReady())
 			return;

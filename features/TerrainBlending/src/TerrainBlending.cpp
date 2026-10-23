@@ -218,7 +218,7 @@ namespace cs::features
 
 	bool TerrainBlending::CopyObjectDepth(ID3D11DeviceContext* a_context)
 	{
-		auto* source = cs::engine::GetDepthStencilTexture(cs::engine::DepthStencilTarget::kMain);
+		auto* source = cs::engine::GetDepthStencilTexture(RE::BSGraphics::DepthStencilTargetID::kMain);
 		if (!source)
 			return false;
 		D3D11_TEXTURE2D_DESC desc{};

@@ -129,8 +129,8 @@ namespace cs::engine
 		// A stock target must be 512x512: RT 86 forces the viewport, DS8 is swapped.
 		[[nodiscard]] bool StockTargetsMatch() noexcept
 		{
-			const auto* depth = ResolveDepthStencilTarget(DepthStencilTarget::kPrecipitationOcclusion);
-			const auto* color = ResolveRenderTarget(RenderTarget::kPrecipitationOcclusionColor);
+			const auto* depth = ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kRainOcclusion);
+			const auto* color = ResolveRenderTarget(RE::BSGraphics::RenderTargetID::kRainOcclusion);
 			return depth && IsOcclusionSquare(reinterpret_cast<ID3D11Texture2D*>(depth->texture)) &&
 			       (!color || IsOcclusionSquare(reinterpret_cast<ID3D11Texture2D*>(color->texture)));
 		}
@@ -197,7 +197,7 @@ namespace cs::engine
 				RE::Precipitation::GetDirection() = _savedDirection;
 				std::memcpy(RE::Precipitation::GetOcclusionMatrix(), _savedMatrix, sizeof(_savedMatrix));
 				_stockTarget = _savedTarget;
-				const auto* resolved = ResolveDepthStencilTarget(DepthStencilTarget::kPrecipitationOcclusion);
+				const auto* resolved = ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kRainOcclusion);
 				_targetRestored = resolved == &_stockTarget && resolved->texture == _savedTarget.texture;
 
 				// Leaves the camera rotation on the stock direction for the next projection.
@@ -247,12 +247,12 @@ namespace cs::engine
 	std::string DescribeStockOcclusionTargets()
 	{
 		std::string text;
-		if (const auto* depth = ResolveDepthStencilTarget(DepthStencilTarget::kPrecipitationOcclusion)) {
+		if (const auto* depth = ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kRainOcclusion)) {
 			text += std::format("DS8 {}", DescribeTexture(reinterpret_cast<ID3D11Texture2D*>(depth->texture)));
 		} else {
 			text += "DS8 unresolved";
 		}
-		if (const auto* color = ResolveRenderTarget(RenderTarget::kPrecipitationOcclusionColor)) {
+		if (const auto* color = ResolveRenderTarget(RE::BSGraphics::RenderTargetID::kRainOcclusion)) {
 			text += std::format("; RT86 {}", DescribeTexture(reinterpret_cast<ID3D11Texture2D*>(color->texture)));
 		} else {
 			text += "; RT86 unresolved";
@@ -269,7 +269,7 @@ namespace cs::engine
 		if (!precipitation || !precipitation->occlusionData.camera || !precipitation->occlusionData.accumulator)
 			return OcclusionCaptureStatus::kNoPrecipitation;
 
-		auto* stock = ResolveDepthStencilTarget(DepthStencilTarget::kPrecipitationOcclusion);
+		auto* stock = ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kRainOcclusion);
 		const auto& target = a_request.target;
 		if (!stock || !target.texture || !target.depthView || !target.depthSRV || !StockTargetsMatch())
 			return OcclusionCaptureStatus::kTargetsUnavailable;

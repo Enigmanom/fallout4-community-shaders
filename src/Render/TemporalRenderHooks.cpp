@@ -1,3 +1,4 @@
+#include "RE/D/DrawWorld.h"
 #include "Render/TemporalRendererInternals.h"
 
 namespace cs::render
@@ -8,11 +9,7 @@ namespace cs::render
 	{
 		using namespace upscaling_anchors;
 
-		const auto samplerStateTable = kSamplerStateTable.address();
-		if (!samplerBias.Initialize(samplerStateTable)) {
-			RejectInitialization("The sampler-state table address did not resolve");
-			return;
-		}
+		samplerBias.Initialize();
 
 		struct CallHook
 		{
@@ -20,10 +17,11 @@ namespace cs::render
 			void (*install)(std::uintptr_t);
 			std::uintptr_t site = 0;
 		};
+		const auto firstPersonAlpha = FirstPersonAlphaRenderAlphaGeometry();
 		std::array callHooks{
 			CallHook{ &kDrawWorldBeginSetDynamicViewport, &stl::write_thunk_call<DrawWorldBegin_SetDynamicViewport> },
 			CallHook{ &kDrawWorldBeginUpdateTemporalData, &stl::write_thunk_call<Main_UpdateJitter> },
-			CallHook{ &kFirstPersonAlphaRenderAlphaGeometry, &stl::write_thunk_call<DrawWorld_FirstPersonAlpha> },
+			CallHook{ &firstPersonAlpha, &stl::write_thunk_call<DrawWorld_FirstPersonAlpha> },
 			CallHook{ &kDrawWorldRenderUIResolve, &stl::write_thunk_call<DrawWorldRenderUI_Resolve> },
 			CallHook{ &kDrawWorldRenderUIRenderEffectRange, &stl::write_thunk_call<DrawWorldRenderUI_RenderEffectRange> },
 			CallHook{ &kDeferredCompositeRenderPass, &stl::write_thunk_call<DeferredComposite_RenderPass> },
@@ -43,19 +41,6 @@ namespace cs::render
 				return;
 			}
 			hook.site = *site;
-		}
-
-		const auto dataSection =
-			REX::FModule::GetExecutingModule().GetSection(".data");
-		_renderUiPathGate = cs::engine::RenderUIPathGate::Decode(
-			cs::engine::RuntimeSite(RE::ID::DrawWorld::Imagespace, kDrawWorldRenderUIEffectsGateCompare),
-			dataSection.GetAddress(),
-			dataSection.GetSize(),
-			kDrawWorldRenderUIEffectsGate.address());
-		if (!_renderUiPathGate) {
-			RejectInitialization(
-				"DrawWorld::Render_UI effects-path gate instruction or target was not recognized");
-			return;
 		}
 
 		for (const auto& hook : callHooks) {
@@ -269,16 +254,16 @@ namespace cs::render
 		try {
 			// HDR effects render against the render-resolution proxies.
 			func(a_this, 0, 3, 1, 1);
-			upscaling->dynamicResolution.BeginProxyPass({ cs::engine::RenderTarget::kRefractionNormal,
-				cs::engine::RenderTarget::kMainTemp,
-				cs::engine::RenderTarget::kMotionVectors,
-				cs::engine::RenderTarget::kHdrImagespaceAux });
+			upscaling->dynamicResolution.BeginProxyPass({ RE::BSGraphics::RenderTargetID::kRefractionNormals,
+				RE::BSGraphics::RenderTargetID::kMain,
+				RE::BSGraphics::RenderTargetID::kGBufferMotionVectors,
+				RE::BSGraphics::RenderTargetID::kMenuBackground });
 
 			// LDR effects render full-extent.
 			func(a_this, 4, 13, 1, 1);
-			upscaling->dynamicResolution.EndProxyPass({ cs::engine::RenderTarget::kMainTemp });
+			upscaling->dynamicResolution.EndProxyPass({ RE::BSGraphics::RenderTargetID::kMain });
 		} catch (...) {
-			upscaling->dynamicResolution.EndProxyPass({ cs::engine::RenderTarget::kMainTemp });
+			upscaling->dynamicResolution.EndProxyPass({ RE::BSGraphics::RenderTargetID::kMain });
 			upscaling->QuarantineAfterException("Upscaling imagespace effect split");
 		}
 
@@ -291,9 +276,7 @@ namespace cs::render
 	void TemporalRenderer::DrawWorldRenderUI::thunk(void* a_this)
 	{
 		auto* upscaling = GetSingleton();
-		const bool fullEffectsPath =
-			upscaling->_renderUiPathGate &&
-			upscaling->_renderUiPathGate->TakesFullEffectsPath();
+		const bool fullEffectsPath = RE::DrawWorld::GetEndOfFrameImagespaceEffectsEnabled();
 		upscaling->_renderUiFullEffectsPath.store(
 			fullEffectsPath, std::memory_order_release);
 		upscaling->_resolveSeamSeen.store(false, std::memory_order_release);
@@ -388,43 +371,43 @@ namespace cs::render
 
 		if (upscaling->IsDrivingFrameState()) {
 			GuardedThunkBody("Upscaling composite override", [&] {
-				using cs::engine::RenderTarget;
-				// kSSLRBlurV is not copied: the SSLR proxy pass already left it in the proxy.
-				upscaling->dynamicResolution.BeginProxyPass({ RenderTarget::kGbufferNormal,
-					RenderTarget::kAmbientOcclusion,
-					RenderTarget::kGbufferMetadata,
-					RenderTarget::kGbufferMaterial,
-					RenderTarget::kGbufferEmissive,
-					RenderTarget::kDiffuseBufferA,
-					RenderTarget::kSpecularBufferA,
-					RenderTarget::kMain,
-					RenderTarget::kDiffuseBufferB,
-					RenderTarget::kSpecularBufferB,
-					RenderTarget::kAmbientOcclusionHalf });
+				using RE::BSGraphics::RenderTargetID;
+				// kSSRBlurred1 is not copied: the SSLR proxy pass already left it in the proxy.
+				upscaling->dynamicResolution.BeginProxyPass({ RenderTargetID::kGBufferNormal,
+					RenderTargetID::kAmbientOcclusion,
+					RenderTargetID::kGBufferEnvironment,
+					RenderTargetID::kGBufferAmbient,
+					RenderTargetID::kGBufferEmissive,
+					RenderTargetID::kDiffuseLight,
+					RenderTargetID::kDiffuseSpecular,
+					RenderTargetID::kMainCopy,
+					RenderTargetID::kDiffuseLightTiled,
+					RenderTargetID::kDiffuseSpecularTiled,
+					RenderTargetID::kAmbientOcclusionHalf });
 			});
 		}
 
 		func(a_pass, a_2, a_3);
 
 		GuardedThunkBody("Upscaling composite reset", [&] {
-			upscaling->dynamicResolution.EndProxyPass({ cs::engine::RenderTarget::kMainTemp });
+			upscaling->dynamicResolution.EndProxyPass({ RE::BSGraphics::RenderTargetID::kMain });
 		});
 	}
 
 	void TemporalRenderer::DeferredCompositeSSLR_Begin::thunk(
 		RE::BSGraphics::RenderTargetManager* a_this,
 		std::int32_t a_slot,
-		std::int32_t a_logicalID,
+		RE::BSGraphics::RenderTargetID a_logicalID,
 		RE::BSGraphics::SetRenderTargetMode a_mode)
 	{
 		auto* upscaling = GetSingleton();
 		if (upscaling->IsDrivingFrameState()) {
 			GuardedThunkBody("Upscaling SSLR override", [&] {
-				using cs::engine::RenderTarget;
+				using RE::BSGraphics::RenderTargetID;
 				// Prepass reads normals and metadata; the ray pass reads the first composite.
-				upscaling->dynamicResolution.BeginProxyPass({ RenderTarget::kGbufferNormal,
-																RenderTarget::kGbufferMetadata,
-																RenderTarget::kMain },
+				upscaling->dynamicResolution.BeginProxyPass({ RenderTargetID::kGBufferNormal,
+																RenderTargetID::kGBufferEnvironment,
+																RenderTargetID::kMainCopy },
 					cs::features::DynamicResolution::ProxyTriangle::kUnit);
 			});
 		}
@@ -433,24 +416,24 @@ namespace cs::render
 
 	void TemporalRenderer::DeferredCompositeSSLR_AcquireBlurH::thunk(
 		RE::BSGraphics::RenderTargetManager* a_this,
-		std::int32_t a_logicalID)
+		RE::BSGraphics::RenderTargetID a_logicalID)
 	{
 		func(a_this, a_logicalID);
 		GuardedThunkBody("Upscaling SSLR BlurH override", [&] {
-			GetSingleton()->dynamicResolution.ProxyAcquiredRenderTarget(cs::engine::RenderTarget::kSSLRBlurH);
+			GetSingleton()->dynamicResolution.ProxyAcquiredRenderTarget(RE::BSGraphics::RenderTargetID::kSSRBlurred0);
 		});
 	}
 
 	void TemporalRenderer::DeferredCompositeSSLR_ReleaseBlurH::thunk(
 		RE::BSGraphics::RenderTargetManager* a_this,
-		std::int32_t a_logicalID)
+		RE::BSGraphics::RenderTargetID a_logicalID)
 	{
 		// BlurH must be restored while its platform slot is still mapped.
 		GuardedThunkBody("Upscaling SSLR reset", [&] {
-			using cs::engine::RenderTarget;
-			GetSingleton()->dynamicResolution.ReleaseAcquiredRenderTarget(RenderTarget::kSSLRBlurH);
+			using RE::BSGraphics::RenderTargetID;
+			GetSingleton()->dynamicResolution.ReleaseAcquiredRenderTarget(RenderTargetID::kSSRBlurred0);
 			// Water samples the ray result and blur in the engine's region layout.
-			GetSingleton()->dynamicResolution.EndProxyPass({ RenderTarget::kSSLRRayResult, RenderTarget::kSSLRBlurV });
+			GetSingleton()->dynamicResolution.EndProxyPass({ RenderTargetID::kSSR, RenderTargetID::kSSRBlurred1 });
 		});
 		func(a_this, a_logicalID);
 	}

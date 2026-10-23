@@ -862,7 +862,7 @@ namespace cs::features
 		auto* context = cs::engine::GetImmediateContext();
 		auto* depthSRV = cs::engine::GetSceneDepthSRV();
 		auto* colorSRV = cs::engine::GetRenderTargetSRV(
-			cs::engine::RenderTarget::kMainTemp);
+			RE::BSGraphics::RenderTargetID::kMain);
 		const auto frameBuffer = cs::engine::GetWorldCameraRecord();
 		const bool cameraReady = frameBuffer.has_value();
 		_cameraReadyLastFrame.store(cameraReady, std::memory_order_relaxed);
@@ -934,7 +934,7 @@ namespace cs::features
 		auto* context = cs::engine::GetImmediateContext();
 		auto* depthSRV = cs::engine::GetSceneDepthSRV();
 		auto* colorSRV = cs::engine::GetRenderTargetSRV(
-			cs::engine::RenderTarget::kMainTemp);
+			RE::BSGraphics::RenderTargetID::kMain);
 		const auto frameBuffer = cs::engine::GetWorldCameraRecord();
 		DirectX::XMFLOAT4X4 projection{};
 		DirectX::XMFLOAT4X4 inverseProjection{};
@@ -976,12 +976,12 @@ namespace cs::features
 		std::array<ID3D11ShaderResourceView*, 6> srvs{
 			depthSRV,
 			colorSRV,
-			cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kGbufferAlbedo),
-			cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kDiffuseBufferA),
+			cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kGBufferAlbedoSpecular),
+			cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kDiffuseLight),
 			tiledLighting ?
-				cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kDiffuseBufferB) :
+				cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kDiffuseLightTiled) :
 				nullptr,
-			cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kGbufferEmissive)
+			cs::engine::GetRenderTargetSRV(RE::BSGraphics::RenderTargetID::kGBufferEmissive)
 		};
 		std::array<ID3D11UnorderedAccessView*, 4> uavs{
 			stream.color.mip0Uav.get(),

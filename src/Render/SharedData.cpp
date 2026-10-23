@@ -274,7 +274,7 @@ namespace cs::render
 				if (!(ratio.x > 0.0f) || !(ratio.y > 0.0f))
 					return;
 				const auto previousRatio = state.hasResolutionHistory ? state.previousRatio : ratio;
-				const auto* clampTarget = engine::ResolveRenderTarget(engine::RenderTarget::kMainTemp);
+				const auto* clampTarget = engine::ResolveRenderTarget(RE::BSGraphics::RenderTargetID::kMain);
 				if (!clampTarget || !clampTarget->texture)
 					return;
 				D3D11_TEXTURE2D_DESC clampDesc{};

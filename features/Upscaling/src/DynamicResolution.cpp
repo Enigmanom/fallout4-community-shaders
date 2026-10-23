@@ -19,37 +19,37 @@ namespace cs::features
 		auto* L = cs::log::Get("cs.feature.upscaling.dynres");
 
 		// Engine render targets that hold the world and HDR imagespace chain.
-		using cs::engine::RenderTarget;
-		constexpr RenderTarget kProxiedTargets[] = {
-			RenderTarget::kGbufferNormal,
-			RenderTarget::kGbufferMetadata,
-			RenderTarget::kGbufferMaterial,
-			RenderTarget::kAmbientOcclusion,
-			RenderTarget::kGbufferEmissive,
-			RenderTarget::kDiffuseBufferA,
-			RenderTarget::kSpecularBufferA,
-			RenderTarget::kAmbientOcclusionHalf,
-			RenderTarget::kMain,
-			RenderTarget::kSSLRBlurV,
-			RenderTarget::kDiffuseBufferB,
-			RenderTarget::kSpecularBufferB,
-			RenderTarget::kMainTemp,
-			RenderTarget::kMotionVectors,
-			RenderTarget::kRefractionNormal,
-			RenderTarget::kUIDownscaled,
-			RenderTarget::kUIDownscaledComposite,
-			RenderTarget::kGbufferAlbedo,
-			RenderTarget::kSSLRRayStart,
-			RenderTarget::kSSLRSurfaceDepth,
-			RenderTarget::kSSLRRayResult,
-			RenderTarget::kLuminanceDownscale,
-			RenderTarget::kMainVerticalBlur,
-			RenderTarget::kHdrImagespaceAux
+		using RE::BSGraphics::RenderTargetID;
+		constexpr RenderTargetID kProxiedTargets[] = {
+			RenderTargetID::kGBufferNormal,
+			RenderTargetID::kGBufferEnvironment,
+			RenderTargetID::kGBufferAmbient,
+			RenderTargetID::kAmbientOcclusion,
+			RenderTargetID::kGBufferEmissive,
+			RenderTargetID::kDiffuseLight,
+			RenderTargetID::kDiffuseSpecular,
+			RenderTargetID::kAmbientOcclusionHalf,
+			RenderTargetID::kMainCopy,
+			RenderTargetID::kSSRBlurred1,
+			RenderTargetID::kDiffuseLightTiled,
+			RenderTargetID::kDiffuseSpecularTiled,
+			RenderTargetID::kMain,
+			RenderTargetID::kGBufferMotionVectors,
+			RenderTargetID::kRefractionNormals,
+			RenderTargetID::kHUDGlass,
+			RenderTargetID::kHUDGlassSwap,
+			RenderTargetID::kGBufferAlbedoSpecular,
+			RenderTargetID::kSSRPrepass,
+			RenderTargetID::kSSRDepth,
+			RenderTargetID::kSSR,
+			RenderTargetID::kHDRDownsample0,
+			RenderTargetID::kHDRBlurSwap,
+			RenderTargetID::kMenuBackground
 		};
 
 		// Pooled slots exist only between acquire and release; proxied per acquire.
-		constexpr RenderTarget kPooledTargets[] = {
-			RenderTarget::kSSLRBlurH
+		constexpr RenderTargetID kPooledTargets[] = {
+			RenderTargetID::kSSRBlurred0
 		};
 
 		template <class F>
@@ -63,12 +63,12 @@ namespace cs::features
 			}
 		}
 
-		constexpr std::size_t Index(RenderTarget a_target) noexcept
+		constexpr std::size_t Index(RenderTargetID a_target) noexcept
 		{
 			return static_cast<std::size_t>(a_target);
 		}
 
-		bool Contains(std::initializer_list<RenderTarget> a_targets, RenderTarget a_target) noexcept
+		bool Contains(std::initializer_list<RenderTargetID> a_targets, RenderTargetID a_target) noexcept
 		{
 			return std::find(a_targets.begin(), a_targets.end(), a_target) != a_targets.end();
 		}
@@ -89,13 +89,13 @@ namespace cs::features
 	bool DynamicResolution::IsProxyTexture(const void* a_texture) const noexcept
 	{
 		bool found = false;
-		ForEachTarget([&](RenderTarget a_target) {
+		ForEachTarget([&](RenderTargetID a_target) {
 			found = found || (a_texture && proxyRenderTargets[Index(a_target)].texture == a_texture);
 		});
 		return found;
 	}
 
-	void DynamicResolution::RestoreEngineSlot(RenderTarget a_target)
+	void DynamicResolution::RestoreEngineSlot(RenderTargetID a_target)
 	{
 		const auto index = Index(a_target);
 		auto* engineTarget = cs::engine::ResolveRenderTarget(a_target);
@@ -105,7 +105,7 @@ namespace cs::features
 		}
 	}
 
-	void DynamicResolution::ReleaseProxy(RenderTarget a_target)
+	void DynamicResolution::ReleaseProxy(RenderTargetID a_target)
 	{
 		InvalidateProxy(a_target);
 		auto& proxy = proxyRenderTargets[Index(a_target)];
@@ -116,7 +116,7 @@ namespace cs::features
 		proxy = {};
 	}
 
-	DynamicResolution::ProxyTexture DynamicResolution::GetProxyTexture(RenderTarget a_target) const noexcept
+	DynamicResolution::ProxyTexture DynamicResolution::GetProxyTexture(RenderTargetID a_target) const noexcept
 	{
 		if (Index(a_target) >= std::size(proxyRenderTargets)) {
 			return {};
@@ -134,7 +134,7 @@ namespace cs::features
 		return { view, desc.Width, desc.Height };
 	}
 
-	void DynamicResolution::CaptureOriginal(RenderTarget a_target, const RE::BSGraphics::RenderTarget& a_engineTarget)
+	void DynamicResolution::CaptureOriginal(RenderTargetID a_target, const RE::BSGraphics::RenderTarget& a_engineTarget)
 	{
 		const auto index = Index(a_target);
 		InvalidateProxy(a_target);
@@ -149,7 +149,7 @@ namespace cs::features
 		proxy.uaView = proxyViews.uaView;
 	}
 
-	void DynamicResolution::UpdateRenderTarget(RenderTarget a_target, float a_widthRatio, float a_heightRatio)
+	void DynamicResolution::UpdateRenderTarget(RenderTargetID a_target, float a_widthRatio, float a_heightRatio)
 	{
 		auto* rendererData = RE::BSGraphics::GetRendererData();
 		auto* engineTarget = cs::engine::ResolveRenderTarget(a_target);
@@ -245,7 +245,7 @@ namespace cs::features
 
 		_depthOverrideTexture = nullptr;
 
-		auto* frameBufferSRV = cs::engine::GetRenderTargetSRV(cs::engine::RenderTarget::kFrameBuffer);
+		auto* frameBufferSRV = cs::engine::GetRenderTargetSRV(RenderTargetID::kFrameBuffer);
 		if (!frameBufferSRV) {
 			_hasProxies = false;
 			return;
@@ -296,7 +296,7 @@ namespace cs::features
 			"Upscaling/DepthOverride.UAV");
 	}
 
-	void DynamicResolution::InvalidateProxy(RenderTarget a_target) noexcept
+	void DynamicResolution::InvalidateProxy(RenderTargetID a_target) noexcept
 	{
 		_proxyFilledFrame[Index(a_target)].Reset();
 	}
@@ -308,7 +308,7 @@ namespace cs::features
 		}
 	}
 
-	void DynamicResolution::OverrideRenderTarget(RenderTarget a_target, bool a_doCopy)
+	void DynamicResolution::OverrideRenderTarget(RenderTargetID a_target, bool a_doCopy)
 	{
 		const auto index = Index(a_target);
 		auto* engineTarget = cs::engine::ResolveRenderTarget(a_target);
@@ -342,7 +342,7 @@ namespace cs::features
 		_proxyFilledFrame[index].Mark(cs::engine::GetFrameCount());
 	}
 
-	void DynamicResolution::ResetRenderTarget(RenderTarget a_target, bool a_doCopy)
+	void DynamicResolution::ResetRenderTarget(RenderTargetID a_target, bool a_doCopy)
 	{
 		const auto index = Index(a_target);
 		auto* engineTarget = cs::engine::ResolveRenderTarget(a_target);
@@ -368,7 +368,7 @@ namespace cs::features
 		*engineTarget = originalRenderTargets[index];
 	}
 
-	void DynamicResolution::OverrideRenderTargets(std::initializer_list<RenderTarget> a_toCopy)
+	void DynamicResolution::OverrideRenderTargets(std::initializer_list<RenderTargetID> a_toCopy)
 	{
 		if (!_hasProxies) {
 			return;
@@ -422,7 +422,7 @@ namespace cs::features
 		_renderTargetsOverridden = true;
 	}
 
-	void DynamicResolution::ResetRenderTargets(std::initializer_list<RenderTarget> a_toCopy)
+	void DynamicResolution::ResetRenderTargets(std::initializer_list<RenderTargetID> a_toCopy)
 	{
 		if (!_renderTargetsOverridden) {
 			return;
@@ -479,7 +479,7 @@ namespace cs::features
 			return;
 		}
 
-		auto* mainDepth = cs::engine::ResolveDepthStencilTarget(cs::engine::DepthStencilTarget::kMain);
+		auto* mainDepth = cs::engine::ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kMain);
 		if (!mainDepth) {
 			return;
 		}
@@ -506,7 +506,7 @@ namespace cs::features
 		}
 		_depthOverridden = false;
 
-		if (auto* mainDepth = cs::engine::ResolveDepthStencilTarget(cs::engine::DepthStencilTarget::kMain)) {
+		if (auto* mainDepth = cs::engine::ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kMain)) {
 			mainDepth->srViewDepth = reinterpret_cast<REX::W32::ID3D11ShaderResourceView*>(_originalDepthView);
 		}
 	}
@@ -519,7 +519,7 @@ namespace cs::features
 				   renderTargetManager->GetDynamicHeightRatio() != 1.0f);
 	}
 
-	bool DynamicResolution::BeginProxyPass(std::initializer_list<RenderTarget> a_toProxy, ProxyTriangle a_triangle)
+	bool DynamicResolution::BeginProxyPass(std::initializer_list<RenderTargetID> a_toProxy, ProxyTriangle a_triangle)
 	{
 		if (!ProxyPassAvailable()) {
 			return false;
@@ -538,7 +538,7 @@ namespace cs::features
 		return true;
 	}
 
-	void DynamicResolution::EndProxyPass(std::initializer_list<RenderTarget> a_fromProxy)
+	void DynamicResolution::EndProxyPass(std::initializer_list<RenderTargetID> a_fromProxy)
 	{
 		if (!_proxyPass) {
 			return;
@@ -552,7 +552,7 @@ namespace cs::features
 		}
 	}
 
-	void DynamicResolution::ProxyAcquiredRenderTarget(RenderTarget a_target)
+	void DynamicResolution::ProxyAcquiredRenderTarget(RenderTargetID a_target)
 	{
 		auto* engineTarget = cs::engine::ResolveRenderTarget(a_target);
 		if (!_proxyPass || !engineTarget || !engineTarget->texture || IsProxyTexture(engineTarget->texture)) {
@@ -585,7 +585,7 @@ namespace cs::features
 		OverrideRenderTarget(a_target, false);
 	}
 
-	void DynamicResolution::ReleaseAcquiredRenderTarget(RenderTarget a_target)
+	void DynamicResolution::ReleaseAcquiredRenderTarget(RenderTargetID a_target)
 	{
 		RestoreEngineSlot(a_target);
 		originalRenderTargets[Index(a_target)] = {};
@@ -599,8 +599,8 @@ namespace cs::features
 			return false;
 		}
 
-		auto* depthSRV = cs::engine::GetDepthStencilDepthSRV(cs::engine::DepthStencilTarget::kMain);
-		auto* linearDepthUAV = cs::engine::GetRenderTargetUAV(cs::engine::RenderTarget::kMainDepthMips);
+		auto* depthSRV = cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kMain);
+		auto* linearDepthUAV = cs::engine::GetRenderTargetUAV(RenderTargetID::kSAOCameraZ);
 		auto* depthUAV = _depthOverrideTexture->uav.get();
 		if (!depthSRV || !linearDepthUAV || !depthUAV) {
 			return false;
@@ -661,7 +661,7 @@ namespace cs::features
 
 		// Unwind an in-progress override so no engine slot keeps pointing at a proxy.
 		_triangleSwap.Restore();
-		ForEachTarget([&](RenderTarget a_target) { RestoreEngineSlot(a_target); });
+		ForEachTarget([&](RenderTargetID a_target) { RestoreEngineSlot(a_target); });
 		if (_renderTargetsOverridden) {
 			if (renderTargetManager) {
 				for (int i = 0; i < 100; i++) {
@@ -677,7 +677,7 @@ namespace cs::features
 
 		// Restore the engine depth SRV if the override is still applied.
 		if (_depthOverridden) {
-			if (auto* mainDepth = cs::engine::ResolveDepthStencilTarget(cs::engine::DepthStencilTarget::kMain)) {
+			if (auto* mainDepth = cs::engine::ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kMain)) {
 				mainDepth->srViewDepth = reinterpret_cast<REX::W32::ID3D11ShaderResourceView*>(_originalDepthView);
 			}
 			_depthOverridden = false;
@@ -688,7 +688,7 @@ namespace cs::features
 	{
 		AbortProxyPass();
 
-		ForEachTarget([&](RenderTarget a_target) {
+		ForEachTarget([&](RenderTargetID a_target) {
 			ReleaseProxy(a_target);
 			originalRenderTargets[Index(a_target)] = {};
 		});

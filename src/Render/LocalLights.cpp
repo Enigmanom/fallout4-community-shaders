@@ -5,83 +5,36 @@
 
 namespace cs::engine::local_lights
 {
-	namespace
-	{
-		// FO4: engine-facts Local lights verifies this BSLight ABI on OG/NG/AE.
-		template <class T>
-		T& Member(RE::BSLight& a_light, std::size_t a_offset)
-		{
-			return *reinterpret_cast<T*>(reinterpret_cast<std::byte*>(&a_light) + a_offset);
-		}
-	}
-
 	float RadialFalloff(float a_x, float a_constant, float a_scalar, float a_exponent)
 	{
 		return std::pow(1.0f - std::clamp(a_constant + a_scalar * std::pow(a_x, a_exponent), 0.0f, 1.0f), 2.2f);
 	}
-	RE::NiLight* Light(RE::BSLight& a_light)
-	{
-		return Member<RE::NiPointer<RE::NiLight>>(a_light, 0xB8).get();
-	}
-	float CurrentFade(RE::BSLight& a_light) { return Member<float>(a_light, 0x10); }
-	bool IsShadowLight(RE::BSLight& a_light)
-	{
-		using Function = bool (*)(RE::BSLight*);
-		const auto* table = *reinterpret_cast<const Function* const*>(&a_light);
-		return table[3](&a_light);
-	}
-	bool GameplayExcluded(RE::BSLight& a_light) { return Member<bool>(a_light, 0x17E); }
 	float ShapeAttenuation(RE::BSLight& a_light, const RE::NiPoint3& a_position)
 	{
-		const auto shape = Member<std::uint32_t>(a_light, 0x180);
-		const auto* light = Light(a_light);
-		if (shape == 5) {
-			const auto delta = a_position - Member<RE::NiPoint3>(a_light, 0xA0);
-			const auto& rotation = Member<RE::NiMatrix3>(a_light, 0x60);
-			const auto& extent = Member<RE::NiPoint3>(a_light, 0xAC);
+		const auto shape = a_light.GetShape();
+		const auto* light = a_light.GetSourceLight();
+		if (shape == RE::BSLight::Shape::kBox) {
+			const auto delta = a_position - a_light.box.center;
+			const auto& rotation = a_light.rotation;
+			const auto& extent = a_light.box.halfExtents;
 			const auto local = rotation.Transpose() * delta;
 			return std::abs(local.x) <= extent.x && std::abs(local.y) <= extent.y &&
 			               std::abs(local.z) <= extent.z ?
 			           1.0f :
 			           0.0f;
 		}
-		if (shape != 3 && shape != 6)
+		if (shape != RE::BSLight::Shape::kHemisphere && shape != RE::BSLight::Shape::kCone)
 			return 1.0f;
 		const auto delta = a_position - light->world.translate;
 		const float length = std::sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
 		const auto& direction = light->world.rotate[0];
 		const float cosine = length == 0 ? 0 :
 		                                   (delta.x * direction.x + delta.y * direction.y + delta.z * direction.z) / length;
-		if (shape == 3)
+		if (shape == RE::BSLight::Shape::kHemisphere)
 			return cosine >= 0 ? 1.0f : 0.0f;
 		const float cone = std::clamp(1 - (1 - std::max(cosine, 0.0f)) /
-											  (1 - Member<float>(a_light, 0xA4)),
+											  (1 - a_light.cone.cosineCutoff),
 			0.0f, 1.0f);
-		return std::min(std::pow(cone, Member<float>(a_light, 0xA0)), 1.0f);
-	}
-	void SetLuminance(RE::BSLight& a_light, float a_luminance)
-	{
-		Member<float>(a_light, 0x14) = a_luminance;
-	}
-	void InvalidateSpotCone(RE::BSLight& a_light)
-	{
-		// FO4: TestFrustumCull lazily rebuilds the cone bound from radius.
-		if (Member<std::uint32_t>(a_light, 0x180) == 6)
-			Member<RE::NiPointer<RE::NiAVObject>>(a_light, 0x148).reset();
-	}
-	std::uint32_t AppendSide()
-	{
-		static REL::Relocation<std::uint32_t*> side{ REL::VariantID{ 1577505, 2713010 } };
-		return *side;
-	}
-	std::uint32_t AppendCount(std::uint32_t a_side)
-	{
-		static REL::Relocation<std::uint32_t*> counts{ REL::VariantID{ 1366811, 2713007 } };
-		return counts.get()[a_side];
-	}
-	const TiledRecord* Records(std::uint32_t a_side)
-	{
-		static REL::Relocation<TiledRecord*> records{ REL::VariantID{ 223744, 2713009 } };
-		return records.get() + a_side * kCapacity;
+		return std::min(std::pow(cone, a_light.cone.exponent), 1.0f);
 	}
 }

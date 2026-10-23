@@ -1,10 +1,12 @@
 #pragma once
 
 #include "RE/B/BSGraphics.h"
+#include "RE/B/BSImagespaceShader.h"
 #include "RE/B/BSShader.h"
 #include "RE/B/BSShaderManager.h"
 #include "RE/B/BSTriShape.h"
 #include "RE/I/ImageSpaceEffect.h"
+#include "RE/I/ImageSpaceEffectScalableAmbientObscuranceCS.h"
 #include "RE/I/ImageSpaceManager.h"
 #include "RE/I/Interface3D.h"
 #include "RE/N/NiTexture.h"
@@ -29,135 +31,20 @@ namespace cs::engine
 {
 	namespace native
 	{
-		namespace detail
-		{
-			template <class T>
-			[[nodiscard]] inline const T& RuntimeMember(
-				const RE::BSShader* a_shader,
-				std::ptrdiff_t a_ogOffset,
-				std::ptrdiff_t a_modernOffset) noexcept
-			{
-				const auto offset = REX::FModule::IsRuntimeOG() ? a_ogOffset : a_modernOffset;
-				return *reinterpret_cast<const T*>(
-					reinterpret_cast<const std::byte*>(a_shader) + offset);
-			}
-		}
-
-		using VertexShaderMap =
-			RE::BSShaderTechniqueIDMap::MapType<
-				RE::BSGraphics::VertexShader*>;
-		using PixelShaderMap =
-			RE::BSShaderTechniqueIDMap::MapType<
-				RE::BSGraphics::PixelShader*>;
-		using ComputeShaderMap =
-			RE::BSShaderTechniqueIDMap::MapType<
-				RE::BSGraphics::ComputeShader*>;
-
-		[[nodiscard]] inline const VertexShaderMap& VertexShaders(
-			const RE::BSShader* a_shader) noexcept
-		{
-			return detail::RuntimeMember<VertexShaderMap>(
-				a_shader, 0x20, 0x98);
-		}
-
-		[[nodiscard]] inline const PixelShaderMap& PixelShaders(
-			const RE::BSShader* a_shader) noexcept
-		{
-			return detail::RuntimeMember<PixelShaderMap>(
-				a_shader, 0xB0, 0x128);
-		}
-
-		[[nodiscard]] inline const ComputeShaderMap& ComputeShaders(
-			const RE::BSShader* a_shader) noexcept
-		{
-			return detail::RuntimeMember<ComputeShaderMap>(
-				a_shader, 0xE0, 0x158);
-		}
-
-		[[nodiscard]] inline const ComputeShaderMap&
-		StandaloneComputeShaders(const void* a_owner) noexcept
-		{
-			return *reinterpret_cast<const ComputeShaderMap*>(
-				static_cast<const std::byte*>(a_owner) + 0x20);
-		}
-
-		// Shader loaders gate map publication on this byte.
-		[[nodiscard]] inline bool ShaderArchiveStreamHasPayload(
-			const RE::BSIStream* a_stream) noexcept
-		{
-			if (!a_stream)
-				return false;
-			return *(reinterpret_cast<const std::byte*>(a_stream) + 0x10) != std::byte{ 0 };
-		}
-
-		[[nodiscard]] inline const char*
-		StandaloneComputeOwnerName(const void* a_owner) noexcept
-		{
-			return *reinterpret_cast<const char* const*>(
-				static_cast<const std::byte*>(a_owner) + 0x18);
-		}
-
-		[[nodiscard]] inline const char* FxpFilename(
-			const RE::BSShader* a_shader) noexcept
-		{
-			return detail::RuntimeMember<const char*>(
-				a_shader, 0x110, 0x188);
-		}
-
-		[[nodiscard]] inline std::int32_t ShaderType(
-			const RE::BSShader* a_shader) noexcept
-		{
-			return *reinterpret_cast<const std::int32_t*>(
-				reinterpret_cast<const std::byte*>(a_shader) + 0x18);
-		}
-
-		// Class name and source prefix follow the BSShader base.
-		[[nodiscard]] inline const char* ImageSpaceShaderPrefix(
-			const RE::BSShader* a_shader) noexcept
-		{
-			if (!a_shader || ShaderType(a_shader) != 0xC) {
-				return nullptr;
-			}
-			return detail::RuntimeMember<const char*>(a_shader, 0x1D0, 0x248);
-		}
-
-		[[nodiscard]] inline const char* ImageSpaceShaderClassName(
-			const RE::BSShader* a_shader) noexcept
-		{
-			if (!a_shader || ShaderType(a_shader) != 0xC) {
-				return nullptr;
-			}
-			return detail::RuntimeMember<const char*>(a_shader, 0x1C8, 0x240);
-		}
-
 		struct ImageSpaceMacroSet
 		{
 			std::array<std::pair<std::string, std::string>, 7> values;
 			std::size_t count = 0;
 		};
 
-		// Vtable slot 17 emits null-terminated macro pairs.
 		[[nodiscard]] inline std::optional<ImageSpaceMacroSet>
 		GetImageSpaceMacros(RE::BSShader* a_shader) noexcept
 		{
-			if (!a_shader || ShaderType(a_shader) != 0xC)
+			if (!a_shader || a_shader->shaderType != 0xC)
 				return std::nullopt;
 
-			struct NativeMacro
-			{
-				const char* name = nullptr;
-				const char* value = nullptr;
-			};
-			using GetMacros = NativeMacro* (*)(RE::BSShader*, NativeMacro*);
-			const auto vtable =
-				*reinterpret_cast<std::uintptr_t**>(a_shader);
-			if (!vtable || !vtable[17])
-				return std::nullopt;
-
-			std::array<NativeMacro, 8> nativeMacros{};
-			const auto emitter =
-				reinterpret_cast<GetMacros>(vtable[17]);
-			std::ignore = emitter(a_shader, nativeMacros.data());
+			std::array<RE::BSImagespaceShader::ShaderMacro, 8> nativeMacros{};
+			std::ignore = static_cast<RE::BSImagespaceShader*>(a_shader)->GetShaderMacros(nativeMacros.data());
 
 			ImageSpaceMacroSet result;
 			for (const auto& macro : nativeMacros) {
@@ -236,28 +123,11 @@ namespace cs::engine
 		return manager && index < manager->effectList.size() ? manager->effectList[index] : nullptr;
 	}
 
-	// SAO_CS: `applied` gates the composite; `active` also gates the SSLR Hi-Z passes.
-	// Same layout on OG/NG/AE (sizeof 0x122).
-	struct ScalableAOComputeState
+	// SAO_CS: saoToggleState gates the composite; isActive also gates the SSLR Hi-Z passes.
+	[[nodiscard]] inline RE::ImageSpaceEffectScalableAmbientObscuranceCS* GetScalableAOCompute()
 	{
-		bool* active;      // +0x08
-		const bool* base;  // +0x120, constructor's constant 1
-		bool* applied;     // +0x121, bSAOEnable snapshot from InitEffects
-	};
-
-	[[nodiscard]] inline std::optional<ScalableAOComputeState> GetScalableAOComputeState()
-	{
-		auto* effect = GetImageSpaceEffect(
-			RE::ImageSpaceManager::ImageSpaceEffectEnum::EFFECT_SAO_CS);
-		if (!effect) {
-			return std::nullopt;
-		}
-		auto* bytes = reinterpret_cast<std::byte*>(effect);
-		return ScalableAOComputeState{
-			.active = &effect->isActive,
-			.base = reinterpret_cast<const bool*>(bytes + 0x120),
-			.applied = reinterpret_cast<bool*>(bytes + 0x121)
-		};
+		return static_cast<RE::ImageSpaceEffectScalableAmbientObscuranceCS*>(GetImageSpaceEffect(
+			RE::ImageSpaceManager::ImageSpaceEffectEnum::EFFECT_SAO_CS));
 	}
 
 	inline void SetDynamicResolutionRatios(float a_widthRatio, float a_heightRatio)
@@ -407,62 +277,6 @@ namespace cs::engine
 		return HasFiniteMatrix(result) && std::isfinite(determinant) && determinant != 0.0f ? std::optional{ result } : std::nullopt;
 	}
 
-	// Logical RenderTargetManager IDs; recreation reassigns their physical pool slots.
-	enum class RenderTarget : std::uint32_t
-	{
-		kFrameBuffer = 0,
-
-		kMainTemp = 1,
-		kMain = 2,
-
-		kSSLRRayStart = 4,
-		kSSLRRayResult = 5,
-		kSSLRBlurH = 6,
-		kSSLRBlurV = 7,
-		kSSLRSurfaceDepth = 8,
-
-		kRefractionNormal = 14,
-		kHdrImagespaceAux = 15,
-
-		kUIDownscaled = 24,
-		kUIDownscaledComposite = 25,
-
-		kGbufferAlbedo = 26,
-		kGbufferNormal = 27,
-		// Prepass MRT2: material flag, cubemap index, environment strength.
-		kGbufferMetadata = 29,
-		kGbufferMaterial = 30,  // Glossiness, specular, backlighting, SSS.
-		kGbufferEmissive = 31,
-
-		// Full-resolution R16G16_FLOAT motion.
-		kMotionVectors = 32,
-
-		// RGBSPEC gates the specular side; tiled lighting gates the B pair.
-		kDiffuseBufferA = 33,
-		kSpecularBufferA = 34,
-		kDiffuseBufferB = 35,
-		kSpecularBufferB = 36,
-
-		// Composite t9 reads the half-resolution target unless NVHBAO or full-resolution AO is active.
-		kAmbientOcclusion = 37,
-		kAmbientOcclusionHalf = 39,
-
-		// Depth pyramid; logical 41-45 are its mip views.
-		kMainDepthMips = 40,
-
-		// Sized by uPipboyTargetWidth/Height and sampled as a texture.
-		kPipboyTarget = 60,
-		kPipboyTargetSwap = 61,
-
-		kMainVerticalBlur = 68,
-		kLuminanceDownscale = 70,
-
-		// Fixed 512x512 R8_UNORM precipitation occlusion target; acquired per pass.
-		kPrecipitationOcclusionColor = 86,
-
-		kCount = 100
-	};
-
 	// Mirrors Interface3D::Renderer::RenderPrepassesAndMenus target selection.
 	[[nodiscard]] inline bool RendersToPipboyTarget(const RE::Interface3D::Renderer& a_renderer) noexcept
 	{
@@ -470,28 +284,14 @@ namespace cs::engine
 		using RE::Interface3D::PostEffect;
 
 		if (a_renderer.customRenderTarget != -1) {
-			const auto target = static_cast<RenderTarget>(a_renderer.customRenderTarget);
-			return target == RenderTarget::kPipboyTarget || target == RenderTarget::kPipboyTargetSwap;
+			const auto target = static_cast<RE::BSGraphics::RenderTargetID>(a_renderer.customRenderTarget);
+			return target == RE::BSGraphics::RenderTargetID::kPipboy || target == RE::BSGraphics::RenderTargetID::kPipboySwap;
 		}
 		if (a_renderer.postfx == PostEffect::kHUDGlass || a_renderer.postfx == PostEffect::kHUDGlassWithMod) {
 			return false;
 		}
 		return a_renderer.omsize == OffscreenMenuSize::kPipboy;
 	}
-
-	// Logical RenderTargetManager depth IDs; recreation reassigns their physical pool slots.
-	enum class DepthStencilTarget : std::uint32_t
-	{
-		kMain = 1,
-
-		// Cube-face depth; shared with Interface3D offscreen models.
-		kReflections = 7,
-
-		// Fixed 512x512 precipitation occlusion depth.
-		kPrecipitationOcclusion = 8,
-
-		kCount = 12
-	};
 
 	[[nodiscard]] inline ID3D11Device* GetDevice()
 	{
@@ -505,59 +305,59 @@ namespace cs::engine
 		return rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
 	}
 
-	[[nodiscard]] inline RE::BSGraphics::DepthStencilTarget* ResolveDepthStencilTarget(DepthStencilTarget a_target)
+	[[nodiscard]] inline RE::BSGraphics::DepthStencilTarget* ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID a_target)
 	{
-		const auto logicalID = static_cast<std::uint32_t>(a_target);
+		const auto logicalID = static_cast<std::int32_t>(a_target);
 		auto* rendererData = RE::BSGraphics::GetRendererData();
 		auto* renderTargetManager = GetRenderTargetManager();
-		if (!rendererData || !renderTargetManager || logicalID >= static_cast<std::uint32_t>(DepthStencilTarget::kCount)) {
+		if (!rendererData || !renderTargetManager || logicalID < 0 || logicalID >= static_cast<std::int32_t>(RE::BSGraphics::DepthStencilTargetID::kCount)) {
 			return nullptr;
 		}
-		const auto slot = renderTargetManager->GetDepthStencilTargetPlatformID(logicalID);
+		const auto slot = renderTargetManager->GetDepthStencilTargetPlatformID(static_cast<std::size_t>(logicalID));
 		return slot < std::size(rendererData->depthStencilTargets) ? &rendererData->depthStencilTargets[slot] : nullptr;
 	}
 
 	[[nodiscard]] inline ID3D11ShaderResourceView* GetSceneDepthSRV()
 	{
-		auto* target = ResolveDepthStencilTarget(DepthStencilTarget::kMain);
+		auto* target = ResolveDepthStencilTarget(RE::BSGraphics::DepthStencilTargetID::kMain);
 		return target ? reinterpret_cast<ID3D11ShaderResourceView*>(target->srViewDepth) : nullptr;
 	}
 
 	// Resolve at each use; a cached slot goes stale when targets are recreated.
-	[[nodiscard]] inline std::optional<std::uint32_t> ResolveRenderTargetSlot(RenderTarget a_renderTarget)
+	[[nodiscard]] inline std::optional<std::uint32_t> ResolveRenderTargetSlot(RE::BSGraphics::RenderTargetID a_renderTarget)
 	{
-		const auto logicalID = static_cast<std::uint32_t>(a_renderTarget);
+		const auto logicalID = static_cast<std::int32_t>(a_renderTarget);
 		auto* rendererData = RE::BSGraphics::GetRendererData();
 		auto* renderTargetManager = GetRenderTargetManager();
-		if (!rendererData || !renderTargetManager || logicalID >= static_cast<std::uint32_t>(RenderTarget::kCount)) {
+		if (!rendererData || !renderTargetManager || logicalID < 0 || logicalID >= static_cast<std::int32_t>(RE::BSGraphics::RenderTargetID::kCount)) {
 			return std::nullopt;
 		}
-		const auto slot = renderTargetManager->GetRenderTargetPlatformID(logicalID);
+		const auto slot = renderTargetManager->GetRenderTargetPlatformID(static_cast<std::size_t>(logicalID));
 		if (slot >= std::size(rendererData->renderTargets)) {
 			return std::nullopt;
 		}
 		return slot;
 	}
 
-	[[nodiscard]] inline RE::BSGraphics::RenderTarget* ResolveRenderTarget(RenderTarget a_renderTarget)
+	[[nodiscard]] inline RE::BSGraphics::RenderTarget* ResolveRenderTarget(RE::BSGraphics::RenderTargetID a_renderTarget)
 	{
 		const auto slot = ResolveRenderTargetSlot(a_renderTarget);
 		return slot ? &RE::BSGraphics::GetRendererData()->renderTargets[*slot] : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11ShaderResourceView* GetRenderTargetSRV(RenderTarget a_renderTarget)
+	[[nodiscard]] inline ID3D11ShaderResourceView* GetRenderTargetSRV(RE::BSGraphics::RenderTargetID a_renderTarget)
 	{
 		auto* target = ResolveRenderTarget(a_renderTarget);
 		return target ? reinterpret_cast<ID3D11ShaderResourceView*>(target->srView) : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11RenderTargetView* GetRenderTargetRTV(RenderTarget a_renderTarget)
+	[[nodiscard]] inline ID3D11RenderTargetView* GetRenderTargetRTV(RE::BSGraphics::RenderTargetID a_renderTarget)
 	{
 		auto* target = ResolveRenderTarget(a_renderTarget);
 		return target ? reinterpret_cast<ID3D11RenderTargetView*>(target->rtView) : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11UnorderedAccessView* GetRenderTargetUAV(RenderTarget a_renderTarget)
+	[[nodiscard]] inline ID3D11UnorderedAccessView* GetRenderTargetUAV(RE::BSGraphics::RenderTargetID a_renderTarget)
 	{
 		auto* target = ResolveRenderTarget(a_renderTarget);
 		return target ? reinterpret_cast<ID3D11UnorderedAccessView*>(target->uaView) : nullptr;
@@ -569,31 +369,31 @@ namespace cs::engine
 		return texture ? static_cast<DXGI_FORMAT>(texture->header.format) : DXGI_FORMAT_UNKNOWN;
 	}
 
-	[[nodiscard]] inline ID3D11Texture2D* GetRenderTargetTexture(RenderTarget a_renderTarget)
+	[[nodiscard]] inline ID3D11Texture2D* GetRenderTargetTexture(RE::BSGraphics::RenderTargetID a_renderTarget)
 	{
 		auto* target = ResolveRenderTarget(a_renderTarget);
 		return target ? reinterpret_cast<ID3D11Texture2D*>(target->texture) : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11Texture2D* GetDepthStencilTexture(DepthStencilTarget a_target)
+	[[nodiscard]] inline ID3D11Texture2D* GetDepthStencilTexture(RE::BSGraphics::DepthStencilTargetID a_target)
 	{
 		auto* target = ResolveDepthStencilTarget(a_target);
 		return target ? reinterpret_cast<ID3D11Texture2D*>(target->texture) : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11DepthStencilView* GetDepthStencilDSV(DepthStencilTarget a_target)
+	[[nodiscard]] inline ID3D11DepthStencilView* GetDepthStencilDSV(RE::BSGraphics::DepthStencilTargetID a_target)
 	{
 		auto* target = ResolveDepthStencilTarget(a_target);
 		return target ? reinterpret_cast<ID3D11DepthStencilView*>(target->dsView[0]) : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11ShaderResourceView* GetDepthStencilDepthSRV(DepthStencilTarget a_target)
+	[[nodiscard]] inline ID3D11ShaderResourceView* GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID a_target)
 	{
 		auto* target = ResolveDepthStencilTarget(a_target);
 		return target ? reinterpret_cast<ID3D11ShaderResourceView*>(target->srViewDepth) : nullptr;
 	}
 
-	[[nodiscard]] inline ID3D11ShaderResourceView* GetDepthStencilStencilSRV(DepthStencilTarget a_target)
+	[[nodiscard]] inline ID3D11ShaderResourceView* GetDepthStencilStencilSRV(RE::BSGraphics::DepthStencilTargetID a_target)
 	{
 		auto* target = ResolveDepthStencilTarget(a_target);
 		return target ? reinterpret_cast<ID3D11ShaderResourceView*>(target->srViewStencil) : nullptr;

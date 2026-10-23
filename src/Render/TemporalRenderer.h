@@ -347,20 +347,20 @@ namespace cs::render
 			static void thunk(
 				RE::BSGraphics::RenderTargetManager* a_this,
 				std::int32_t a_slot,
-				std::int32_t a_logicalID,
+				RE::BSGraphics::RenderTargetID a_logicalID,
 				RE::BSGraphics::SetRenderTargetMode a_mode);
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
 		struct DeferredCompositeSSLR_AcquireBlurH
 		{
-			static void thunk(RE::BSGraphics::RenderTargetManager* a_this, std::int32_t a_logicalID);
+			static void thunk(RE::BSGraphics::RenderTargetManager* a_this, RE::BSGraphics::RenderTargetID a_logicalID);
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
 		struct DeferredCompositeSSLR_ReleaseBlurH
 		{
-			static void thunk(RE::BSGraphics::RenderTargetManager* a_this, std::int32_t a_logicalID);
+			static void thunk(RE::BSGraphics::RenderTargetManager* a_this, RE::BSGraphics::RenderTargetID a_logicalID);
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
@@ -422,7 +422,6 @@ namespace cs::render
 		std::atomic_bool _nativeSuperResolutionFallbackPending{ false };
 		std::atomic_bool _spatialFallbackPreflightReady{ false };
 		std::atomic_bool _resolveSeamSeen{ false };
-		std::optional<cs::engine::RenderUIPathGate> _renderUiPathGate;
 
 		enum class DebugView : std::uint8_t
 		{

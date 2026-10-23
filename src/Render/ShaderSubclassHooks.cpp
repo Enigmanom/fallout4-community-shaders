@@ -1,4 +1,6 @@
 #include "Render/ShaderSubclassHooks.h"
+#include "RE/B/BSComputeShader.h"
+#include "RE/B/BSIStream.h"
 
 #include "Log.h"
 #include "PCH.h"
@@ -100,8 +102,8 @@ namespace cs::engine
 					a_pixelShaderId);
 				// FO4: family IDs come from the native binder, not Skyrim enum indices.
 				if (result) {
-					const auto* name = native::FxpFilename(a_shader);
-					render::profiling::SetShaderFamily(native::ShaderType(a_shader), name ? name : "Unknown");
+					const auto* name = a_shader->GetFxpFilename();
+					render::profiling::SetShaderFamily(a_shader->shaderType, name ? name : "Unknown");
 				}
 				return result;
 			}
@@ -168,22 +170,21 @@ namespace cs::engine
 		struct ReloadStandaloneComputeHook
 		{
 			static std::uint32_t thunk(
-				void* a_owner,
+				RE::BSComputeShader* a_owner,
 				RE::BSIStream* a_stream)
 			{
-				const bool hasPayload =
-					native::ShaderArchiveStreamHasPayload(a_stream);
+				const bool streamIsGood = a_stream && a_stream->IsGood();
 				const auto result = func(a_owner, a_stream);
 				const std::string_view name =
-					native::StandaloneComputeOwnerName(a_owner) ?
-						native::StandaloneComputeOwnerName(a_owner) :
+					a_owner->name ?
+						a_owner->name :
 						"";
 				if (const auto target = ResolveStandaloneComputeTarget(name)) {
 					ObserveNativeComputeOwner(
 						a_owner,
 						*target,
 						name,
-						hasPayload && *target == ShaderInjectionTarget::kDfTiledLighting);
+						streamIsGood && *target == ShaderInjectionTarget::kDfTiledLighting);
 				}
 				return result;
 			}
@@ -197,10 +198,9 @@ namespace cs::engine
 				RE::BSShader* a_shader,
 				RE::BSIStream* a_stream)
 			{
-				const bool hasPayload =
-					native::ShaderArchiveStreamHasPayload(a_stream);
+				const bool streamIsGood = a_stream && a_stream->IsGood();
 				const auto result = func(a_shader, a_stream);
-				ObserveNativeShader(a_shader, hasPayload);
+				ObserveNativeShader(a_shader, streamIsGood);
 				return result;
 			}
 
@@ -284,7 +284,7 @@ namespace cs::engine
 			RE::BSGraphics::PixelShader key;
 			key.id = RE::BSDFPrePassShader::GetPixelShaderID(a_descriptor);
 			auto* keyPointer = &key;
-			const auto& shaders = native::PixelShaders(a_shader);
+			const auto& shaders = a_shader->GetPixelShaders();
 			const auto found = shaders.find(keyPointer);
 			return found != shaders.end() ? *found : nullptr;
 		}

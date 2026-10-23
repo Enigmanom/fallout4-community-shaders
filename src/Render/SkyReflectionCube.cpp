@@ -73,14 +73,15 @@ namespace cs::engine
 		{
 			static void thunk(
 				RE::BSGraphics::RenderTargetManager* a_this,
-				std::uint32_t a_logicalID,
-				RE::BSGraphics::CubeMapRenderTargetProperties* a_properties,
-				bool a_forceAll)
+				RE::BSGraphics::CubeMapRenderTargetID a_logicalID,
+				const RE::BSGraphics::CubeMapRenderTargetProperties* a_properties,
+				RE::BSGraphics::RenderTargetCreationMode a_mode)
 			{
 				const auto size = g_cubeSize.load(std::memory_order_relaxed);
-				a_properties->width = size;
-				a_properties->height = size;
-				func(a_this, a_logicalID, a_properties, a_forceAll);
+				auto& properties = const_cast<RE::BSGraphics::CubeMapRenderTargetProperties&>(*a_properties);
+				properties.width = size;
+				properties.height = size;
+				func(a_this, a_logicalID, a_properties, a_mode);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -90,16 +91,18 @@ namespace cs::engine
 		{
 			static void thunk(
 				RE::BSGraphics::RenderTargetManager* a_this,
-				std::uint32_t a_logicalID,
-				RE::BSGraphics::DepthStencilTargetProperties* a_properties,
-				bool a_forceAll)
+				RE::BSGraphics::DepthStencilTargetID a_logicalID,
+				const RE::BSGraphics::DepthStencilTargetCreationProperties* a_properties,
+				RE::BSGraphics::RenderTargetCreationMode a_mode)
 			{
-				if (a_logicalID == static_cast<std::uint32_t>(DepthStencilTarget::kReflections)) {
+				if (a_logicalID == RE::BSGraphics::DepthStencilTargetID::kCubemapReflections) {
 					const auto size = g_cubeSize.load(std::memory_order_relaxed);
-					a_properties->width = std::max(a_properties->width, size);
-					a_properties->height = std::max(a_properties->height, size);
+					// FO4: edit only the common prefix; NG/AE creation tails stay untouched.
+					auto& properties = const_cast<RE::BSGraphics::DepthStencilTargetProperties&>(a_properties->properties);
+					properties.width = std::max(properties.width, size);
+					properties.height = std::max(properties.height, size);
 				}
-				func(a_this, a_logicalID, a_properties, a_forceAll);
+				func(a_this, a_logicalID, a_properties, a_mode);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -213,7 +216,8 @@ namespace cs::engine
 			auto* manager = RE::BSGraphics::RenderTargetManager::GetSingleton();
 			if (!rendererData || !manager)
 				return nullptr;
-			const auto platformID = manager->GetCubeMapRenderTargetPlatformID(0);
+			const auto platformID = manager->GetCubeMapRenderTargetPlatformID(
+				static_cast<std::size_t>(RE::BSGraphics::CubeMapRenderTargetID::kReflections));
 			if (platformID >= std::size(rendererData->cubeMapRenderTargets))
 				return nullptr;
 			auto& cube = rendererData->cubeMapRenderTargets[platformID];
@@ -272,11 +276,11 @@ namespace cs::engine
 			RE::BSGraphics::RenderTargetManager& a_manager,
 			const RE::BSGraphics::RendererShadowState& a_state) noexcept
 		{
-			constexpr std::int32_t kUnbound = -1;
+			constexpr auto kUnbound = RE::BSGraphics::RenderTargetID::kNone;
 			for (std::int32_t slot = 1; slot < static_cast<std::int32_t>(std::size(a_state.renderTargets)); ++slot) {
-				if (a_state.renderTargets[slot] == kUnbound)
+				if (a_state.renderTargets[slot] == static_cast<std::int32_t>(kUnbound))
 					continue;
-				a_manager.SetCurrentRenderTarget(slot, kUnbound, RE::BSGraphics::SetRenderTargetMode::kNoClear);
+				a_manager.SetCurrentRenderTarget(slot, static_cast<std::int32_t>(kUnbound), RE::BSGraphics::SetRenderTargetMode::kNoClear);
 				g_counters.unboundTargets.fetch_add(1, std::memory_order_relaxed);
 			}
 		}
@@ -470,7 +474,7 @@ namespace cs::engine
 
 			~ScopedCubeModeExit()
 			{
-				_manager.SetCurrentCubeMapRenderTarget(-1, RE::BSGraphics::SetRenderTargetMode::kNoClear, 0);
+				_manager.SetCurrentCubeMapRenderTarget(static_cast<std::int32_t>(RE::BSGraphics::CubeMapRenderTargetID::kNone), RE::BSGraphics::SetRenderTargetMode::kNoClear, 0);
 			}
 
 			ScopedCubeModeExit(const ScopedCubeModeExit&) = delete;

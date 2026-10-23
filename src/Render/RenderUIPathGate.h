@@ -1,11 +1,7 @@
 #pragma once
 
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <limits>
-#include <optional>
 
 namespace cs::engine
 {
@@ -45,57 +41,4 @@ namespace cs::engine
 		return RenderUIOutputExtent::kInvalid;
 	}
 
-	class RenderUIPathGate
-	{
-	public:
-		[[nodiscard]] static std::optional<RenderUIPathGate> Decode(
-			std::uintptr_t a_compareInstruction,
-			std::uintptr_t a_dataBegin,
-			std::size_t a_dataSize,
-			std::uintptr_t a_expectedTarget = 0) noexcept
-		{
-			if (!a_compareInstruction || !a_dataBegin || !a_dataSize ||
-				a_dataBegin > std::numeric_limits<std::uintptr_t>::max() - a_dataSize) {
-				return std::nullopt;
-			}
-
-			const auto* bytes =
-				reinterpret_cast<const std::uint8_t*>(a_compareInstruction);
-			if (bytes[0] != 0x80 || bytes[1] != 0x3D || bytes[6] != 0x00) {
-				return std::nullopt;
-			}
-
-			std::int32_t displacement = 0;
-			std::memcpy(&displacement, bytes + 2, sizeof(displacement));
-			const auto instructionEnd = a_compareInstruction + kInstructionLength;
-			const auto target = static_cast<std::uintptr_t>(
-				static_cast<std::intptr_t>(instructionEnd) + displacement);
-			const auto dataEnd = a_dataBegin + a_dataSize;
-			if (target < a_dataBegin || target >= dataEnd ||
-				(a_expectedTarget && target != a_expectedTarget)) {
-				return std::nullopt;
-			}
-
-			return RenderUIPathGate(target);
-		}
-
-		[[nodiscard]] bool TakesFullEffectsPath() const noexcept
-		{
-			return *_value != 0;
-		}
-
-		[[nodiscard]] std::uintptr_t Address() const noexcept
-		{
-			return reinterpret_cast<std::uintptr_t>(_value);
-		}
-
-		static constexpr std::size_t kInstructionLength = 7;
-
-	private:
-		explicit RenderUIPathGate(std::uintptr_t a_address) noexcept :
-			_value(reinterpret_cast<const volatile std::uint8_t*>(a_address))
-		{}
-
-		const volatile std::uint8_t* _value = nullptr;
-	};
 }

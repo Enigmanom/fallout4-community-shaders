@@ -33,9 +33,9 @@ namespace cs::features
 
 		void UpdateRenderTargets(float a_widthRatio, float a_heightRatio);
 
-		void OverrideRenderTargets(std::initializer_list<cs::engine::RenderTarget> a_toCopy = {});
+		void OverrideRenderTargets(std::initializer_list<RE::BSGraphics::RenderTargetID> a_toCopy = {});
 		// An empty list copies every proxied target back.
-		void ResetRenderTargets(std::initializer_list<cs::engine::RenderTarget> a_toCopy = {});
+		void ResetRenderTargets(std::initializer_list<RE::BSGraphics::RenderTargetID> a_toCopy = {});
 
 		void OverrideDepth(bool a_doCopy = true);
 		void ResetDepth();
@@ -48,32 +48,32 @@ namespace cs::features
 			kEngine,
 			kUnit
 		};
-		bool BeginProxyPass(std::initializer_list<cs::engine::RenderTarget> a_toProxy, ProxyTriangle a_triangle = ProxyTriangle::kEngine);
+		bool BeginProxyPass(std::initializer_list<RE::BSGraphics::RenderTargetID> a_toProxy, ProxyTriangle a_triangle = ProxyTriangle::kEngine);
 		// Copies only a_fromProxy back to the engine targets.
-		void EndProxyPass(std::initializer_list<cs::engine::RenderTarget> a_fromProxy);
+		void EndProxyPass(std::initializer_list<RE::BSGraphics::RenderTargetID> a_fromProxy);
 		// Pooled targets: the platform slot exists only between acquire and release.
-		void ProxyAcquiredRenderTarget(cs::engine::RenderTarget a_target);
+		void ProxyAcquiredRenderTarget(RE::BSGraphics::RenderTargetID a_target);
 		// Must precede the engine release; the slot is unmapped afterwards.
-		void ReleaseAcquiredRenderTarget(cs::engine::RenderTarget a_target);
+		void ReleaseAcquiredRenderTarget(RE::BSGraphics::RenderTargetID a_target);
 
 		void Release();
 
 		[[nodiscard]] bool HasProxies() const noexcept { return _hasProxies; }
-		[[nodiscard]] ProxyTexture GetProxyTexture(cs::engine::RenderTarget a_target) const noexcept;
+		[[nodiscard]] ProxyTexture GetProxyTexture(RE::BSGraphics::RenderTargetID a_target) const noexcept;
 
 	private:
-		void UpdateRenderTarget(cs::engine::RenderTarget a_target, float a_widthRatio, float a_heightRatio);
+		void UpdateRenderTarget(RE::BSGraphics::RenderTargetID a_target, float a_widthRatio, float a_heightRatio);
 		// Snapshots the engine target and mirrors its fields into the proxy.
-		void CaptureOriginal(cs::engine::RenderTarget a_target, const RE::BSGraphics::RenderTarget& a_engineTarget);
-		void OverrideRenderTarget(cs::engine::RenderTarget a_target, bool a_doCopy);
-		void ResetRenderTarget(cs::engine::RenderTarget a_target, bool a_doCopy);
+		void CaptureOriginal(RE::BSGraphics::RenderTargetID a_target, const RE::BSGraphics::RenderTarget& a_engineTarget);
+		void OverrideRenderTarget(RE::BSGraphics::RenderTargetID a_target, bool a_doCopy);
+		void ResetRenderTarget(RE::BSGraphics::RenderTargetID a_target, bool a_doCopy);
 		bool CopyDepth();
-		void ReleaseProxy(cs::engine::RenderTarget a_target);
-		void RestoreEngineSlot(cs::engine::RenderTarget a_target);
+		void ReleaseProxy(RE::BSGraphics::RenderTargetID a_target);
+		void RestoreEngineSlot(RE::BSGraphics::RenderTargetID a_target);
 		bool IsProxyTexture(const void* a_texture) const noexcept;
 		void AbortProxyPass();
 		// Proxy holds the source's current contents until either side may change.
-		void InvalidateProxy(cs::engine::RenderTarget a_target) noexcept;
+		void InvalidateProxy(RE::BSGraphics::RenderTargetID a_target) noexcept;
 		void InvalidateAllProxies() noexcept;
 
 		ID3D11ComputeShader* GetOverrideDepthCS();
@@ -95,8 +95,8 @@ namespace cs::features
 		};
 
 		// Indexed by logical ID.
-		RE::BSGraphics::RenderTarget originalRenderTargets[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
-		RE::BSGraphics::RenderTarget proxyRenderTargets[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
+		RE::BSGraphics::RenderTarget originalRenderTargets[static_cast<std::size_t>(RE::BSGraphics::RenderTargetID::kCount)]{};
+		RE::BSGraphics::RenderTarget proxyRenderTargets[static_cast<std::size_t>(RE::BSGraphics::RenderTargetID::kCount)]{};
 		RE::BSGraphics::RenderTargetProperties originalRenderTargetData[100]{};
 
 		ID3D11ShaderResourceView* _originalDepthView = nullptr;
@@ -108,7 +108,7 @@ namespace cs::features
 
 		float _previousWidthRatio = -1.0f;
 		float _previousHeightRatio = -1.0f;
-		FrameStamp _proxyFilledFrame[static_cast<std::size_t>(cs::engine::RenderTarget::kCount)]{};
+		FrameStamp _proxyFilledFrame[static_cast<std::size_t>(RE::BSGraphics::RenderTargetID::kCount)]{};
 		FrameStamp _depthCopyFrame;
 		bool _hasProxies = false;
 		bool _renderTargetsOverridden = false;

@@ -26,9 +26,9 @@ namespace cs::render
 		auto* nativeMotion = cs::engine::GetRenderTargetTexture(kMotionVectorTarget);
 		auto* nativeMotionSRV = cs::engine::GetRenderTargetSRV(kMotionVectorTarget);
 		auto* nativeDepth =
-			cs::engine::GetDepthStencilTexture(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilTexture(RE::BSGraphics::DepthStencilTargetID::kMain);
 		auto* nativeDepthSRV =
-			cs::engine::GetDepthStencilDepthSRV(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kMain);
 		const auto capture =
 			render::TemporalPipeline::Get()
 				.GetFrameGenerationCaptureResources();
@@ -112,9 +112,9 @@ namespace cs::render
 		auto* nativeMotion = cs::engine::GetRenderTargetTexture(kMotionVectorTarget);
 		auto* nativeMotionSRV = cs::engine::GetRenderTargetSRV(kMotionVectorTarget);
 		auto* nativeDepth =
-			cs::engine::GetDepthStencilTexture(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilTexture(RE::BSGraphics::DepthStencilTargetID::kMain);
 		auto* nativeDepthSRV =
-			cs::engine::GetDepthStencilDepthSRV(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kMain);
 		const auto capture =
 			render::TemporalPipeline::Get()
 				.GetFrameGenerationCaptureResources();
@@ -277,9 +277,9 @@ namespace cs::render
 		auto* motion = cs::engine::GetRenderTargetTexture(kMotionVectorTarget);
 		auto* motionSRV = cs::engine::GetRenderTargetSRV(kMotionVectorTarget);
 		auto* depth =
-			cs::engine::GetDepthStencilTexture(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilTexture(RE::BSGraphics::DepthStencilTargetID::kMain);
 		auto* depthSRV =
-			cs::engine::GetDepthStencilDepthSRV(cs::engine::DepthStencilTarget::kMain);
+			cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kMain);
 		const auto& sharedMotion = capture.motion;
 		const auto& sharedDepth = capture.depth;
 		if (!context || !motion || !motionSRV || !depth || !depthSRV ||
@@ -383,7 +383,7 @@ namespace cs::render
 
 		auto* context = cs::engine::GetImmediateContext();
 		auto* frameBufferRTV =
-			cs::engine::GetRenderTargetRTV(cs::engine::RenderTarget::kFrameBuffer);
+			cs::engine::GetRenderTargetRTV(RE::BSGraphics::RenderTargetID::kFrameBuffer);
 		const auto& hudless = capture.hudlessColor;
 		if (!context || !frameBufferRTV || !hudless.resource) {
 			render::TemporalPipeline::Get().SetFrameGenerationInputsReady(false);

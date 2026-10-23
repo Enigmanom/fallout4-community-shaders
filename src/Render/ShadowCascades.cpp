@@ -43,13 +43,13 @@ namespace cs::engine
 
 		// Stock binds the descriptor-selected target at both PS shadow slots; match it.
 		const auto target = light->shadowMapData[0].depthStencilTarget;
-		if (target >= static_cast<std::uint32_t>(DepthStencilTarget::kCount))
+		if (target >= static_cast<std::uint32_t>(RE::BSGraphics::DepthStencilTargetID::kCount))
 			return SunCascadeStatus::kNoTarget;
 		for (std::uint32_t i = 1; i < count; ++i) {
 			if (light->shadowMapData[i].depthStencilTarget != target)
 				return SunCascadeStatus::kInvalid;
 		}
-		auto* texture = GetDepthStencilTexture(static_cast<DepthStencilTarget>(target));
+		auto* texture = GetDepthStencilTexture(static_cast<RE::BSGraphics::DepthStencilTargetID>(target));
 		if (!texture)
 			return SunCascadeStatus::kNoTarget;
 

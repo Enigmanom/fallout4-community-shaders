@@ -33,6 +33,7 @@ struct ID3D11DepthStencilView;
 struct ID3D11BlendState;
 namespace RE
 {
+	class BSComputeShader;
 	class BSShader;
 	namespace BSGraphics
 	{
@@ -264,12 +265,12 @@ namespace cs::engine
 		RE::BSGraphics::ComputeShader* a_nativeCompute) noexcept;
 	void ObserveNativeShader(
 		RE::BSShader* a_shader,
-		bool a_hasPayload) noexcept;
+		bool a_streamIsGood) noexcept;
 	void ObserveNativeComputeOwner(
-		const void* a_owner,
+		const RE::BSComputeShader* a_owner,
 		ShaderInjectionTarget a_target,
 		std::string_view a_nativeName,
-		bool a_hasPayload) noexcept;
+		bool a_streamIsGood) noexcept;
 	void ObserveNativeShaderBytecode(
 		ShaderStage a_stage,
 		const void* a_bytecode,

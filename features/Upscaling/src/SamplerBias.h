@@ -13,7 +13,7 @@ namespace cs::features
 	class SamplerBias
 	{
 	public:
-		bool Initialize(std::uintptr_t a_tableAddress) noexcept;
+		void Initialize() noexcept;
 		bool Update(float a_mipBias);
 
 		void Override();

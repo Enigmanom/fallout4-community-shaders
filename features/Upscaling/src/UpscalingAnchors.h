@@ -21,16 +21,16 @@ namespace cs::features::upscaling_anchors
 	};
 
 	// OG splits first-person alpha into ForwardAlphaImpl; NG/AE inline it.
-	inline constexpr CallSiteAnchor kFirstPersonAlphaRenderAlphaGeometry{
-		.name = "DrawWorld first-person alpha -> RenderAlphaGeometry",
-		.function = REL::VariantID{ 338205, 2318315 },
-		.offset = { 0x253, 0x53D, 0x53D },
-		.target = RE::ID::BSShaderAccumulator::RenderAlphaGeometry
-	};
+	inline CallSiteAnchor FirstPersonAlphaRenderAlphaGeometry()
+	{
+		return {
+			.name = "DrawWorld first-person alpha -> RenderAlphaGeometry",
+			.function = REX::FModule::IsRuntimeOG() ? RE::ID::DrawWorld::ForwardAlphaImpl : RE::ID::DrawWorld::Forward,
+			.offset = { 0x253, 0x53D, 0x53D },
+			.target = RE::ID::BSShaderAccumulator::RenderAlphaGeometry
+		};
+	}
 
-	// Selects full effects or gamma-only processing.
-	inline constexpr engine::RuntimeOffsets kDrawWorldRenderUIEffectsGateCompare{ 0x55, 0x47, 0x47 };
-	inline constexpr REL::VariantID kDrawWorldRenderUIEffectsGate{ 1327954, 2677855, 4784523 };
 	// RenderEffectRange splits the effect chain into HDR and LDR passes.
 	inline constexpr CallSiteAnchor kDrawWorldRenderUIRenderEffectRange{
 		.name = "DrawWorld::Render_UI -> ImageSpaceManager::RenderEffectRange",
@@ -112,5 +112,4 @@ namespace cs::features::upscaling_anchors
 		.offset = { 0x1C9, 0x3A6, 0x3A6 },
 		.target = RE::ID::DrawWorld::Forward
 	};
-	inline constexpr REL::VariantID kSamplerStateTable{ 44312, 2704455 };
 }

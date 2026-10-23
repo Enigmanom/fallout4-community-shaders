@@ -95,12 +95,12 @@ namespace cs::render::renderer_detail
 	constexpr const wchar_t* kCopyDepthForFrameGenerationPath =
 		L"Data\\Shaders\\FrameGeneration\\CopyDepthForFrameGenerationCS.hlsl";
 
-	// kMainTemp supplies post-alpha color for first-person alpha conditioning.
-	constexpr auto kSceneColorTarget = cs::engine::RenderTarget::kMainTemp;
-	constexpr auto kPreAlphaColorTarget = cs::engine::RenderTarget::kMain;
-	constexpr auto kMotionVectorTarget = cs::engine::RenderTarget::kMotionVectors;
-	constexpr auto kNormalsTarget = cs::engine::RenderTarget::kGbufferNormal;
-	constexpr auto kRefractionNormalTarget = cs::engine::RenderTarget::kRefractionNormal;
+	// kMain supplies post-alpha color for first-person alpha conditioning.
+	constexpr auto kSceneColorTarget = RE::BSGraphics::RenderTargetID::kMain;
+	constexpr auto kPreAlphaColorTarget = RE::BSGraphics::RenderTargetID::kMainCopy;
+	constexpr auto kMotionVectorTarget = RE::BSGraphics::RenderTargetID::kGBufferMotionVectors;
+	constexpr auto kNormalsTarget = RE::BSGraphics::RenderTargetID::kGBufferNormal;
+	constexpr auto kRefractionNormalTarget = RE::BSGraphics::RenderTargetID::kRefractionNormals;
 
 	inline std::string_view UpscaleMethodName(TemporalRenderer::UpscaleMethod a_method) noexcept
 	{
@@ -316,7 +316,7 @@ namespace cs::render::renderer_detail
 		if (a_failure) {
 			*a_failure = FrameBufferTextureFailure::kNone;
 		}
-		auto* rtv = cs::engine::GetRenderTargetRTV(cs::engine::RenderTarget::kFrameBuffer);
+		auto* rtv = cs::engine::GetRenderTargetRTV(RE::BSGraphics::RenderTargetID::kFrameBuffer);
 		if (!rtv) {
 			if (a_failure) {
 				*a_failure = FrameBufferTextureFailure::kNoRTV;
