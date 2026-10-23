@@ -39,7 +39,7 @@ namespace cs::features
 
 		cs::TerrainBlendingFeatureData GetCommonBufferData() const;
 
-		// Render thread: queue loaded landscape out of the world prepass, then draw it blended.
+		// Render thread: hold loaded landscape, then replay it blended.
 		bool HoldsTechnique(std::uint32_t a_technique) const noexcept;
 		void Replay(std::span<const engine::HeldPrepassBucket> a_buckets);
 		void BindReplayDraw(ID3D11DeviceContext* a_context) noexcept;

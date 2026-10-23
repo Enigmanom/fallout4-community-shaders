@@ -28,7 +28,7 @@ namespace cs::engine
 	using PostLightingRenderPassesCallback =
 		void (*)(const LightingRenderPassesCall&, RE::BSShaderProperty::RenderPassArray*) noexcept;
 
-	// Register only during Load or OnPostPostLoad; callbacks run on accumulation threads.
+	// Register in Load/OnPostPostLoad; callbacks run on accumulation threads.
 	bool RegisterPreLightingRenderPasses(PreLightingRenderPassesCallback a_callback, HookPriority a_priority = HookPriority::Default);
 	bool RegisterPostLightingRenderPasses(PostLightingRenderPassesCallback a_callback, HookPriority a_priority = HookPriority::Default);
 }

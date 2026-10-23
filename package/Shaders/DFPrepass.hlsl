@@ -111,7 +111,7 @@
 #		define FO4_PREPASS_VERTEX_AO 1
 #	endif
 
-// FO4: loaded landscape replays after the objects with alpha-blended G-buffer writes.
+// FO4: loaded landscape replays after objects with alpha-blended writes.
 #	if defined(TERRAIN_BLENDING) && LANDSCAPE && !BLEND && !INSTANCED
 #		define FO4_TERRAIN_BLENDING
 #	endif
@@ -156,7 +156,7 @@
 #	if defined(FO4_TERRAIN_BLENDING)
 #		include "FO4/Depth.hlsli"
 #		include "TerrainBlending/TerrainBlending.hlsli"
-// FO4: b8 is bound only while the host replays landscape; unbound reads zero, the stock draw.
+// FO4: b8 is bound only during landscape replay; unbound reads zero.
 cbuffer TerrainBlendingDraw : register(b8)
 {
 	uint TerrainBlendingPass;  // 1 colour lerp, 2 data replace

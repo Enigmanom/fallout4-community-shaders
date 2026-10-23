@@ -58,13 +58,12 @@ namespace cs::engine
 	using PrepassBucketPredicate = bool (*)(std::uint32_t a_technique) noexcept;
 	using HeldPrepassBucketsCallback = std::function<void(std::span<const HeldPrepassBucket>)>;
 
-	// Holds matching world-accumulator batch-4 buckets out of DeferredPrePass and hands them to
-	// the callback just before the world opaque decals. Nothing is held while the predicate is false.
+	// Holds matching world batch-4 buckets; replays them before opaque decals.
 	bool RegisterWorldPrepassHold(
 		PrepassBucketPredicate a_predicate,
 		HeldPrepassBucketsCallback a_replay,
 		HookPriority a_priority = HookPriority::Default);
-	// Draws a held bucket through the engine pass path; only valid inside the replay callback.
+	// Draws a held bucket via the engine; valid only inside the replay callback.
 	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket);
 
 	// Install the post-dirty-state deferred draw anchor.
