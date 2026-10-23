@@ -58,7 +58,7 @@ namespace cs::engine
 	using PrepassBucketPredicate = bool (*)(std::uint32_t a_technique) noexcept;
 	using HeldPrepassBucketsCallback = std::function<void(std::span<const HeldPrepassBucket>)>;
 
-	// Holds matching world batch-4 buckets; replays them before opaque decals.
+	// Holds matching world batch-4 buckets; replays them after opaque decals.
 	bool RegisterWorldPrepassHold(
 		PrepassBucketPredicate a_predicate,
 		HeldPrepassBucketsCallback a_replay,

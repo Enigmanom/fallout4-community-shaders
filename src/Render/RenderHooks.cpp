@@ -386,6 +386,8 @@ namespace cs::engine
 		{
 			static void thunk(RE::BSShaderAccumulator* a_accumulator)
 			{
+				// Decal-group G-buffer must exist first; its Z-prepass depth is already set.
+				func(a_accumulator);
 				for (auto& hold : g_prepassHolds) {
 					if (hold.held.empty())
 						continue;
@@ -400,7 +402,6 @@ namespace cs::engine
 					hold.held.clear();
 					g_deferredPrePassTiming.Begin();
 				}
-				func(a_accumulator);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
