@@ -17,6 +17,7 @@
 #include "Render/FrameProfiler.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
+#include "Render/ShaderFamilyDescriptor.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
 #include "Telemetry/Telemetry.h"
@@ -29,9 +30,6 @@ namespace cs::features
 		auto* L = cs::log::Get("cs.feature.volumetricshadows");
 
 		constexpr std::array kSkipNames{ "none", "unavailable", "disabled", "sun_cascades", "source", "shaders" };
-
-		// Directional families whose soft sun lobes read the volumetric shadow map.
-		constexpr std::array<std::string_view, 3> kSoftShadowFamilies{ "BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3" };
 
 		constexpr float kLit[4]{ 1.0f, 1.0f, 0.0f, 0.0f };
 		constexpr std::uint32_t kBlurGroupSize = 128;
@@ -277,12 +275,9 @@ namespace cs::features
 
 	bool VolumetricShadows::ActiveLightReadsSoftShadow() noexcept
 	{
-		using cs::engine::ActiveShaderInjectionVariantHasAnyDefine;
-		using cs::engine::ActiveShaderInjectionVariantHasDefine;
-		constexpr auto target = cs::engine::ShaderInjectionTarget::kBsdfLight;
 		// Probe visibility takes the lobes where SKYLIGHTING is defined.
-		return ActiveShaderInjectionVariantHasDefine(target, "DIRECTIONAL") && ActiveShaderInjectionVariantHasAnyDefine(target, kSoftShadowFamilies) &&
-		       !ActiveShaderInjectionVariantHasDefine(target, "SKYLIGHTING");
+		return cs::engine::ActiveLightHasSunShadowedFamily() &&
+		       !cs::engine::ActiveShaderInjectionVariantHasDefine(cs::engine::ShaderInjectionTarget::kBsdfLight, "SKYLIGHTING");
 	}
 
 	void VolumetricShadows::BindConsumer(ID3D11DeviceContext* a_context, bool a_water)

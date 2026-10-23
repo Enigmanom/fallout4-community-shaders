@@ -2,10 +2,11 @@
 #define FO4_SKYLIGHTING_CONSUMER
 
 #include "FO4/FO4ShaderData.hlsli"
+#include "FO4/SunShadowFamilies.hlsli"
 
 #ifdef SKYLIGHTING
 // FO4: directional families with sun lobes read visibility at t53.
-#	if defined(DIRECTIONAL) && (defined(BSDFLIGHT_PS_DIRSPLITS1) || defined(BSDFLIGHT_PS_DIRSPLITS2) || defined(BSDFLIGHT_PS_DIRSPLITS3) || defined(BSDFLIGHT_PS_UNSHADOWED))
+#	if defined(FO4_SUN_SHADOWED_FAMILY) || (defined(DIRECTIONAL) && defined(BSDFLIGHT_PS_UNSHADOWED))
 #		define SKYLIGHTING_SHADOW_VIS
 #	endif
 // FO4: pixel and compute lighting read the probe array at the same slot.

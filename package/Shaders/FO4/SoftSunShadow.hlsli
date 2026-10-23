@@ -2,13 +2,13 @@
 #define FO4_SOFT_SUN_SHADOW
 
 #include "FO4/SkylightingConsumer.hlsli"
+#include "FO4/SunShadowFamilies.hlsli"
 
 // Soft, rim and back lobes take probe visibility (SHADOW_VIS), else the VSM.
 #if defined(SKYLIGHTING_SHADOW_VIS)
 #	define FO4_SOFT_SUN_SHADOW_ACTIVE
 #	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_SKYLIGHTING_SOFT_SHADOW(softShadow, viewPosition, normalView)
-#elif defined(VOLUMETRIC_SHADOWS) && defined(DIRECTIONAL) && (defined(BSDFLIGHT_PS_DIRSPLITS1) || defined(BSDFLIGHT_PS_DIRSPLITS2) || defined(BSDFLIGHT_PS_DIRSPLITS3))
-// Only shadowed families; unshadowed passes render no cascades.
+#elif defined(VOLUMETRIC_SHADOWS) && defined(FO4_SUN_SHADOWED_FAMILY)
 #	include "FO4/VolumetricShadowsConsumer.hlsli"
 #	define FO4_SOFT_SUN_SHADOW_ACTIVE
 #	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_VSM_SOFT_SHADOW(softShadow, viewPosition, normalView)

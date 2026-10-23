@@ -2,6 +2,7 @@
 
 #include "Render/ShaderInjection.h"
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -26,6 +27,19 @@ namespace cs::engine
 		bool forceEarlyDepthStencil = false;
 		ShaderInjectionDefines nativeMacros;
 	};
+
+	// BSDFLight families that render sun cascades; unshadowed passes do not.
+	inline constexpr std::array<std::string_view, 3> kDirectionalSunShadowedFamilies{
+		"BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3"
+	};
+
+	// Active BSDFLight variant is a directional family with sun cascades.
+	[[nodiscard]] inline bool ActiveLightHasSunShadowedFamily() noexcept
+	{
+		constexpr auto target = ShaderInjectionTarget::kBsdfLight;
+		return ActiveShaderInjectionVariantHasDefine(target, "DIRECTIONAL") &&
+		       ActiveShaderInjectionVariantHasAnyDefine(target, kDirectionalSunShadowedFamilies);
+	}
 
 	// Source file that reconstructs a native shader; usually its own name.
 	[[nodiscard]] std::string_view ResolveShaderSourceName(

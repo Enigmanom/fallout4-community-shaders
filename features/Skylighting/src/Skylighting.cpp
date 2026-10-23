@@ -30,6 +30,7 @@
 #include "Render/RenderExtents.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
+#include "Render/ShaderFamilyDescriptor.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShadowCascades.h"
 #include "Render/SharedData.h"
@@ -55,13 +56,13 @@ namespace cs::features
 
 		constexpr std::array kCascadeSkipNames{ "none", "unavailable", "not_full_sky", "sun_cascades", "copy_target", "disabled" };
 
-		// Directional families whose soft sun lobes read the probe shadow visibility.
-		constexpr std::array<std::string_view, 4> kShadowVisFamilies{ "BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3", "BSDFLIGHT_PS_UNSHADOWED" };
-
 		bool ActiveLightReadsShadowVisibility() noexcept
 		{
 			constexpr auto target = cs::engine::ShaderInjectionTarget::kBsdfLight;
-			return cs::engine::ActiveShaderInjectionVariantHasDefine(target, "DIRECTIONAL") && cs::engine::ActiveShaderInjectionVariantHasAnyDefine(target, kShadowVisFamilies);
+			// Visibility also covers unshadowed passes.
+			return cs::engine::ActiveLightHasSunShadowedFamily() ||
+			       (cs::engine::ActiveShaderInjectionVariantHasDefine(target, "DIRECTIONAL") &&
+					   cs::engine::ActiveShaderInjectionVariantHasDefine(target, "BSDFLIGHT_PS_UNSHADOWED"));
 		}
 
 		struct ProbeFormat
