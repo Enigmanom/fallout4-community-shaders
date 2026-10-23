@@ -19,7 +19,6 @@
 
 namespace cs::features
 {
-	// Downsampled variance shadow maps of the sun's first two cascades.
 	class VolumetricShadows : public ShaderFeature<volumetric_shadows_shader::kShaderDefines>
 	{
 	public:
@@ -48,7 +47,7 @@ namespace cs::features
 	private:
 		VolumetricShadows() = default;
 
-		// Both cascades of a map live in one two-mip texture: mip 0 is cascade 1, mip 1 is cascade 0.
+		// One two-mip texture: mip 0 is cascade 1, mip 1 is cascade 0.
 		struct MipChain
 		{
 			winrt::com_ptr<ID3D11Texture2D> texture;
@@ -63,14 +62,11 @@ namespace cs::features
 			kNone,
 			kUnavailable,
 			kDisabled,
-			kNoLight,
-			kUnsupportedCount,
-			kNoTarget,
-			kInvalid,
+			kSunCascades,
 			kSource,
 			kShaders
 		};
-		// Right after the main sun's Render(7), while the borrowed cascade texture is valid.
+		// After the sun's Render(7), while the borrowed cascades are valid.
 		void Produce();
 		Skip DownsampleAndBlur(ID3D11DeviceContext* a_context);
 		bool EnsureSourceView(ID3D11Device* a_device, const cs::engine::SunCascadeSnapshot& a_snapshot);
@@ -101,9 +97,10 @@ namespace cs::features
 		winrt::com_ptr<ID3D11ShaderResourceView> _sourceSRV;
 		ID3D11Texture2D* _sourceTexture = nullptr;
 		D3D11_TEXTURE2D_DESC _sourceDesc{};
-		// Render thread only; both mips hold the lit value, so nothing stale is sampled.
+		// Render thread only; lit maps sample nothing stale.
 		bool _mapsLit = true;
-		Skip _loggedSkip = Skip::kNone;
+		cs::engine::SunCascadeStatus _sunStatus = cs::engine::SunCascadeStatus::kOk;
+		std::string_view _loggedSkip = "none";
 
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
@@ -113,6 +110,7 @@ namespace cs::features
 		{
 			std::atomic<std::uint64_t> productions{ 0 };
 			std::array<std::atomic<std::uint64_t>, static_cast<std::size_t>(Skip::kShaders) + 1> skipped{};
+			std::array<std::atomic<std::uint64_t>, cs::engine::kSunCascadeStatusCount> sunStatusSkipped{};
 			std::atomic<std::uint32_t> cascadeCount{ 0 };
 			std::atomic<std::uint32_t> sourceWidth{ 0 };
 			std::atomic<std::uint32_t> sourceHeight{ 0 };

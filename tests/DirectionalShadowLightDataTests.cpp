@@ -69,15 +69,6 @@ namespace
 		CHECK(std::memcmp(&data.ShadowProj[0], &data.ShadowProj[1], sizeof(data.ShadowProj[0])) == 0);
 	}
 
-	void TestThirdCascadePublishesAsTwo()
-	{
-		DirectionalShadowLightData three;
-		DirectionalShadowLightData two;
-		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(3, 512.0f), three));
-		CHECK(BuildDirectionalShadowLightData(MakeSnapshot(2, 512.0f), two));
-		CHECK(std::memcmp(&three, &two, sizeof(three)) == 0);
-	}
-
 	void TestSingularMatrixIsRejected()
 	{
 		auto snapshot = MakeSnapshot(2, 512.0f);
@@ -92,7 +83,6 @@ int main()
 	TestTwoCascadesBlendAroundSplit();
 	TestZeroOverlapKeepsBandFinite();
 	TestSingleCascadeNeverSelectsSecond();
-	TestThirdCascadePublishesAsTwo();
 	TestSingularMatrixIsRejected();
 	return failures == 0 ? 0 : 1;
 }

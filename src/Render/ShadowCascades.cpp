@@ -3,6 +3,7 @@
 #include "Render/Engine.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 
@@ -20,6 +21,13 @@ namespace cs::engine
 			}
 			return true;
 		}
+	}
+
+	std::string_view SunCascadeStatusName(SunCascadeStatus a_status) noexcept
+	{
+		constexpr std::array names{ "ok", "no_light", "unsupported_count", "no_target", "invalid" };
+		static_assert(names.size() == kSunCascadeStatusCount);
+		return names[static_cast<std::size_t>(a_status)];
 	}
 
 	SunCascadeStatus TryGetSunCascades(SunCascadeSnapshot& a_snapshot) noexcept

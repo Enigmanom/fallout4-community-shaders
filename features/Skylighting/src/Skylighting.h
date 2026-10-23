@@ -112,14 +112,11 @@ namespace cs::features
 			kNone,
 			kUnavailable,
 			kNotFullSky,
-			kNoLight,
-			kUnsupportedCount,
-			kNoTarget,
-			kInvalid,
+			kSunCascades,
 			kCopyTarget,
 			kDisabled
 		};
-		// Right after the main sun's Render(7); copies the cascades the shared light data describes.
+		// After the sun's Render(7); copies the cascades the shared block describes.
 		void CopySunCascades();
 		CascadeSkip PublishSunCascades(ID3D11DeviceContext* a_context);
 		bool EnsureCascadeCopy(ID3D11Device* a_device, ID3D11Texture2D* a_source);
@@ -246,11 +243,13 @@ namespace cs::features
 		{
 			std::atomic<std::uint64_t> copies{ 0 };
 			std::array<std::atomic<std::uint64_t>, static_cast<std::size_t>(CascadeSkip::kDisabled) + 1> skipped{};
+			std::array<std::atomic<std::uint64_t>, cs::engine::kSunCascadeStatusCount> statusSkipped{};
 			std::atomic<std::uint32_t> count{ 0 };
 			std::array<std::atomic<float>, cs::engine::kMaxSunCascades> splitEnd{};
 			std::atomic<float> overlap{ 0.0f };
 		} _cascadeCounters;
-		CascadeSkip _loggedCascadeSkip = CascadeSkip::kNone;
+		cs::engine::SunCascadeStatus _sunStatus = cs::engine::SunCascadeStatus::kOk;
+		std::string_view _loggedCascadeSkip = "none";
 		bool _loggedCascadeDesc = false;
 		double _windowCpuMsSum = 0.0;
 		float _windowCpuMsMax = 0.0f;

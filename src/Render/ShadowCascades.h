@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 namespace cs::engine
 {
@@ -38,5 +39,8 @@ namespace cs::engine
 		kInvalid
 	};
 
+	inline constexpr std::size_t kSunCascadeStatusCount = 5;
+
+	[[nodiscard]] std::string_view SunCascadeStatusName(SunCascadeStatus a_status) noexcept;
 	[[nodiscard]] SunCascadeStatus TryGetSunCascades(SunCascadeSnapshot& a_snapshot) noexcept;
 }

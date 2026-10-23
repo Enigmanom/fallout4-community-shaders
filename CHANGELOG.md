@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- Volumetric Shadows: new feature ported from Skyrim CS; softens the sun's soft, rim and back lighting and shadows the sun on water.
+
 ## 0.4.1
 
 - Dynamic Cubemaps: far LOD water reflections no longer scramble while walking; adds an Engine Cube Size setting.
@@ -8,7 +12,6 @@
 - Fixed a startup crash on Direct3D 11 feature-level 11.0 GPUs.
 - Upscaling: DLSS no longer falls back to TAA until restart after fast travel or entering and leaving interiors.
 - Unified Water: interiors no longer show a stray water plane.
-- Volumetric Shadows: new feature ported from Skyrim CS. Softens the sun's soft, rim and back lighting with blurred variance shadow maps of the sun cascades and shadows the sun on water; it has a live enable toggle and cascade debug views.
 
 ## 0.4.0
 

@@ -283,6 +283,9 @@ namespace cs::engine
 	bool ActiveShaderInjectionVariantHasDefine(
 		ShaderInjectionTarget a_target,
 		std::string_view a_define) noexcept;
+	bool ActiveShaderInjectionVariantHasAnyDefine(
+		ShaderInjectionTarget a_target,
+		std::span<const std::string_view> a_defines) noexcept;
 	ShaderInjectionOutcomeSnapshot GetShaderInjectionOutcomeSnapshot(
 		ShaderInjectionTarget a_target) noexcept;
 	ShaderInjectionTargetSnapshot GetShaderInjectionTargetSnapshot(ShaderInjectionTarget a_target);

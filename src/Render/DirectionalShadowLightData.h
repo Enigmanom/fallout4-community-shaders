@@ -18,7 +18,7 @@ namespace cs::engine
 	// Keeps the upstream cascade blend divide away from a zero-width band.
 	inline constexpr float kMinSunCascadeBlendHalfWidth = 0.5f;
 
-	// Publishes cascades 0 and 1 with the engine overlap; false on a singular matrix.
+	// Cascades 0 and 1 with the engine overlap; false on a singular matrix.
 	[[nodiscard]] bool BuildDirectionalShadowLightData(
 		const SunCascadeSnapshot& a_snapshot,
 		DirectionalShadowLightData& a_data) noexcept;

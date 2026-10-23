@@ -358,7 +358,7 @@ namespace
 	{
 		namespace slots = cs::features::volumetric_shadows_shader;
 		std::string error;
-		// The host binds the cascade array at t0 and t1, the map mip at u0 and a clamp sampler at s0.
+		// Host binds cascades at t0/t1, the map mip at u0, a clamp sampler at s0.
 		for (const char* define : { "DOWNSAMPLE_SHADOW_MIP0", "DOWNSAMPLE_SHADOW_MIP1" }) {
 			const auto downsample = Reflect(a_root, "VolumetricShadows/DownsampleShadowCS.hlsl", { { define, "1" } }, "cs_5_0", error);
 			if (!downsample)

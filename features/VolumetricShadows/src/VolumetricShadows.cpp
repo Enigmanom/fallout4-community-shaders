@@ -28,10 +28,10 @@ namespace cs::features
 	{
 		auto* L = cs::log::Get("cs.feature.volumetricshadows");
 
-		constexpr std::array kSkipNames{ "none", "unavailable", "disabled", "no_light", "unsupported_count", "no_target", "invalid", "source", "shaders" };
+		constexpr std::array kSkipNames{ "none", "unavailable", "disabled", "sun_cascades", "source", "shaders" };
 
 		// Directional families whose soft sun lobes read the volumetric shadow map.
-		constexpr std::array kSoftShadowFamilies{ "BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3" };
+		constexpr std::array<std::string_view, 3> kSoftShadowFamilies{ "BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3" };
 
 		constexpr float kLit[4]{ 1.0f, 1.0f, 0.0f, 0.0f };
 		constexpr std::uint32_t kBlurGroupSize = 128;
@@ -165,7 +165,7 @@ namespace cs::features
 	{
 		D3D11_TEXTURE2D_DESC source{};
 		a_snapshot.texture->GetDesc(&source);
-		// The 2x2 gather and up to three group reductions only fill the map from 2x to 16x.
+		// The 2x2 gather and three reductions only fill the map from 2x to 16x.
 		if (source.Format != DXGI_FORMAT_R16_TYPELESS || source.ArraySize != a_snapshot.count || source.MipLevels != 1 || source.SampleDesc.Count != 1 ||
 			!(source.BindFlags & D3D11_BIND_SHADER_RESOURCE) || source.Width != source.Height || source.Width < 2 * kMapSize || source.Width > 16 * kMapSize || !std::has_single_bit(source.Width))
 			return false;
@@ -231,21 +231,12 @@ namespace cs::features
 			return Skip::kDisabled;
 
 		const auto& lights = cs::engine::GetSunShadowLightState();
-		switch (lights.status) {
-		case cs::engine::SunCascadeStatus::kOk:
-			break;
-		case cs::engine::SunCascadeStatus::kNoLight:
-			return Skip::kNoLight;
-		case cs::engine::SunCascadeStatus::kUnsupportedCount:
-			return Skip::kUnsupportedCount;
-		case cs::engine::SunCascadeStatus::kNoTarget:
-			return Skip::kNoTarget;
-		case cs::engine::SunCascadeStatus::kInvalid:
-			return Skip::kInvalid;
-		}
 		const auto& snapshot = lights.snapshot;
-		if (!lights.published || !snapshot.texture)
-			return Skip::kInvalid;
+		_sunStatus = lights.status;
+		if (_sunStatus == cs::engine::SunCascadeStatus::kOk && (!lights.published || !snapshot.texture))
+			_sunStatus = cs::engine::SunCascadeStatus::kInvalid;
+		if (_sunStatus != cs::engine::SunCascadeStatus::kOk)
+			return Skip::kSunCascades;
 		if (!EnsureSourceView(device, snapshot))
 			return Skip::kSource;
 		if (!(_downsampleMip0 && _downsampleMip1 && _blurHorizontal && _blurVertical))
@@ -282,25 +273,32 @@ namespace cs::features
 		if (skip == Skip::kNone) {
 			_counters.productions.fetch_add(1, std::memory_order_relaxed);
 		} else {
-			_counters.skipped[static_cast<std::size_t>(skip)].fetch_add(1, std::memory_order_relaxed);
 			// A skipped frame must not leave the previous cascades in the map.
 			ClearToLit(context);
 		}
-		if (std::exchange(_loggedSkip, skip) != skip)
-			L->info("shadow map: {}", kSkipNames[static_cast<std::size_t>(skip)]);
+		const bool forwarded = skip == Skip::kSunCascades;
+		const auto name = forwarded ? cs::engine::SunCascadeStatusName(_sunStatus) : kSkipNames[static_cast<std::size_t>(skip)];
+		if (skip != Skip::kNone) {
+			auto& counter = forwarded ? _counters.sunStatusSkipped[static_cast<std::size_t>(_sunStatus)] : _counters.skipped[static_cast<std::size_t>(skip)];
+			counter.fetch_add(1, std::memory_order_relaxed);
+		}
+		if (std::exchange(_loggedSkip, name) != name)
+			L->info("shadow map: {}", name);
 	}
 
 	bool VolumetricShadows::ActiveLightReadsSoftShadow() noexcept
 	{
-		const auto* defines = cs::engine::GetActiveShaderInjectionVariantDefines(cs::engine::ShaderInjectionTarget::kBsdfLight);
-		if (!defines || !defines->contains("DIRECTIONAL"))
-			return false;
-		return std::ranges::any_of(kSoftShadowFamilies, [&](const char* a_family) { return defines->contains(a_family); });
+		using cs::engine::ActiveShaderInjectionVariantHasAnyDefine;
+		using cs::engine::ActiveShaderInjectionVariantHasDefine;
+		constexpr auto target = cs::engine::ShaderInjectionTarget::kBsdfLight;
+		// Probe visibility takes the lobes where SKYLIGHTING is defined.
+		return ActiveShaderInjectionVariantHasDefine(target, "DIRECTIONAL") && ActiveShaderInjectionVariantHasAnyDefine(target, kSoftShadowFamilies) &&
+		       !ActiveShaderInjectionVariantHasDefine(target, "SKYLIGHTING");
 	}
 
 	void VolumetricShadows::BindConsumer(ID3D11DeviceContext* a_context, bool a_water)
 	{
-		// Disabled leaves t98 unbound; the zeroed block keeps native lobes.
+		// Disabled: ClearState nulls t98 each frame, so lobes stay native.
 		if (!a_context || !IsHealthy() || !_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_map.srv)
 			return;
 		if (!a_water && !ActiveLightReadsSoftShadow())
@@ -345,7 +343,6 @@ namespace cs::features
 		FeatureDebugTexture texture{ .unavailableText = "Shadow map not allocated." };
 		if (_debugCascade.load(std::memory_order_acquire) != a_cascade || !_map.texture)
 			return texture;
-		// Mip 1 holds cascade 0.
 		const std::size_t mip = a_cascade == DebugCascade::kCascade0 ? 1 : 0;
 		texture.texture = _map.mipSRV[mip].get();
 		texture.width = kMapSize >> mip;
@@ -364,8 +361,12 @@ namespace cs::features
 		a_sink
 			.Field("operational", _injectionsOperational.load(std::memory_order_relaxed))
 			.Field("productions", count(_counters.productions));
-		for (std::size_t skip = static_cast<std::size_t>(Skip::kUnavailable); skip < _counters.skipped.size(); ++skip)
-			a_sink.Field(std::format("skipped_{}", kSkipNames[skip]), count(_counters.skipped[skip]));
+		for (std::size_t skip = static_cast<std::size_t>(Skip::kUnavailable); skip < _counters.skipped.size(); ++skip) {
+			if (skip != static_cast<std::size_t>(Skip::kSunCascades))
+				a_sink.Field(std::format("skipped_{}", kSkipNames[skip]), count(_counters.skipped[skip]));
+		}
+		for (std::size_t status = static_cast<std::size_t>(cs::engine::SunCascadeStatus::kNoLight); status < _counters.sunStatusSkipped.size(); ++status)
+			a_sink.Field(std::format("skipped_{}", cs::engine::SunCascadeStatusName(static_cast<cs::engine::SunCascadeStatus>(status))), count(_counters.sunStatusSkipped[status]));
 		a_sink
 			.Field("cascade_count", _counters.cascadeCount.load(std::memory_order_relaxed))
 			.Dimensions("source", _counters.sourceWidth.load(std::memory_order_relaxed), _counters.sourceHeight.load(std::memory_order_relaxed))

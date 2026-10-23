@@ -2409,6 +2409,14 @@ namespace cs::engine
 		return defines && defines->contains(a_define);
 	}
 
+	bool ActiveShaderInjectionVariantHasAnyDefine(
+		ShaderInjectionTarget a_target,
+		std::span<const std::string_view> a_defines) noexcept
+	{
+		const auto* defines = GetActiveShaderInjectionVariantDefines(a_target);
+		return defines && std::ranges::any_of(a_defines, [&](std::string_view a_define) { return defines->contains(a_define); });
+	}
+
 	const ShaderInjectionDefines* GetActiveShaderInjectionVariantDefines(
 		ShaderInjectionTarget a_target) noexcept
 	{

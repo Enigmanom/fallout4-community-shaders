@@ -53,17 +53,15 @@ namespace cs::features
 
 		constexpr float kRadiansToDegrees = 180.0f / std::numbers::pi_v<float>;
 
-		constexpr std::array kCascadeSkipNames{ "none", "unavailable", "not_full_sky", "no_light", "unsupported_count", "no_target", "invalid", "copy_target", "disabled" };
+		constexpr std::array kCascadeSkipNames{ "none", "unavailable", "not_full_sky", "sun_cascades", "copy_target", "disabled" };
 
 		// Directional families whose soft sun lobes read the probe shadow visibility.
-		constexpr std::array kShadowVisFamilies{ "BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3", "BSDFLIGHT_PS_UNSHADOWED" };
+		constexpr std::array<std::string_view, 4> kShadowVisFamilies{ "BSDFLIGHT_PS_DIRSPLITS1", "BSDFLIGHT_PS_DIRSPLITS2", "BSDFLIGHT_PS_DIRSPLITS3", "BSDFLIGHT_PS_UNSHADOWED" };
 
 		bool ActiveLightReadsShadowVisibility() noexcept
 		{
-			const auto* defines = cs::engine::GetActiveShaderInjectionVariantDefines(cs::engine::ShaderInjectionTarget::kBsdfLight);
-			if (!defines || !defines->contains("DIRECTIONAL"))
-				return false;
-			return std::ranges::any_of(kShadowVisFamilies, [&](const char* a_family) { return defines->contains(a_family); });
+			constexpr auto target = cs::engine::ShaderInjectionTarget::kBsdfLight;
+			return cs::engine::ActiveShaderInjectionVariantHasDefine(target, "DIRECTIONAL") && cs::engine::ActiveShaderInjectionVariantHasAnyDefine(target, kShadowVisFamilies);
 		}
 
 		struct ProbeFormat
@@ -614,6 +612,7 @@ namespace cs::features
 		_timingSnapshot = ticks;
 
 		const auto cascadeSkipped = [&](CascadeSkip a_reason) { return count(_cascadeCounters.skipped[static_cast<std::size_t>(a_reason)]); };
+		const auto statusSkipped = [&](cs::engine::SunCascadeStatus a_status) { return count(_cascadeCounters.statusSkipped[static_cast<std::size_t>(a_status)]); };
 		const auto probeStateNames = std::array{ "pending", "dispatched", "not_full_sky", "no_occlusion", "no_grid", "disabled" };
 		const auto cellID = _grid.cellID;
 		const auto& block = _grid.block;
@@ -647,8 +646,8 @@ namespace cs::features
 			rejected(Reject::kSkinned), rejected(Reject::kFlags), rejected(Reject::kRadius), rejected(Reject::kBelowGrid), rejected(Reject::kBsx),
 			cpuMsAverage, _windowCpuMsMax, stageMs[0], stageMs[1], stageMs[2], stageMs[3], _counters.stockTargetRestored.load(std::memory_order_relaxed) ? 1 : 0,
 			extentX, extentY, depthRange,
-			count(_cascadeCounters.copies), cascadeSkipped(CascadeSkip::kUnavailable), cascadeSkipped(CascadeSkip::kNotFullSky), cascadeSkipped(CascadeSkip::kNoLight),
-			cascadeSkipped(CascadeSkip::kUnsupportedCount), cascadeSkipped(CascadeSkip::kNoTarget), cascadeSkipped(CascadeSkip::kInvalid), cascadeSkipped(CascadeSkip::kCopyTarget), cascadeSkipped(CascadeSkip::kDisabled),
+			count(_cascadeCounters.copies), cascadeSkipped(CascadeSkip::kUnavailable), cascadeSkipped(CascadeSkip::kNotFullSky), statusSkipped(cs::engine::SunCascadeStatus::kNoLight),
+			statusSkipped(cs::engine::SunCascadeStatus::kUnsupportedCount), statusSkipped(cs::engine::SunCascadeStatus::kNoTarget), statusSkipped(cs::engine::SunCascadeStatus::kInvalid), cascadeSkipped(CascadeSkip::kCopyTarget), cascadeSkipped(CascadeSkip::kDisabled),
 			_cascadeCounters.count.load(std::memory_order_relaxed), _cascadeCounters.splitEnd[0].load(std::memory_order_relaxed), _cascadeCounters.splitEnd[1].load(std::memory_order_relaxed),
 			probeStateNames[static_cast<std::size_t>(_probeState)], count(_probeCounters.dispatches), count(_probeCounters.skippedNotFullSky), count(_probeCounters.skippedNoOcclusion), count(_probeCounters.skippedNoGrid),
 			count(_probeCounters.resets), count(_probeCounters.resetsLoad), count(_probeCounters.resetsRebuild), count(_probeCounters.resetsEnable),
@@ -666,6 +665,7 @@ namespace cs::features
 		using Reject = cs::engine::OccluderReject;
 		const auto rejected = [&](Reject a_reason) { return count(stats.rejected[static_cast<std::size_t>(a_reason)]); };
 		const auto cascadeSkipped = [&](CascadeSkip a_reason) { return count(_cascadeCounters.skipped[static_cast<std::size_t>(a_reason)]); };
+		const auto statusSkipped = [&](cs::engine::SunCascadeStatus a_status) { return count(_cascadeCounters.statusSkipped[static_cast<std::size_t>(a_status)]); };
 		a_sink
 			.Field("captures", count(_counters.captures))
 			.Field("skipped_interior", count(_counters.skippedInterior))
@@ -720,10 +720,10 @@ namespace cs::features
 			.Field("sun_copies", count(_cascadeCounters.copies))
 			.Field("sun_copy_skipped_unavailable", cascadeSkipped(CascadeSkip::kUnavailable))
 			.Field("sun_copy_skipped_not_full_sky", cascadeSkipped(CascadeSkip::kNotFullSky))
-			.Field("sun_copy_skipped_no_light", cascadeSkipped(CascadeSkip::kNoLight))
-			.Field("sun_copy_skipped_unsupported_count", cascadeSkipped(CascadeSkip::kUnsupportedCount))
-			.Field("sun_copy_skipped_no_target", cascadeSkipped(CascadeSkip::kNoTarget))
-			.Field("sun_copy_skipped_invalid", cascadeSkipped(CascadeSkip::kInvalid))
+			.Field("sun_copy_skipped_no_light", statusSkipped(cs::engine::SunCascadeStatus::kNoLight))
+			.Field("sun_copy_skipped_unsupported_count", statusSkipped(cs::engine::SunCascadeStatus::kUnsupportedCount))
+			.Field("sun_copy_skipped_no_target", statusSkipped(cs::engine::SunCascadeStatus::kNoTarget))
+			.Field("sun_copy_skipped_invalid", statusSkipped(cs::engine::SunCascadeStatus::kInvalid))
 			.Field("sun_copy_skipped_copy_target", cascadeSkipped(CascadeSkip::kCopyTarget))
 			.Field("sun_copy_skipped_disabled", cascadeSkipped(CascadeSkip::kDisabled))
 			.Field("cascade_count", static_cast<std::int64_t>(_cascadeCounters.count.load(std::memory_order_relaxed)))
@@ -852,22 +852,13 @@ namespace cs::features
 			return CascadeSkip::kNotFullSky;
 
 		const auto& lights = cs::engine::GetSunShadowLightState();
-		switch (lights.status) {
-		case cs::engine::SunCascadeStatus::kOk:
-			break;
-		case cs::engine::SunCascadeStatus::kNoLight:
-			return CascadeSkip::kNoLight;
-		case cs::engine::SunCascadeStatus::kUnsupportedCount:
-			return CascadeSkip::kUnsupportedCount;
-		case cs::engine::SunCascadeStatus::kNoTarget:
-			return CascadeSkip::kNoTarget;
-		case cs::engine::SunCascadeStatus::kInvalid:
-			return CascadeSkip::kInvalid;
-		}
 		const auto& snapshot = lights.snapshot;
+		_sunStatus = lights.status;
 		// The probe shader fixes the cascade count at two.
-		if (snapshot.count != kCopiedCascades)
-			return CascadeSkip::kUnsupportedCount;
+		if (_sunStatus == cs::engine::SunCascadeStatus::kOk && snapshot.count != kCopiedCascades)
+			_sunStatus = cs::engine::SunCascadeStatus::kUnsupportedCount;
+		if (_sunStatus != cs::engine::SunCascadeStatus::kOk)
+			return CascadeSkip::kSunCascades;
 
 		if (!EnsureCascadeCopy(device, snapshot.texture))
 			return CascadeSkip::kCopyTarget;
@@ -900,12 +891,15 @@ namespace cs::features
 		if (skip == CascadeSkip::kNone) {
 			_cascadeCounters.copies.fetch_add(1, std::memory_order_relaxed);
 		} else {
-			_cascadeCounters.skipped[static_cast<std::size_t>(skip)].fetch_add(1, std::memory_order_relaxed);
+			const bool forwarded = skip == CascadeSkip::kSunCascades;
+			auto& counter = forwarded ? _cascadeCounters.statusSkipped[static_cast<std::size_t>(_sunStatus)] : _cascadeCounters.skipped[static_cast<std::size_t>(skip)];
+			counter.fetch_add(1, std::memory_order_relaxed);
 			// A skipped frame must not leave stale cascades beside live probe updates.
 			_copyGeneration = 0;
 		}
-		if (std::exchange(_loggedCascadeSkip, skip) != skip)
-			CaptureLog->info("sun cascades: {}", kCascadeSkipNames[static_cast<std::size_t>(skip)]);
+		const auto name = skip == CascadeSkip::kSunCascades ? cs::engine::SunCascadeStatusName(_sunStatus) : kCascadeSkipNames[static_cast<std::size_t>(skip)];
+		if (std::exchange(_loggedCascadeSkip, name) != name)
+			CaptureLog->info("sun cascades: {}", name);
 	}
 
 	void Skylighting::DispatchProbeUpdate(ID3D11DeviceContext* a_context)
@@ -913,8 +907,7 @@ namespace cs::features
 		cs::engine::ComputeOMScope scope(a_context, 4, 1, 4, 0);
 		cs::render::ScopedComputeSharedDataBinding substrate(a_context);
 
-		// FO4: no ESRAM shadow, so t3 repeats the cascade copy. The copy and the
-		// shared light block must come from this sun render; else both stay null.
+		// FO4: no ESRAM shadow, so t3 repeats the copy; stale copies bind null.
 		const auto& lights = cs::engine::GetSunShadowLightState();
 		const bool fresh = lights.published && lights.generation == _copyGeneration;
 		auto* cascades = fresh ? _cascadeCopySRV.get() : nullptr;
