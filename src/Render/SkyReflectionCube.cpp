@@ -74,11 +74,11 @@ namespace cs::engine
 			static void thunk(
 				RE::BSGraphics::RenderTargetManager* a_this,
 				RE::BSGraphics::CubeMapRenderTargetID a_logicalID,
-				const RE::BSGraphics::CubeMapRenderTargetProperties* a_properties,
+				RE::BSGraphics::CubeMapRenderTargetProperties* a_properties,
 				RE::BSGraphics::RenderTargetCreationMode a_mode)
 			{
 				const auto size = g_cubeSize.load(std::memory_order_relaxed);
-				auto& properties = const_cast<RE::BSGraphics::CubeMapRenderTargetProperties&>(*a_properties);
+				auto& properties = *a_properties;
 				properties.width = size;
 				properties.height = size;
 				func(a_this, a_logicalID, a_properties, a_mode);
@@ -92,13 +92,13 @@ namespace cs::engine
 			static void thunk(
 				RE::BSGraphics::RenderTargetManager* a_this,
 				RE::BSGraphics::DepthStencilTargetID a_logicalID,
-				const RE::BSGraphics::DepthStencilTargetCreationProperties* a_properties,
+				RE::BSGraphics::DepthStencilTargetCreationProperties* a_properties,
 				RE::BSGraphics::RenderTargetCreationMode a_mode)
 			{
 				if (a_logicalID == RE::BSGraphics::DepthStencilTargetID::kCubemapReflections) {
 					const auto size = g_cubeSize.load(std::memory_order_relaxed);
 					// FO4: edit only the common prefix; NG/AE creation tails stay untouched.
-					auto& properties = const_cast<RE::BSGraphics::DepthStencilTargetProperties&>(a_properties->properties);
+					auto& properties = a_properties->properties;
 					properties.width = std::max(properties.width, size);
 					properties.height = std::max(properties.height, size);
 				}
