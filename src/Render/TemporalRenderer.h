@@ -2,7 +2,7 @@
 
 #include "DebugView.h"
 #include "RE/I/ImageSpaceEffectTemporalAA.h"
-#include "Render/RenderUIPathGate.h"
+#include "Render/RenderUIOutputExtent.h"
 #include "Render/SwapChainHook.h"
 #include "Render/TemporalRenderSettings.h"
 #include "Render/TemporalRenderSizing.h"
