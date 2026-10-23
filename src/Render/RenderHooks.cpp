@@ -158,37 +158,13 @@ namespace cs::engine
 			const std::vector<PrioritizedCallback>& _callbacks;
 		};
 
-		// Passes are disjoint, so nested callbacks pause this segment.
-		class ProfiledSegment
-		{
-		public:
-			explicit ProfiledSegment(std::string_view a_name) noexcept :
-				_name(a_name)
-			{}
-
-			void Begin() noexcept { _active = render::profiling::BeginPass(_name); }
-			void End() noexcept
-			{
-				if (std::exchange(_active, false))
-					render::profiling::EndPass();
-			}
-
-		private:
-			std::string_view _name;
-			bool _active = false;
-		};
-
-		ProfiledSegment g_deferredPrePassTiming{ "DeferredPrePass" };
-
 		struct DeferredPrePass_Hook
 		{
 			static void thunk()
 			{
 				MarkRegistrationClosed();
 				Dispatch(g_preDeferredPrePass);
-				g_deferredPrePassTiming.Begin();
 				func();
-				g_deferredPrePassTiming.End();
 				Dispatch(g_postDeferredPrePass);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -442,7 +418,6 @@ namespace cs::engine
 				for (auto& hold : g_prepassHolds) {
 					if (hold.held.empty())
 						continue;
-					g_deferredPrePassTiming.End();
 					try {
 						hold.replay(hold.held);
 					} catch (const std::exception& e) {
@@ -451,7 +426,6 @@ namespace cs::engine
 						L->error("Prepass hold replay failed.");
 					}
 					hold.held.clear();
-					g_deferredPrePassTiming.Begin();
 				}
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
