@@ -4,6 +4,7 @@
 #include "Log.h"
 #include "LogThrottle.h"
 #include "Render/Engine.h"
+#include "Render/EngineCallSite.h"
 #include "Render/NativeShaderFamily.h"
 #include "Render/PixelShaderSwapBroker.h"
 #include "Render/RenderHooks.h"
@@ -597,13 +598,9 @@ namespace cs::engine
 			if (*target != ShaderInjectionTarget::kImageSpace)
 				return result;
 
-			const char* sourceGroup = nullptr;
-			const char* className = nullptr;
-			if (a_shader && a_shader->shaderType == 0xC) {
-				const auto* imagespace = static_cast<const RE::BSImagespaceShader*>(a_shader);
-				sourceGroup = imagespace->GetSourcePrefix();
-				className = imagespace->GetShaderClassName();
-			}
+			const auto* imagespace = static_cast<const RE::BSImagespaceShader*>(a_shader);
+			const char* sourceGroup = imagespace->GetSourcePrefix();
+			const char* className = imagespace->GetShaderClassName();
 			const auto emitted = native::GetImageSpaceMacros(a_shader);
 			if (!sourceGroup || !className || !emitted)
 				return std::nullopt;
@@ -1390,55 +1387,16 @@ namespace cs::engine
 					return false;
 				}
 
-				std::array<std::uint8_t, 7> patch{
-					REL::NOP, REL::NOP, REL::NOP, REL::NOP,
-					REL::NOP, REL::NOP, REL::NOP
-				};
 				const REL::ASM::JMP5 jump(a_validatedTail, branch);
-				std::memcpy(
-					patch.data(), std::addressof(jump), sizeof(jump));
-				const bool protectionRestored = REL::WriteSafe(
-					a_validatedTail,
-					patch.data(),
-					patch.size());
-				const bool patchOwned = std::memcmp(
-											reinterpret_cast<const void*>(
-												a_validatedTail),
-											patch.data(),
-											patch.size()) == 0;
-				if (!patchOwned) {
-					const bool restored = REL::WriteSafe(
-											  a_validatedTail,
-											  kRunComputeShaderDispatchTail.data(),
-											  kRunComputeShaderDispatchTail.size()) &&
-					                      std::memcmp(
-											  reinterpret_cast<const void*>(
-												  a_validatedTail),
-											  kRunComputeShaderDispatchTail.data(),
-											  kRunComputeShaderDispatchTail.size()) == 0;
+				const auto patch = WriteBranchPatch<7>(a_validatedTail, jump);
+				if (!patch) {
 					L->error(
-						"RunComputeShader dispatch bridge installation failed: "
-						"the written tail could not be verified (rollback={}).",
-						restored);
-					if (!restored)
-						std::terminate();
-					FlushInstructionCache(
-						GetCurrentProcess(),
-						reinterpret_cast<const void*>(a_validatedTail),
-						kRunComputeShaderDispatchTail.size());
+						"RunComputeShader dispatch bridge installation failed: {}",
+						patch.error());
 					return false;
 				}
-				FlushInstructionCache(
-					GetCurrentProcess(),
-					reinterpret_cast<const void*>(a_validatedTail),
-					patch.size());
-				if (!protectionRestored) {
-					L->warn(
-						"RunComputeShader dispatch bridge owns the verified "
-						"tail, but restoring its page protection failed.");
-				}
 
-				g_computeDispatchBridgePatch = patch;
+				g_computeDispatchBridgePatch = *patch;
 				g_computeDispatchContext.store(
 					a_immediateContext, std::memory_order_release);
 				g_computeDispatchBridgeTail.store(

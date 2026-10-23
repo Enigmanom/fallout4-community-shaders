@@ -2,9 +2,12 @@
 
 #include "PCH.h"
 
+#include "Log.h"
+
 #include <cstring>
 #include <format>
 #include <utility>
+#include <vector>
 
 namespace cs::engine
 {
@@ -91,17 +94,42 @@ namespace cs::engine
 		return site;
 	}
 
+	std::expected<void, std::string> WriteVerifiedPatch(
+		std::uintptr_t a_site,
+		std::span<const std::uint8_t> a_patch) noexcept
+	{
+		const auto* site = reinterpret_cast<const void*>(a_site);
+		const std::vector<std::uint8_t> original(
+			static_cast<const std::uint8_t*>(site),
+			static_cast<const std::uint8_t*>(site) + a_patch.size());
+		const bool protectionRestored = REL::WriteSafe(a_site, a_patch.data(), a_patch.size());
+		if (std::memcmp(site, a_patch.data(), a_patch.size()) != 0) {
+			const bool restored = REL::WriteSafe(a_site, original.data(), original.size()) &&
+			                      std::memcmp(site, original.data(), original.size()) == 0;
+			if (!restored) {
+				cs::log::Get("cs.render.enginecallsite")->error("patch at {:#x} could not be verified (rollback=false)", a_site);
+				std::terminate();
+			}
+			FlushInstructionCache(GetCurrentProcess(), site, a_patch.size());
+			return std::unexpected(std::format(
+				"patch at {:#x} could not be verified (original restored)", a_site));
+		}
+		FlushInstructionCache(GetCurrentProcess(), site, a_patch.size());
+		if (!protectionRestored) {
+			cs::log::Get("cs.render.enginecallsite")
+				->warn("patch at {:#x} is live but its page protection was not restored", a_site);
+		}
+		return {};
+	}
+
 	std::expected<void, std::string> RedirectContextCall(
 		std::uintptr_t a_site,
 		std::uintptr_t a_thunk) noexcept
 	{
 		try {
 			const REL::ASM::CALL5 call(a_site, REL::GetTrampoline().allocate_branch5(a_thunk));
-			std::array<std::uint8_t, 6> patch{};
-			std::memcpy(patch.data(), std::addressof(call), sizeof(call));
-			patch[5] = REL::NOP;
-			REL::WriteSafe(a_site, patch.data(), patch.size());
-			FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<const void*>(a_site), patch.size());
+			if (const auto patched = WriteBranchPatch<6>(a_site, call); !patched)
+				return std::unexpected(std::format("context call redirect: {}", patched.error()));
 		} catch (const std::exception& e) {
 			return std::unexpected(std::format("context call redirect at {:#x}: {}", a_site, e.what()));
 		}
