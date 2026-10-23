@@ -19,7 +19,7 @@ namespace cs::features::inverse_square_lighting
 		cutoff = a_cutoffOverride == 1.0f ? cutoff : a_cutoffOverride;
 		const float radius = std::sqrt(kScaledUnitsSq *
 									   ((2 * a_intensity - cutoff * a_size * a_size) / (2 * cutoff)));
-		return std::isnan(radius) ? 1.0f : radius;
+		return radius > 0.0f ? radius : 1.0f;
 	}
 
 	inline float GetAttenuation(float a_distance, float a_radius, float a_size) noexcept
