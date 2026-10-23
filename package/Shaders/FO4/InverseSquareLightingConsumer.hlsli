@@ -24,7 +24,7 @@ namespace FO4InverseSquareLighting
 			return 0.0;
 		if ((data.lightFlags & LightLimitFix::LightFlags::InverseSquare) == 0)
 			return nativeColor;
-		// FO4: upstream decodes on the CPU; FO4 local-light color keeps native power 2.2.
+		// FO4: upstream decodes on the CPU; native light color keeps power 2.2.
 		float3 color = (data.lightFlags & LightLimitFix::LightFlags::Linear) != 0 ?
 		                   data.color :
 		                   TransferFunctions::Gamma22ToLinear(data.color);
