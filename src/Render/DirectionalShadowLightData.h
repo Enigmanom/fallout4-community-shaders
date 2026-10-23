@@ -15,8 +15,7 @@ namespace cs::engine
 	// SKYLIGHTING_SUN_CASCADES for the layout the Skylighting probe shader reads.
 	inline constexpr char kSunCascadesDefine[] = { static_cast<char>('0' + kMaxSunCascades), '\0' };
 
-	// Mirrors the HLSL DirectionalShadowLightData: ShadowSampling.hlsli (t98, N == 2)
-	// and UpdateProbesCS.hlsl (t2); split type is float2 when N == 2, else float4.
+	// HLSL DirectionalShadowLightData; splits are float2 for N == 2, else float4.
 	template <std::size_t N>
 	struct alignas(16) DirectionalShadowLightData
 	{
@@ -32,8 +31,7 @@ namespace cs::engine
 	// Keeps the upstream cascade blend divide away from a zero-width band.
 	inline constexpr float kMinSunCascadeBlendHalfWidth = 0.5f;
 
-	// Fills N cascades from the snapshot with the engine overlap B; false on a
-	// singular matrix. Slots past the live count repeat the last live cascade.
+	// Fills N cascades with engine overlap B; false on a singular matrix.
 	template <std::size_t N>
 	[[nodiscard]] bool BuildDirectionalShadowLightData(
 		const SunCascadeSnapshot& a_snapshot,

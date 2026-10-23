@@ -10,8 +10,7 @@ struct ID3D11ShaderResourceView;
 
 namespace cs::engine
 {
-	// Sun cascade light blocks, one per consumer layout, filled from one snapshot;
-	// zeroed before each DeferredLightsImpl.
+	// One light block per consumer layout, built from one snapshot per frame.
 
 	// Type-erased DirectionalShadowLightData<N>; use the templates below.
 	struct SunShadowLightLayout
@@ -32,8 +31,7 @@ namespace cs::engine
 	[[nodiscard]] bool AcquireSunShadowLights(const SunShadowLightLayout& a_layout);
 	[[nodiscard]] ID3D11ShaderResourceView* GetSunShadowLightsSRV(const SunShadowLightLayout& a_layout) noexcept;
 
-	// Call in Load or OnPostPostLoad; idle until a consumer acquires. Buffers exist
-	// only for acquired layouts.
+	// Call in Load/OnPostPostLoad; buffers exist only for acquired layouts.
 	template <std::size_t N>
 	[[nodiscard]] bool AcquireSunShadowLights()
 	{

@@ -5,7 +5,6 @@
 
 namespace cs::features::volumetric_shadows_shader
 {
-	// PS slots the consumers declare.
 	inline constexpr std::uint32_t kSharedShadowMapSlot = 18;
 	inline constexpr std::uint32_t kShadowLightsSlot = 98;
 
