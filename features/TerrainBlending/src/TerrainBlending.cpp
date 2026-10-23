@@ -4,18 +4,19 @@
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
+#include "Render/FrameBuffer.h"
 #include "Render/FrameProfiler.h"
-#include "Render/LightingRenderPasses.h"
-#include "Render/PassType.h"
 #include "Render/PrepassTechnique.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
 #include "Telemetry/Telemetry.h"
+#include "Utils/CSUtil.h"
 
-#include "RE/B/BSLightingShaderProperty.h"
+#include "RE/B/BSGeometry.h"
 #include "RE/B/BSRenderPass.h"
+#include "RE/B/BSShaderProperty.h"
 
 #include <array>
 #include <d3d11.h>
@@ -34,6 +35,8 @@ namespace cs::features
 		// Free in the landscape pixel stage; slots from 16 up are not engine-owned.
 		constexpr UINT kObjectDepthSlot = 55;
 		constexpr UINT kReplayPassSlot = 8;
+		// Upstream offsets terrain whose bound is within this many units of the eye.
+		constexpr float kOffsetRange = 1024.0f;
 
 		enum ReplayPass : std::uint32_t
 		{
@@ -49,6 +52,7 @@ namespace cs::features
 			D3D11_TEXTURE2D_DESC depthDesc{};
 			std::array<winrt::com_ptr<ID3D11BlendState>, 3> blend;
 			std::array<winrt::com_ptr<ID3D11Buffer>, 3> passBuffer;
+			winrt::com_ptr<ID3D11VertexShader> offsetDepthVS;
 			ReplayPass replaying = kStock;
 		};
 
@@ -117,12 +121,9 @@ namespace cs::features
 			return TerrainBlending::GetSingleton()->HoldsTechnique(a_technique);
 		}
 
-		void DropZPasses(
-			const cs::engine::LightingRenderPassesCall& a_call,
-			RE::BSShaderProperty::RenderPassArray* a_passes) noexcept
+		ID3D11VertexShader* OffsetDepth(const RE::BSGeometry& a_geometry) noexcept
 		{
-			if (a_call.property)
-				TerrainBlending::GetSingleton()->DropZPrepassPasses(*a_call.property, a_passes);
+			return TerrainBlending::GetSingleton()->SelectZPrepassShader(a_geometry);
 		}
 	}
 
@@ -146,8 +147,8 @@ namespace cs::features
 			FailLoad("Terrain Blending needs the world prepass bucket hold-back.");
 			return;
 		}
-		if (!cs::engine::RegisterPostLightingRenderPasses(&DropZPasses)) {
-			FailLoad("Terrain Blending needs the lighting pass-list hook to drop landscape Z-prepass entries.");
+		if (!cs::engine::RegisterWorldZPrepassVertexShader(&OffsetDepth)) {
+			FailLoad("Terrain Blending needs the world Z-prepass draw hook to offset terrain depth.");
 			return;
 		}
 		_registrationsReady.store(true, std::memory_order_release);
@@ -157,6 +158,13 @@ namespace cs::features
 	{
 		CreateReplayState(a_device, kColor, ColorBlendDesc());
 		CreateReplayState(a_device, kData, DataBlendDesc());
+		g_replay.offsetDepthVS.attach(static_cast<ID3D11VertexShader*>(cs::util::CompileShader(
+			L"Data\\Shaders\\FO4\\ZPrePass.hlsl", { { "OFFSET_DEPTH", "" } }, "vs_5_0")));
+		if (!g_replay.offsetDepthVS) {
+			FailLoad("Terrain Blending could not compile the offset Z-prepass vertex shader.");
+			return;
+		}
+		cs::render::annotation::SetName(g_replay.offsetDepthVS.get(), "TerrainBlending/OffsetDepth.VS");
 		_resourcesReady.store(true, std::memory_order_release);
 	}
 
@@ -195,20 +203,22 @@ namespace cs::features
 		       IsOperational();
 	}
 
-	void TerrainBlending::DropZPrepassPasses(
-		const RE::BSLightingShaderProperty& a_property,
-		RE::BSShaderProperty::RenderPassArray* a_passes) noexcept
+	ID3D11VertexShader* TerrainBlending::SelectZPrepassShader(const RE::BSGeometry& a_geometry) noexcept
 	{
-		if (!a_passes || !a_property.flags.all(ShaderFlag::kMultiTextureLandscape) ||
-			a_property.flags.any(ShaderFlag::kLODLandscape) || !IsOperational())
-			return;
-		// Z-prepass depth above buried objects would reject the blending terrain.
-		for (auto* pass = a_passes->passList; pass; pass = pass->propertyNext) {
-			if (pass->passType == cs::engine::pass_type::kDepthPrepassOpaque || pass->passType == cs::engine::pass_type::kDepthPrepassAlphaTest) {
-				pass->passType = cs::engine::pass_type::kUnlisted;
-				_zPassesDropped.fetch_add(1, std::memory_order_relaxed);
-			}
-		}
+		// Only shader properties register Z-prepass passes.
+		const auto* property = static_cast<const RE::BSShaderProperty*>(a_geometry.properties[1].get());
+		if (!property || !property->flags.all(ShaderFlag::kMultiTextureLandscape) ||
+			property->flags.any(ShaderFlag::kLODLandscape) || !IsOperational())
+			return nullptr;
+		const auto camera = cs::engine::GetWorldCameraRecord();
+		if (!camera)
+			return nullptr;
+		const RE::NiPoint3 eye{ camera->PosAdjust.x, camera->PosAdjust.y, camera->PosAdjust.z };
+		const auto& bound = a_geometry.worldBound;
+		if (bound.center.GetDistance(eye) - bound.fRadius > kOffsetRange)
+			return nullptr;
+		_zPassesOffset.fetch_add(1, std::memory_order_relaxed);
+		return g_replay.offsetDepthVS.get();
 	}
 
 	bool TerrainBlending::CopyObjectDepth(ID3D11DeviceContext* a_context)
@@ -317,7 +327,7 @@ namespace cs::features
 			.Field("color_draws", _colorDraws.load(std::memory_order_relaxed))
 			.Field("data_draws", _dataDraws.load(std::memory_order_relaxed))
 			.Field("depth_copies", _depthCopies.load(std::memory_order_relaxed))
-			.Field("z_passes_dropped", _zPassesDropped.load(std::memory_order_relaxed));
+			.Field("z_passes_offset", _zPassesOffset.load(std::memory_order_relaxed));
 		cs::render::profiling::CollectPassTimings(a_sink, "TerrainBlending/");
 	}
 

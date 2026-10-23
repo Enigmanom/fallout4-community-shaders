@@ -3,13 +3,18 @@
 #include "Feature.h"
 #include "FeatureBuffer.h"
 #include "FeatureCategories.h"
-#include "RE/B/BSShaderProperty.h"
 #include "ShaderDefines.h"
 
 #include <atomic>
 #include <span>
 
 struct ID3D11DeviceContext;
+struct ID3D11VertexShader;
+
+namespace RE
+{
+	class BSGeometry;
+}
 
 namespace cs::engine
 {
@@ -39,11 +44,11 @@ namespace cs::features
 
 		cs::TerrainBlendingFeatureData GetCommonBufferData() const;
 
-		// Render thread: hold loaded landscape, then replay it blended.
+		// Render thread: offset near terrain depth, hold landscape, replay blended.
 		bool HoldsTechnique(std::uint32_t a_technique) const noexcept;
 		void Replay(std::span<const engine::HeldPrepassBucket> a_buckets);
 		void BindReplayDraw(ID3D11DeviceContext* a_context) noexcept;
-		void DropZPrepassPasses(const RE::BSLightingShaderProperty& a_property, RE::BSShaderProperty::RenderPassArray* a_passes) noexcept;
+		ID3D11VertexShader* SelectZPrepassShader(const RE::BSGeometry& a_geometry) noexcept;
 
 	private:
 		TerrainBlending() = default;
@@ -64,6 +69,6 @@ namespace cs::features
 		std::atomic_uint64_t _colorDraws{ 0 };
 		std::atomic_uint64_t _dataDraws{ 0 };
 		std::atomic_uint64_t _depthCopies{ 0 };
-		std::atomic_uint64_t _zPassesDropped{ 0 };
+		std::atomic_uint64_t _zPassesOffset{ 0 };
 	};
 }

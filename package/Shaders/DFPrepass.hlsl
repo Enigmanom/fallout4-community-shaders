@@ -162,8 +162,6 @@ cbuffer TerrainBlendingDraw : register(b8)
 	uint TerrainBlendingPass;  // 1 colour lerp, 2 data replace
 	uint3 TerrainBlendingPad;
 };
-// Upstream blends terrain within 1024 units of the eye.
-static const float TerrainBlendingRange = 1024.0;
 #	endif
 
 #	if defined(TERRAIN_VARIATION) && LANDSCAPE && !INSTANCED
@@ -614,8 +612,6 @@ struct PS_OUTPUT
 			const float depthPixelLinear = SharedData::GetScreenDepth(FO4Depth::ProjectionDepth(input.position.z));
 			terrainBlendFactor = saturate((depthSampledLinear - depthPixelLinear) / 10.0);
 			if (input.position.z == depthSampled)
-				terrainBlendFactor = 1;
-			if (depthPixelLinear > TerrainBlendingRange)
 				terrainBlendFactor = 1;
 			// The data draw owns pixels where terrain is at least half in.
 			clip(terrainBlendFactor - (TerrainBlendingPass == 1 ? 1.0 / 255.0 : 0.5));
