@@ -245,18 +245,18 @@ namespace cs::engine
 			ScopedPixelShaderInjectionBindings _bindings;
 		};
 
-		template <DrawRoute Route, class Signature>
+		template <DrawRoute Route, auto Draw, class = decltype(Draw)>
 		struct DrawRouteScope_Hook;
 
-		template <DrawRoute Route, class... Args>
-		struct DrawRouteScope_Hook<Route, void(Args...)>
+		template <DrawRoute Route, auto Draw, class... Args>
+		struct DrawRouteScope_Hook<Route, Draw, void (RE::BSGraphics::Renderer::*)(Args...)>
 		{
-			static void thunk(Args... a_args)
+			static void thunk(RE::BSGraphics::Renderer* a_this, Args... a_args)
 			{
 				const DrawRouteScope scope(Route);
-				func(a_args...);
+				func(a_this, a_args...);
 			}
-			static inline REL::Relocation<void(Args...)> func;
+			static inline REL::Relocation<void(RE::BSGraphics::Renderer*, Args...)> func;
 			static inline bool installed = false;
 		};
 
@@ -270,13 +270,13 @@ namespace cs::engine
 			(a_context->*Draw)(a_args...);
 		}
 
-		void OnDrawStateFlushed(bool a_force, bool a_clear, std::uint32_t a_residualR9d) noexcept
+		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, std::uint32_t a_residualR9d) noexcept
 		{
 			auto* rendererData = RE::BSGraphics::GetRendererData();
 			auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
 			if (t_drawRoute == DrawRoute::kNone) {
-				// Flush and RunComputeShader pass force or clear; draw callers pass neither.
-				if (!a_force && !a_clear)
+				// Flush is output-only and RunComputeShader is compute; draws are neither.
+				if (!a_outputStateOnly && !a_compute)
 					RecordUndispatchedInjectedDraw(context);
 				return;
 			}
@@ -297,18 +297,18 @@ namespace cs::engine
 		struct SetDirtyStates_Hook
 		{
 			static void thunk(
-				bool a_force,
-				bool a_clear,
+				bool a_outputStateOnly,
+				bool a_compute,
 				std::uint32_t,
 				std::uint32_t a_residualR9d)
 			{
-				func(a_force, a_clear);
+				func(a_outputStateOnly, a_compute);
 				if (g_drawProfilingInstalled)
 					render::profiling::RecordDraw();
 				if (g_deferredDrawAnchorInstalled)
-					OnDrawStateFlushed(a_force, a_clear, a_residualR9d);
+					OnDrawStateFlushed(a_outputStateOnly, a_compute, a_residualR9d);
 			}
-			static inline REL::Relocation<void(bool, bool)> func;
+			static inline REL::Relocation<decltype(&RE::BSGraphics::SetDirtyStates)> func;
 		};
 
 		struct ResetState_Hook
@@ -644,31 +644,30 @@ namespace cs::engine
 			return true;
 		}
 
-		template <DrawRoute Route, class Signature>
+		template <DrawRoute Route, auto Draw>
 		bool InstallDrawRoute(REL::VariantID a_id, const char* a_name)
 		{
-			using Hook = DrawRouteScope_Hook<Route, Signature>;
+			using Hook = DrawRouteScope_Hook<Route, Draw>;
 			return EnsureDetourInstalled<Hook>(Hook::installed, a_id, a_name);
 		}
 
 		bool InstallDrawRoutes()
 		{
-			using namespace RE::BSGraphics;
+			using Renderer = RE::BSGraphics::Renderer;
 			namespace ID = RE::ID::BSGraphics::Renderer;
-			using UInt = std::uint32_t;
-			return InstallDrawRoute<DrawRoute::kTriShape, void(Renderer*, TriShape*, UInt, UInt)>(
+			return InstallDrawRoute<DrawRoute::kTriShape, &Renderer::DrawTriShape>(
 					   ID::DrawTriShape, "DrawTriShape") &&
-			       InstallDrawRoute<DrawRoute::kTriShapeIndexed, void(Renderer*, TriShape*, UInt, UInt, IndexBuffer*)>(
-					   ID::DrawTriShapeIndexed, "DrawTriShape(IndexBuffer)") &&
-			       InstallDrawRoute<DrawRoute::kTriShapeLargeIndices, void(Renderer*, TriShape*, UInt, UInt)>(
+			       InstallDrawRoute<DrawRoute::kTriShapeIndexed, &Renderer::DrawTriShapeIndexed>(
+					   ID::DrawTriShapeIndexed, "DrawTriShapeIndexed") &&
+			       InstallDrawRoute<DrawRoute::kTriShapeLargeIndices, &Renderer::DrawTriShapeLargeIndices>(
 					   ID::DrawTriShapeLargeIndices, "DrawTriShapeLargeIndices") &&
-			       InstallDrawRoute<DrawRoute::kInstancedTriShape, void(Renderer*, TriShape*, UInt, UInt, UInt, std::uint64_t, VertexBuffer*)>(
+			       InstallDrawRoute<DrawRoute::kInstancedTriShape, &Renderer::DrawInstancedTriShape>(
 					   ID::DrawInstancedTriShape, "DrawInstancedTriShape") &&
-			       InstallDrawRoute<DrawRoute::kDynamicTriShape, void(Renderer*, DynamicTriShape*, DynamicTriShapeDrawData*, UInt, UInt, IndexBuffer*)>(
+			       InstallDrawRoute<DrawRoute::kDynamicTriShape, &Renderer::DrawDynamicTriShape>(
 					   ID::DrawDynamicTriShape, "DrawDynamicTriShape") &&
-			       InstallDrawRoute<DrawRoute::kParticleShaderTriShape, void(Renderer*, const void*, UInt)>(
+			       InstallDrawRoute<DrawRoute::kParticleShaderTriShape, &Renderer::DrawParticleShaderTriShape>(
 					   ID::DrawParticleShaderTriShape, "DrawParticleShaderTriShape") &&
-			       InstallDrawRoute<DrawRoute::kCommandBuffer, void(Renderer*, char**)>(
+			       InstallDrawRoute<DrawRoute::kCommandBuffer, &Renderer::ProcessCommandBuffer>(
 					   ID::ProcessCommandBuffer, "ProcessCommandBuffer") &&
 			       InstallCommandBufferRecordDraws();
 		}
