@@ -26,12 +26,6 @@ namespace cs::engine
 		std::vector<Entry<PostLightingRenderPassesCallback>> g_post;
 		bool g_installed = false;
 
-		template <class Callback>
-		void Insert(std::vector<Entry<Callback>>& a_entries, Callback a_callback, HookPriority a_priority)
-		{
-			InsertByPriority(a_entries, Entry<Callback>{ a_priority, a_callback });
-		}
-
 		struct BSLightingShaderProperty_GetRenderPasses
 		{
 			static RE::BSShaderProperty::RenderPassArray* thunk(
@@ -72,7 +66,7 @@ namespace cs::engine
 	{
 		if (!RenderHookRegistrationAllowed("PreLightingRenderPasses") || !EnsureInstalled())
 			return false;
-		Insert(g_pre, a_callback, a_priority);
+		InsertByPriority(g_pre, Entry<PreLightingRenderPassesCallback>{ a_priority, a_callback });
 		return true;
 	}
 
@@ -80,7 +74,7 @@ namespace cs::engine
 	{
 		if (!RenderHookRegistrationAllowed("PostLightingRenderPasses") || !EnsureInstalled())
 			return false;
-		Insert(g_post, a_callback, a_priority);
+		InsertByPriority(g_post, Entry<PostLightingRenderPassesCallback>{ a_priority, a_callback });
 		return true;
 	}
 }

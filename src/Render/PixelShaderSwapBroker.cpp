@@ -2,6 +2,7 @@
 
 #include "Log.h"
 #include "PCH.h"
+#include "Render/HookRegistry.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassContext.h"
 #include "Render/ShaderVariantRuntimeResolver.h"
@@ -318,13 +319,7 @@ namespace cs::engine
 				}
 			}
 			auto updated = current ? std::make_shared<ResolverList>(*current) : std::make_shared<ResolverList>();
-			updated->push_back(a_registration);
-			std::stable_sort(
-				updated->begin(),
-				updated->end(),
-				[](const auto& a_left, const auto& a_right) {
-					return a_left.priority < a_right.priority;
-				});
+			InsertByPriority(*updated, a_registration);
 			resolverCount = updated->size();
 			(void)g_resolverRegistry.Register(
 				a_registration.priority);

@@ -92,11 +92,6 @@ namespace cs::engine
 			return true;
 		}
 
-		void InsertPrioritized(std::vector<PrioritizedCallback>& v, RenderHookCallback&& cb, HookPriority p)
-		{
-			InsertByPriority(v, PrioritizedCallback{ p, std::move(cb) });
-		}
-
 		void Dispatch(const std::vector<PrioritizedCallback>& v)
 		{
 			for (auto& entry : v) {
@@ -689,7 +684,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostDeferredPrePass"))
 			return false;
-		InsertPrioritized(g_postDeferredPrePass, std::move(callback), priority);
+		InsertByPriority(g_postDeferredPrePass, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredPrePassInstalled();
 		return true;
 	}
@@ -698,7 +693,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PreDeferredPrePass"))
 			return false;
-		InsertPrioritized(g_preDeferredPrePass, std::move(callback), priority);
+		InsertByPriority(g_preDeferredPrePass, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredPrePassInstalled();
 		return true;
 	}
@@ -707,7 +702,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PreDeferredLightsImpl"))
 			return;
-		InsertPrioritized(g_preDeferredLightsImpl, std::move(callback), priority);
+		InsertByPriority(g_preDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredLightsImplInstalled();
 	}
 
@@ -715,7 +710,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostDeferredLightsImpl"))
 			return;
-		InsertPrioritized(g_postDeferredLightsImpl, std::move(callback), priority);
+		InsertByPriority(g_postDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredLightsImplInstalled();
 	}
 
@@ -723,7 +718,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PreDeferredComposite"))
 			return false;
-		InsertPrioritized(g_preDeferredComposite, std::move(callback), priority);
+		InsertByPriority(g_preDeferredComposite, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredCompositeInstalled();
 		return true;
 	}
@@ -732,7 +727,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostDeferredComposite"))
 			return false;
-		InsertPrioritized(g_postDeferredComposite, std::move(callback), priority);
+		InsertByPriority(g_postDeferredComposite, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredCompositeInstalled();
 		return true;
 	}
@@ -741,7 +736,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PreWaterUpdate"))
 			return false;
-		InsertPrioritized(g_preWaterUpdate, std::move(callback), priority);
+		InsertByPriority(g_preWaterUpdate, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsureWaterUpdateInstalled();
 	}
 
@@ -765,7 +760,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostResetState"))
 			return false;
-		InsertPrioritized(g_postResetState, std::move(callback), priority);
+		InsertByPriority(g_postResetState, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsureResetStateInstalled();
 	}
 
@@ -773,7 +768,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostForwardSky"))
 			return false;
-		InsertPrioritized(g_postForwardSky, std::move(callback), priority);
+		InsertByPriority(g_postForwardSky, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureForwardSkyInstalled();
 		return true;
 	}
@@ -782,7 +777,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostSunShadowRender"))
 			return false;
-		InsertPrioritized(g_postSunShadowRender, std::move(callback), priority);
+		InsertByPriority(g_postSunShadowRender, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsureSunShadowRenderInstalled();
 	}
 
@@ -790,7 +785,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PostPrecipitationOcclusion"))
 			return false;
-		InsertPrioritized(g_postPrecipitationOcclusion, std::move(callback), priority);
+		InsertByPriority(g_postPrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsurePrecipitationOcclusionInstalled();
 	}
 
@@ -800,7 +795,7 @@ namespace cs::engine
 	{
 		if (!RegistrationAllowed("PreFullscreenDeferredLightDraw"))
 			return;
-		InsertPrioritized(g_preFullscreenDeferredLightDraw, std::move(callback), priority);
+		InsertByPriority(g_preFullscreenDeferredLightDraw, PrioritizedCallback{ priority, std::move(callback) });
 		InstallDeferredDrawAnchor();
 	}
 }
