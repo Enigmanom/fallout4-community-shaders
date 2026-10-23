@@ -628,14 +628,20 @@ namespace cs::features
 		const int frames = _aggregator.GetTotalFrameCount();
 		const float duration = _aggregator.GetTotalTestDuration();
 		int excluded{};
-		for (const auto& interval : _aggregator.GetIntervals())
+		bool hasSamplesA = false;
+		bool hasSamplesB = false;
+		for (const auto& interval : _aggregator.GetIntervals()) {
 			excluded += interval.excludedFrames;
+			hasSamplesA = hasSamplesA || (interval.variant == ABVariant::A && !interval.frameRows.empty());
+			hasSamplesB = hasSamplesB || (interval.variant == ABVariant::B && !interval.frameRows.empty());
+		}
+		const bool hasBothVariants = hasSamplesA && hasSamplesB;
 		const float validPercent = frames + excluded > 0 ? 100.0f * static_cast<float>(frames) / static_cast<float>(frames + excluded) : 0.0f;
-		const char* validity = frames >= kMinimumSamplesForValidity && duration >= kMinimumTestDuration &&
+		const char* validity = hasBothVariants && frames >= kMinimumSamplesForValidity && duration >= kMinimumTestDuration &&
 		                               validPercent >= kMinimumValidFramesPercent ?
 		                           "Valid" :
-		                       frames >= kMinimumSamplesForMarginal && duration >= kMinimumDurationForMarginal ? "Marginal" :
-		                                                                                                         "Insufficient";
+		                       hasBothVariants && frames >= kMinimumSamplesForMarginal && duration >= kMinimumDurationForMarginal ? "Marginal" :
+		                                                                                                                            "Insufficient";
 		dmui::ui::Text("%s: %d frames, %.1f seconds, %d excluded, %.1f%% valid", validity, frames, duration, excluded, validPercent);
 		if (!dmui::ui::BeginTable("ABResults", 7))
 			return;
