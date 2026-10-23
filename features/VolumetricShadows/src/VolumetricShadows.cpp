@@ -58,8 +58,7 @@ namespace cs::features
 	void VolumetricShadows::Load()
 	{
 		if (!cs::engine::RegisterFeatureShaderBindings("VolumetricShadows", *this, [this](cs::engine::ShaderReplacementRegistration& registration) {
-				const bool water = registration.targetId == cs::engine::ShaderInjectionTarget::kBsWater;
-				registration.bind = [this, water](ID3D11DeviceContext* a_context) { BindConsumer(a_context, water); };
+				registration.bind = [this, target = registration.targetId](ID3D11DeviceContext* a_context) { BindConsumer(a_context, target); };
 			})) {
 			FailLoad("Volumetric Shadows shader contribution registration failed.");
 			return;
@@ -280,18 +279,21 @@ namespace cs::features
 		       !cs::engine::ActiveShaderInjectionVariantHasDefine(cs::engine::ShaderInjectionTarget::kBsdfLight, "SKYLIGHTING");
 	}
 
-	void VolumetricShadows::BindConsumer(ID3D11DeviceContext* a_context, bool a_water)
+	void VolumetricShadows::BindConsumer(ID3D11DeviceContext* a_context, cs::engine::ShaderInjectionTarget a_target)
 	{
 		// Disabled: ClearState nulls t98 each frame, so lobes stay native.
 		if (!a_context || !IsHealthy() || !_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_map.srv)
 			return;
-		if (!a_water && !ActiveLightReadsSoftShadow())
+		if (a_target == cs::engine::ShaderInjectionTarget::kBsdfLight && !ActiveLightReadsSoftShadow())
 			return;
 		ID3D11ShaderResourceView* const map = _map.srv.get();
 		ID3D11ShaderResourceView* const lights = cs::engine::GetSunShadowLightsSRV<2>();
 		cs::engine::BindInjectionShaderResources(a_context, volumetric_shadows_shader::kSharedShadowMapSlot, 1, &map);
 		cs::engine::BindInjectionShaderResources(a_context, volumetric_shadows_shader::kShadowLightsSlot, 1, &lights);
-		(a_water ? _counters.waterDraws : _counters.lightDraws).fetch_add(1, std::memory_order_relaxed);
+		(a_target == cs::engine::ShaderInjectionTarget::kBsWater   ? _counters.waterDraws :
+			a_target == cs::engine::ShaderInjectionTarget::kEffect ? _counters.effectDraws :
+																	 _counters.lightDraws)
+			.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	std::span<const FeatureDebugView> VolumetricShadows::GetDebugViews() const noexcept
@@ -353,7 +355,8 @@ namespace cs::features
 			.Field("cascade_count", _counters.cascadeCount.load(std::memory_order_relaxed))
 			.Dimensions("source", _counters.sourceWidth.load(std::memory_order_relaxed), _counters.sourceHeight.load(std::memory_order_relaxed))
 			.Field("dflight_draws_bound", count(_counters.lightDraws))
-			.Field("water_draws_bound", count(_counters.waterDraws));
+			.Field("water_draws_bound", count(_counters.waterDraws))
+			.Field("effect_draws_bound", count(_counters.effectDraws));
 		cs::render::profiling::CollectPassTimings(a_sink, "VolumetricShadows/");
 	}
 

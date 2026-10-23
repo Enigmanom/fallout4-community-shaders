@@ -31,7 +31,7 @@ namespace cs::features
 		std::string GetCategory() const override { return FeatureCategories::kLighting; }
 		std::string GetFeatureSummary() const override
 		{
-			return "Downsampled, blurred variance shadow maps of the sun cascades. They soften the sun's soft, rim and back lighting and shadow the sun on water.";
+			return "Downsampled, blurred variance shadow maps of the sun cascades. They soften the sun's soft, rim and back lighting and shadow the sun on water and effects.";
 		}
 
 		void Load() override;
@@ -74,7 +74,7 @@ namespace cs::features
 		void Dispatch(ID3D11DeviceContext* a_context, std::string_view a_pass, ID3D11ComputeShader* a_shader, ID3D11ShaderResourceView* a_input, ID3D11UnorderedAccessView* a_output, std::uint32_t a_groupsX, std::uint32_t a_groupsY);
 		void Blur(ID3D11DeviceContext* a_context, std::size_t a_mip);
 
-		void BindConsumer(ID3D11DeviceContext* a_context, bool a_water);
+		void BindConsumer(ID3D11DeviceContext* a_context, cs::engine::ShaderInjectionTarget a_target);
 		static bool ActiveLightReadsSoftShadow() noexcept;
 
 		enum class DebugCascade : std::uint8_t
@@ -115,6 +115,7 @@ namespace cs::features
 			std::atomic<std::uint32_t> sourceHeight{ 0 };
 			std::atomic<std::uint64_t> lightDraws{ 0 };
 			std::atomic<std::uint64_t> waterDraws{ 0 };
+			std::atomic<std::uint64_t> effectDraws{ 0 };
 		} _counters;
 	};
 }

@@ -2,7 +2,7 @@
 #define FO4_EFFECT_LIGHTING_CONSUMER
 
 // Without a scaling feature the split recombines to its input.
-#if defined(LIGHTING) && (defined(SKYLIGHTING) || defined(TERRAIN_SHADOWS))
+#if defined(LIGHTING) && (defined(SKYLIGHTING) || defined(TERRAIN_SHADOWS) || defined(VOLUMETRIC_SHADOWS))
 #	define FO4_EFFECT_LIGHTING
 #endif
 // FO4: soft falloff volume; TEXTURE implies TEXCOORD.

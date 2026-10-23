@@ -69,7 +69,6 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | [Unified Water](deviations/UnifiedWater.md) | Core | Optical distance blend, distant terrain tile generation/lifetime, cache UI, material identity fix | FO4-specific requirement: preserve vanilla placed-water distance rendering. N/A: Skyrim world flowmap | Pt | M | S/M | Med |
 | [Upscaling](deviations/Upscaling.md) | Core | SR/native AA, DR/RCAS/reflection/depth consumers, canonical SDK depth, masks, underwater chain, FG/UI/Reflex | — | Pt | H | L | High |
 | Volumetric Lighting | Extension | Native GFSDK enable/quality controls | Ext (planned): godray resolution fix (in-game godrays are pixelated), night-time (moon) godrays; full raymarched renderer. N/A: Skyrim dispatch optimization | NS | H | M | Med |
-| [Volumetric Shadows](deviations/VolumetricShadows.md) | Mixed | VSM producer, DFLight soft sun, Water sun specular | Pending: effect/particle VSM receiver (`Effect.hlsl`). Ext: Effect/particle short rays (need an FO4 sun term). N/A: water refraction short rays (no FO4 refraction sun term), BSParticleShader (never drawn) | Pt | H | M | Med |
 | [Water Effects](deviations/WaterEffects.md) | Core | Exterior/secondary caustics, interior heights*, debug, water parallax (height from water-normal alpha) | N/A: FLOWMAP parallax (no FO4 flowmap path) | Pt | H | M | High |
 | Wetness Effects | — | removed; not ported | — | NS | — | — | — |
 

@@ -9,4 +9,3 @@
 | Forced | Water sun glint and refracted diffuse sun shadowed along the refracted ray | Sun specular and the fixed-axis lobe are shadowed along the unrefracted view ray | FO4 water has no refraction direction |
 | N/A | Refracted diffuse sun term and its short rays | | FO4 water has no diffuse sun term |
 | N/A | `BSParticleShader` receiver | | FO4 never draws the particle shader |
-| Pending | Effect/particle VSM receiver (`Effect.hlsl` `Get3DFilteredShadow`) | Not ported | Effect shader needs an FO4 sun term |
