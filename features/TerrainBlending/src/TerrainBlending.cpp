@@ -6,6 +6,7 @@
 #include "Render/FeatureShaderBindings.h"
 #include "Render/FrameProfiler.h"
 #include "Render/LightingRenderPasses.h"
+#include "Render/PassType.h"
 #include "Render/PrepassTechnique.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
@@ -28,13 +29,7 @@ namespace cs::features
 
 		using ShaderFlag = RE::BSShaderProperty::EShaderPropertyFlag;
 
-		// DFPrePass technique bits LANDSCAPE and LOD_LANDSCAPE.
 		using namespace cs::engine::prepass_technique;
-
-		// Opaque and alpha-tested Z-prepass entries; type 4 is registered nowhere.
-		constexpr std::uint8_t kPassTypeZPrepassOpaque = 0x19;
-		constexpr std::uint8_t kPassTypeZPrepassAlphaTest = 0x1A;
-		constexpr std::uint8_t kPassTypeUnregistered = 4;
 
 		// Free in the landscape pixel stage; slots from 16 up are not engine-owned.
 		constexpr UINT kObjectDepthSlot = 55;
@@ -209,8 +204,8 @@ namespace cs::features
 			return;
 		// Z-prepass depth above buried objects would reject the blending terrain.
 		for (auto* pass = a_passes->passList; pass; pass = pass->propertyNext) {
-			if (pass->passType == kPassTypeZPrepassOpaque || pass->passType == kPassTypeZPrepassAlphaTest) {
-				pass->passType = kPassTypeUnregistered;
+			if (pass->passType == cs::engine::pass_type::kDepthPrepassOpaque || pass->passType == cs::engine::pass_type::kDepthPrepassAlphaTest) {
+				pass->passType = cs::engine::pass_type::kUnlisted;
 				_zPassesDropped.fetch_add(1, std::memory_order_relaxed);
 			}
 		}
