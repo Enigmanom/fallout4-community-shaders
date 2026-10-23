@@ -233,10 +233,7 @@ namespace cs::engine
 																																										  ".PS");
 			render::annotation::SetName(shader.get(), shaderName);
 
-			if (const auto use = util::ReflectShaderSamplers(outcome.bytecode.data(), outcome.bytecode.size())) {
-				result.samplerMask = use->declared;
-				result.bindsHostSampler = use->hostLinearClamp;
-			}
+			result.samplers = util::ReflectShaderSamplers(outcome.bytecode.data(), outcome.bytecode.size()).value_or(util::ShaderSamplerUse{});
 			result.shader = std::move(shader);
 			return result;
 		}

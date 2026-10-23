@@ -13,7 +13,8 @@ namespace cs::util
 {
 	struct ShaderSamplerUse
 	{
-		std::uint16_t declared = 0;
+		// Unknown (never reflected) assumes every slot is declared.
+		std::uint16_t declared = UINT16_MAX;
 		// Declares the host-owned sampler by its shader name, not just its slot.
 		bool hostLinearClamp = false;
 	};
@@ -26,7 +27,7 @@ namespace cs::util
 		D3D11_SHADER_DESC desc{};
 		if (FAILED(reflection->GetDesc(&desc)))
 			return std::nullopt;
-		ShaderSamplerUse use;
+		ShaderSamplerUse use{ .declared = 0 };
 		for (UINT index = 0; index < desc.BoundResources; ++index) {
 			D3D11_SHADER_INPUT_BIND_DESC binding{};
 			if (FAILED(reflection->GetResourceBindingDesc(index, &binding)))

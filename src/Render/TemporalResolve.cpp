@@ -1,4 +1,5 @@
 #include "Render/FrameBuffer.h"
+#include "Render/SharedData.h"
 #include "Render/TemporalRendererInternals.h"
 
 namespace cs::render
@@ -25,7 +26,7 @@ namespace cs::render
 			renderHeight > frameBufferDesc.Height || !upscalingTexture ||
 			!upscalingTexture->srv || !publicationTexture ||
 			!publicationTexture->resource || !publicationTexture->rtv ||
-			!linearSampler || !upscalingDataCB || !upscaleRasterizerState ||
+			!cs::render::GetLinearClampSampler() || !upscalingDataCB || !upscaleRasterizerState ||
 			!upscaleBlendState || !GetUpscaleVS() || !GetSpatialFallbackPS()) {
 			return false;
 		}
@@ -468,7 +469,7 @@ namespace cs::render
 		if (!context || !a_frameBuffer || !frameBufferRTV || !upscalingTexture ||
 			!upscalingTexture->srv || !publicationTexture ||
 			!publicationTexture->resource || !publicationTexture->rtv ||
-			!linearSampler || !upscalingDataCB || !upscaleRasterizerState ||
+			!cs::render::GetLinearClampSampler() || !upscalingDataCB || !upscaleRasterizerState ||
 			!upscaleBlendState || !vertexShader || !pixelShader || !a_sourceWidth ||
 			!a_sourceHeight || a_sourceWidth > a_frameBufferDesc.Width ||
 			a_sourceHeight > a_frameBufferDesc.Height) {
@@ -516,7 +517,7 @@ namespace cs::render
 			context->PSSetConstantBuffers(0, 1, &constants);
 			auto* source = upscalingTexture->srv.get();
 			context->PSSetShaderResources(0, 1, &source);
-			auto* sampler = linearSampler.get();
+			auto* sampler = cs::render::GetLinearClampSampler();
 			context->PSSetSamplers(0, 1, &sampler);
 			context->PSSetShader(pixelShader, nullptr, 0);
 			context->Draw(3, 0);
@@ -562,7 +563,7 @@ namespace cs::render
 
 		auto* context = cs::engine::GetImmediateContext();
 		auto* state = cs::engine::GetGraphicsState();
-		if (!context || !state || !linearSampler || !jitterCB ||
+		if (!context || !state || !cs::render::GetLinearClampSampler() || !jitterCB ||
 			!upscaleRasterizerState || !upscaleBlendState ||
 			!upscaleDepthStencilState) {
 			return;
@@ -627,7 +628,7 @@ namespace cs::render
 		context->RSSetState(upscaleRasterizerState.get());
 		context->OMSetBlendState(upscaleBlendState.get(), nullptr, 0xffffffff);
 
-		ID3D11SamplerState* samplers[] = { linearSampler.get() };
+		ID3D11SamplerState* samplers[] = { cs::render::GetLinearClampSampler() };
 		context->PSSetSamplers(0, ARRAYSIZE(samplers), samplers);
 
 		JitterCB jitterData{};

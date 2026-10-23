@@ -405,8 +405,8 @@ namespace cs::engine
 			std::atomic<bool> pendingObserved{ false };
 			// Published after preparation stores its final compilation (or none).
 			std::atomic<bool> settled{ false };
-			std::atomic<std::uint16_t> samplerMask{ UINT16_MAX };
-			std::atomic<bool> bindsHostSampler{ false };
+			std::atomic<util::ShaderSamplerUse> samplers{ util::ShaderSamplerUse{} };
+			static_assert(std::atomic<util::ShaderSamplerUse>::is_always_lock_free);
 		};
 
 		struct NativeReplacementWrapperKey
@@ -1044,8 +1044,7 @@ namespace cs::engine
 			settled = true;
 			report();
 
-			variant->samplerMask.store(compilation->GetSamplerMask(), std::memory_order_relaxed);
-			variant->bindsHostSampler.store(compilation->BindsHostSampler(), std::memory_order_relaxed);
+			variant->samplers.store(compilation->GetSamplerUse(), std::memory_order_relaxed);
 			{
 				auto& service = GetService();
 				std::scoped_lock lock(service.nativeVariantMutex);
@@ -1941,8 +1940,7 @@ namespace cs::engine
 	void DispatchShaderInjections(
 		ShaderInjectionTarget a_target,
 		ID3D11DeviceContext* a_context,
-		std::uint16_t a_samplerMask,
-		bool a_bindsHostSampler) noexcept
+		util::ShaderSamplerUse a_samplers) noexcept
 	{
 		if (!a_context || !IsValidTarget(a_target))
 			return;
@@ -1951,9 +1949,8 @@ namespace cs::engine
 		const auto* target = plan ? FindPublishedTarget(*plan, a_target) : nullptr;
 		if (!target)
 			return;
-		const auto previousMask = std::exchange(t_samplerMask, a_samplerMask);
-		if (a_bindsHostSampler) {
-			// PS shadow state owns s0-s15, so the sampler is bound per draw and restored.
+		const auto previousMask = std::exchange(t_samplerMask, a_samplers.declared);
+		if (a_samplers.hostLinearClamp) {
 			auto* sampler = render::GetLinearClampSampler();
 			BindInjectionSamplers(a_context, render::kLinearClampSamplerSlot, 1, &sampler);
 		}
@@ -2404,7 +2401,7 @@ namespace cs::engine
 		}
 		if (activeVariant) {
 			const ActiveVariantScope scope(activeVariant.get());
-			DispatchShaderInjections(activeVariant->target, a_context, activeVariant->samplerMask.load(std::memory_order_relaxed), activeVariant->bindsHostSampler.load(std::memory_order_relaxed));
+			DispatchShaderInjections(activeVariant->target, a_context, activeVariant->samplers.load(std::memory_order_relaxed));
 		}
 		boundShader->Release();
 	}

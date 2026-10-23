@@ -92,7 +92,6 @@ namespace cs::features
 		// Two 3x1 R16G16B16A16_FLOAT textures: the SH coefficients of R, G and B.
 		std::unique_ptr<buffer::Texture2D> _envSH, _skySH;
 		winrt::com_ptr<ID3D11ComputeShader> _projectCompute;
-		winrt::com_ptr<ID3D11SamplerState> _linearSampler;
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _resourcesReady{ false };
 		std::atomic_bool _injectionsOperational{ false };

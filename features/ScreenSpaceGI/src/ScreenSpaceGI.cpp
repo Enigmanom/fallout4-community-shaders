@@ -233,10 +233,7 @@ namespace cs::features
 			desc.MaxLOD = D3D11_FLOAT32_MAX;
 			desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
 			DX::ThrowIfFailed(a_device->CreateSamplerState(&desc, _pointSampler.put()));
-			desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-			DX::ThrowIfFailed(a_device->CreateSamplerState(&desc, _linearSampler.put()));
 			cs::render::annotation::SetName(_pointSampler.get(), "SSGI/PointClamp.Sampler");
-			cs::render::annotation::SetName(_linearSampler.get(), "SSGI/LinearClamp.Sampler");
 			_failed = !CompileShaders() || !_prepare;
 			EnsureResources();
 		} catch (const std::exception& e) {
@@ -454,7 +451,7 @@ namespace cs::features
 			auto* cb = _constants->CB();
 			context->CSSetConstantBuffers(1, 1, &cb);
 			UpdateConsumer(true, tiled);
-			ID3D11SamplerState* samplers[]{ _pointSampler.get(), _linearSampler.get() };
+			ID3D11SamplerState* samplers[]{ _pointSampler.get(), cs::render::GetLinearClampSampler() };
 			context->CSSetSamplers(0, 2, samplers);
 			Passes pass(context, kConsumerSlot, _consumer->CB());
 			cs::render::annotation::ScopedEvent generation("ScreenSpaceGI/Generate", false);

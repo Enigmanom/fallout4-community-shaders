@@ -41,14 +41,9 @@ namespace cs::engine
 				return _error;
 			}
 
-			std::uint16_t GetSamplerMask() const noexcept override
+			util::ShaderSamplerUse GetSamplerUse() const noexcept override
 			{
-				return GetState() == ShaderVariantCompilationState::kReady ? _samplerMask : UINT16_MAX;
-			}
-
-			bool BindsHostSampler() const noexcept override
-			{
-				return GetState() == ShaderVariantCompilationState::kReady && _bindsHostSampler;
+				return GetState() == ShaderVariantCompilationState::kReady ? _samplers : util::ShaderSamplerUse{};
 			}
 
 			void Complete(ShaderVariantCompilationOutput a_output)
@@ -58,8 +53,7 @@ namespace cs::engine
 					std::scoped_lock lock(_mutex);
 					if (ready) {
 						_shader = std::move(a_output.shader);
-						_samplerMask = a_output.samplerMask;
-						_bindsHostSampler = a_output.bindsHostSampler;
+						_samplers = a_output.samplers;
 						_error.clear();
 					} else {
 						_shader = nullptr;
@@ -94,8 +88,7 @@ namespace cs::engine
 			mutable std::mutex _mutex;
 			winrt::com_ptr<ID3D11DeviceChild> _shader;
 			std::string _error;
-			std::uint16_t _samplerMask = UINT16_MAX;
-			bool _bindsHostSampler = false;
+			util::ShaderSamplerUse _samplers;
 		};
 
 		class BatchTracker

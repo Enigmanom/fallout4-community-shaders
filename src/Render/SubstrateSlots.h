@@ -10,7 +10,7 @@ namespace cs::render
 	inline constexpr std::uint32_t kFO4SharedDataSlot = 7;
 	inline constexpr std::uint32_t kSubstrateBufferCount = 4;
 	inline constexpr std::uint32_t kCanonicalDepthSlot = 17;
-	// Bound per injected draw (ShaderInjection), never per frame: the engine owns s0-s15.
+	// Engine owns s0-s15; ShaderInjection binds this per draw, never per frame.
 	inline constexpr std::uint32_t kLinearClampSamplerSlot = 13;
 	inline constexpr std::uint32_t kFullscreenDebugTextureSlot = 61;
 }

@@ -323,12 +323,15 @@ namespace
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
-	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> Reflect(const std::filesystem::path& a_root, const char* a_path, const std::vector<std::pair<const char*, const char*>>& a_defines, const char* a_profile, std::string& a_error)
+	Microsoft::WRL::ComPtr<ID3D11ShaderReflection> Reflect(const std::filesystem::path& a_root, const char* a_path, const std::vector<std::pair<const char*, const char*>>& a_defines, const char* a_profile, std::string& a_error, Microsoft::WRL::ComPtr<ID3DBlob>* a_blob = nullptr)
 	{
 		Microsoft::WRL::ComPtr<ID3D11ShaderReflection> reflection;
 		if (auto blob = cs::util::CompileShaderToBlob((a_root / a_path).c_str(), a_defines, a_profile, "main", &a_error, a_root);
-			blob && SUCCEEDED(D3DReflect(blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(reflection.GetAddressOf()))))
+			blob && SUCCEEDED(D3DReflect(blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(reflection.GetAddressOf())))) {
+			if (a_blob)
+				*a_blob = std::move(blob);
 			return reflection;
+		}
 		if (a_error.empty())
 			a_error = "reflection failed";
 		a_error = std::string(a_path) + ": " + a_error;
@@ -377,17 +380,15 @@ namespace
 			if (BindPoint(blur.Get(), "InputTexture") != 0 || BindPoint(blur.Get(), "OutputTexture") != 0)
 				return "BlurShadowCS: ABI slot mismatch";
 		}
-		const auto consumer = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "VOLUMETRIC_SHADOWS", "1" } }, "ps_5_0", error);
+		Microsoft::WRL::ComPtr<ID3DBlob> consumerBlob;
+		const auto consumer = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "VOLUMETRIC_SHADOWS", "1" } }, "ps_5_0", error, &consumerBlob);
 		if (!consumer)
 			return error;
 		if (BindPoint(consumer.Get(), "VolumetricShadows::SharedShadowMap") != slots::kSharedShadowMapSlot ||
-			BindPoint(consumer.Get(), "DirectionalShadowLights") != slots::kShadowLightsSlot ||
-			BindPoint(consumer.Get(), "LinearSampler") != cs::render::kLinearClampSamplerSlot)
+			BindPoint(consumer.Get(), "DirectionalShadowLights") != slots::kShadowLightsSlot)
 			return "consumer: ABI slot mismatch";
 		// Injection binds the host sampler only for shaders declaring it by name.
-		const auto blob = cs::util::CompileShaderToBlob((a_root / "SharedDataProbe.hlsl").c_str(),
-			{ { "FO4CS_SUBSTRATE", "1" }, { "VOLUMETRIC_SHADOWS", "1" } }, "ps_5_0", "main", &error, a_root);
-		const auto use = blob ? cs::util::ReflectShaderSamplers(blob->GetBufferPointer(), blob->GetBufferSize()) : std::nullopt;
+		const auto use = cs::util::ReflectShaderSamplers(consumerBlob->GetBufferPointer(), consumerBlob->GetBufferSize());
 		if (!use || !use->hostLinearClamp)
 			return "consumer: host sampler not detected by name and slot";
 		D3D11_SHADER_INPUT_BIND_DESC lights{};

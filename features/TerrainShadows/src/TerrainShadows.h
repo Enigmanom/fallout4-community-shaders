@@ -122,9 +122,6 @@ namespace cs::features
 		void ReleaseLiveResources(ID3D11DeviceContext* a_context);
 		void UpdateShadowStatistics(ID3D11DeviceContext* a_context);
 
-		void CountLightDraw();
-		void CountCompositeDebugDraw();
-
 		void PublishStatus(
 			const std::string& a_worldspace,
 			std::string_view a_detail,
@@ -155,17 +152,9 @@ namespace cs::features
 		std::atomic_uint64_t _dispatches{ 0 };
 		std::atomic_uint64_t _updates{ 0 };
 		std::atomic_uint64_t _fullRefreshes{ 0 };
-		std::atomic_uint64_t _binds{ 0 };
-		std::atomic_uint64_t _debugBinds{ 0 };
 		std::atomic_uint64_t _prepassRuns{ 0 };
 		std::atomic_size_t _discoveredMaps{ 0 };
 
-		std::atomic_uint64_t _lightDirectionalBinds{ 0 };
-		std::atomic_uint64_t _lightInertBinds{ 0 };
-		std::atomic_uint64_t _compositeDebugFamilyBinds{ 0 };
-		std::atomic_uint64_t _compositeInertFamilyBinds{ 0 };
-		std::array<std::atomic_uint64_t, 13> _lightFamilyBinds{};
-		std::array<std::atomic_uint64_t, 13> _compositeFamilyBinds{};
 		std::atomic_uint64_t _consumerDepthMissing{ 0 };
 		std::atomic_uint64_t _debugDepthMissing{ 0 };
 

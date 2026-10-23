@@ -134,18 +134,6 @@ namespace cs::features
 		create(_envSH, "IBL/EnvSH");
 		create(_skySH, "IBL/SkySH");
 
-		const D3D11_SAMPLER_DESC samplerDesc{
-			.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-			.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP,
-			.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP,
-			.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP,
-			.MaxAnisotropy = 1,
-			.MinLOD = 0,
-			.MaxLOD = D3D11_FLOAT32_MAX
-		};
-		DX::ThrowIfFailed(a_device->CreateSamplerState(&samplerDesc, _linearSampler.put()));
-		render::annotation::SetName(_linearSampler.get(), "IBL/LinearClamp.Sampler");
-
 		// FO4: the substrate defines the CS shared-data inputs.
 		_projectCompute.attach(static_cast<ID3D11ComputeShader*>(util::CompileShader(
 			L"Data\\Shaders\\IBL\\DiffuseIBLCS.hlsl", { { "FO4CS_SUBSTRATE", "1" } }, "cs_5_0")));
@@ -281,7 +269,7 @@ namespace cs::features
 
 		engine::ComputeOMScope scope(context, 1, 1, 1, 0);
 		render::ScopedComputeSharedDataBinding substrate(context);
-		auto* sampler = _linearSampler.get();
+		auto* sampler = render::GetLinearClampSampler();
 		context->CSSetSamplers(0, 1, &sampler);
 		context->CSSetShader(_projectCompute.get(), nullptr, 0);
 		// Modes 2 and 3 take the vanilla ambient instead of the environment SH.

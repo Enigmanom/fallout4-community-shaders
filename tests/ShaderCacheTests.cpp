@@ -422,7 +422,7 @@ float4 main() : SV_Target { return Wrapped() * 0.5; }
 					winrt::com_ptr<ID3D11PixelShader> shader;
 					if (outcome.succeeded && SUCCEEDED(a_request.device->CreatePixelShader(outcome.bytecode.data(), outcome.bytecode.size(), nullptr, shader.put())))
 						shader->QueryInterface(IID_PPV_ARGS(output.shader.put()));
-					output.samplerMask = 0x6000;
+					output.samplers.declared = 0x6000;
 					finished.store(true);
 					return output;
 				},
@@ -487,7 +487,7 @@ float4 main() : SV_Target { return Wrapped() * 0.5; }
 
 		fixture.gate.Release();
 		Check(
-			WaitForState(handles.front(), ShaderVariantCompilationState::kReady) && !!handles.front()->Acquire() && handles.front()->GetSamplerMask() == 0x6000,
+			WaitForState(handles.front(), ShaderVariantCompilationState::kReady) && !!handles.front()->Acquire() && handles.front()->GetSamplerUse().declared == 0x6000,
 			"completed compilation must publish its shader and sampler usage");
 	}
 

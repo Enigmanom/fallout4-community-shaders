@@ -115,77 +115,12 @@ namespace cs::features
 			else
 				L->error("Terrain shadow time-change event source is unavailable.");
 		}
-		struct VariantFamily
-		{
-			std::string_view define;
-			std::string_view telemetryName;
-		};
-		constexpr std::array<VariantFamily, 13> kLightFamilies{ { { "BSDFLIGHT_PS_DEFERRED", "deferred" },
-			{ "BSDFLIGHT_PS_DIRSPLITS1", "dirsplits1" },
-			{ "BSDFLIGHT_PS_DIRSPLITS2", "dirsplits2" },
-			{ "BSDFLIGHT_PS_DIRSPLITS3", "dirsplits3" },
-			{ "BSDFLIGHT_PS_GOBO", "gobo" },
-			{ "BSDFLIGHT_PS_SHADOW_ONLY", "shadow_only" },
-			{ "BSDFLIGHT_PS_SHADOW_ONLY_BLEND_SPLIT", "shadow_only_blend_split" },
-			{ "BSDFLIGHT_PS_UNSHADOWED", "unshadowed" },
-			{ "BSDFLIGHT_PS_AMBIENT", "ambient" },
-			{ "BSDFLIGHT_PS_ATTENUATION_ONLY", "attenuation_only" },
-			{ "BSDFLIGHT_PS_CHARACTER_LIGHT", "character_light" },
-			{ "BSDFLIGHT_PS_CHARACTER_LIGHT_C26", "character_light_c26" },
-			{ "BSDFLIGHT_PS_OVERDRAW", "overdraw" } } };
-		constexpr std::array<VariantFamily, 13> kCompositeFamilies{ { { "BSDFCOMPOSITE_PS_2D_ACCUMULATOR", "2d_accumulator" },
-			{ "BSDFCOMPOSITE_PS_2D_FOG", "2d_fog" },
-			{ "BSDFCOMPOSITE_PS_AMBIENT_IBL_CB31_FAMILY", "ambient_ibl_cb31" },
-			{ "BSDFCOMPOSITE_PS_AMBIENT_IBL_CB47_FAMILY", "ambient_ibl_cb47" },
-			{ "BSDFCOMPOSITE_PS_AMBIENT_IBL_COMPACT_FAMILY", "ambient_ibl_compact" },
-			{ "BSDFCOMPOSITE_PS_AMBIENT_IBL_MINIMAL_FAMILY", "ambient_ibl_minimal" },
-			{ "BSDFCOMPOSITE_PS_CUBE_IBL", "cube_ibl" },
-			{ "BSDFCOMPOSITE_PS_NO_SRV_POSITION", "no_srv_position" },
-			{ "BSDFCOMPOSITE_PS_NO_SRV_POSITION_TEXCOORD", "no_srv_position_texcoord" },
-			{ "BSDFCOMPOSITE_PS_NO_T0_ACCUMULATOR", "no_t0_accumulator" },
-			{ "BSDFCOMPOSITE_PS_NO_T0_FOG", "no_t0_fog" },
-			{ "BSDFCOMPOSITE_PS_SSS_MRT_RECORD_NORMAL", "sss_mrt_record_normal" },
-			{ "BSDFCOMPOSITE_PS_SSS_MRT_SURFACE_CONTACT", "sss_mrt_surface_contact" } } };
 		constexpr std::array<FeatureDebugView, 2> kDebugViews{ { { "shadow_term",
 																	 "Shadow term",
 																	 FeatureDebugViewKind::kFullscreen },
 			{ "heightmap",
 				"Raw heightmap sample",
 				FeatureDebugViewKind::kFullscreen } } };
-
-		template <std::size_t N>
-		bool RecordActiveFamily(
-			const cs::engine::ShaderInjectionDefines* a_defines,
-			const std::array<VariantFamily, N>& a_families,
-			std::array<std::atomic_uint64_t, N>& a_counters)
-		{
-			if (!a_defines)
-				return false;
-			for (std::size_t index = 0; index < a_families.size(); ++index) {
-				if (a_defines->contains(a_families[index].define)) {
-					a_counters[index].fetch_add(1, std::memory_order_relaxed);
-					return true;
-				}
-			}
-			return false;
-		}
-
-		template <std::size_t N>
-		std::string FormatFamilyBinds(
-			const std::array<VariantFamily, N>& a_families,
-			const std::array<std::atomic_uint64_t, N>& a_counters)
-		{
-			std::string value;
-			for (std::size_t index = 0; index < a_families.size(); ++index) {
-				if (!value.empty())
-					value += ',';
-				value += std::format(
-					"{}:{}",
-					a_families[index].telemetryName,
-					a_counters[index].load(std::memory_order_relaxed));
-			}
-			return value;
-		}
 
 		std::string_view DebugVisualizationName(
 			TerrainShadows::DebugVisualization a_visualization) noexcept
@@ -282,15 +217,7 @@ namespace cs::features
 
 	void TerrainShadows::Load()
 	{
-		if (!cs::engine::RegisterFeatureShaderBindings("TerrainShadows", *this, [this](cs::engine::ShaderReplacementRegistration& registration) {
-				const bool composite = registration.targetId == cs::engine::ShaderInjectionTarget::kBsdfComposite;
-				registration.bind = [this, composite](ID3D11DeviceContext*) {
-					if (composite)
-						CountCompositeDebugDraw();
-					else
-						CountLightDraw();
-				};
-			})) {
+		if (!cs::engine::RegisterFeatureShaderBindings("TerrainShadows", *this)) {
 			FailLoad("Terrain shadow shader contribution registration failed.");
 			return;
 		}
@@ -1127,25 +1054,6 @@ namespace cs::features
 		}
 	}
 
-	void TerrainShadows::CountLightDraw()
-	{
-		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_shadowTexture || !_shadowTexture->srv) {
-			return;
-		}
-		_binds.fetch_add(1, std::memory_order_relaxed);
-		if (cs::telemetry::pump::Enabled()) {
-			const auto* defines =
-				cs::engine::GetActiveShaderInjectionVariantDefines(
-					cs::engine::ShaderInjectionTarget::kBsdfLight);
-			RecordActiveFamily(defines, kLightFamilies, _lightFamilyBinds);
-			if (defines && defines->contains("DIRECTIONAL")) {
-				_lightDirectionalBinds.fetch_add(1, std::memory_order_relaxed);
-			} else {
-				_lightInertBinds.fetch_add(1, std::memory_order_relaxed);
-			}
-		}
-	}
-
 	FullscreenDebugData TerrainShadows::GetFullscreenDebugData() const noexcept
 	{
 		const auto visualization =
@@ -1159,24 +1067,6 @@ namespace cs::features
 			.mode = static_cast<std::uint32_t>(visualization),
 			.params = { _loadedMetadata.pos0[2], _loadedMetadata.pos1[2], _debugHeightRange[0], _debugHeightRange[1] },
 			.texture = heightmap ? _heightTexture->srv.get() : nullptr };
-	}
-
-	void TerrainShadows::CountCompositeDebugDraw()
-	{
-		if (GetFullscreenDebugData().mode == 0)
-			return;
-		_debugBinds.fetch_add(1, std::memory_order_relaxed);
-		if (cs::telemetry::pump::Enabled()) {
-			const auto* defines =
-				cs::engine::GetActiveShaderInjectionVariantDefines(
-					cs::engine::ShaderInjectionTarget::kBsdfComposite);
-			if (RecordActiveFamily(
-					defines, kCompositeFamilies, _compositeFamilyBinds)) {
-				_compositeDebugFamilyBinds.fetch_add(1, std::memory_order_relaxed);
-			} else {
-				_compositeInertFamilyBinds.fetch_add(1, std::memory_order_relaxed);
-			}
-		}
 	}
 
 	cs::TerrainShadowsFeatureData TerrainShadows::GetCommonBufferData() const
@@ -1268,38 +1158,9 @@ namespace cs::features
 				static_cast<std::int64_t>(
 					_fullRefreshes.load(std::memory_order_relaxed)))
 			.Field(
-				"binds",
-				static_cast<std::int64_t>(_binds.load(std::memory_order_relaxed)))
-			.Field(
 				"debug_visualization",
 				DebugVisualizationName(
 					_debugVisualization.load(std::memory_order_relaxed)))
-			.Field(
-				"debug_binds",
-				static_cast<std::int64_t>(
-					_debugBinds.load(std::memory_order_relaxed)))
-			.Field(
-				"bsdf_light_directional_variant_binds",
-				static_cast<std::int64_t>(
-					_lightDirectionalBinds.load(std::memory_order_relaxed)))
-			.Field(
-				"bsdf_light_inert_variant_binds",
-				static_cast<std::int64_t>(
-					_lightInertBinds.load(std::memory_order_relaxed)))
-			.Field(
-				"bsdf_composite_debug_family_variant_binds",
-				static_cast<std::int64_t>(
-					_compositeDebugFamilyBinds.load(std::memory_order_relaxed)))
-			.Field(
-				"bsdf_composite_inert_family_variant_binds",
-				static_cast<std::int64_t>(
-					_compositeInertFamilyBinds.load(std::memory_order_relaxed)))
-			.Field(
-				"bsdf_light_family_binds",
-				FormatFamilyBinds(kLightFamilies, _lightFamilyBinds))
-			.Field(
-				"bsdf_composite_family_binds",
-				FormatFamilyBinds(kCompositeFamilies, _compositeFamilyBinds))
 			.Field(
 				"consumer_depth_missing",
 				static_cast<std::int64_t>(

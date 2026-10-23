@@ -6,6 +6,7 @@
 #include "Render/ShaderDefineProvider.h"
 #include "Render/ShaderInjectionTargets.h"
 #include "Render/SharedData.h"
+#include "Utils/ShaderSamplerBindings.h"
 
 #include <chrono>
 #include <cstddef>
@@ -250,8 +251,7 @@ namespace cs::engine
 	void DispatchShaderInjections(
 		ShaderInjectionTarget a_target,
 		ID3D11DeviceContext* a_context,
-		std::uint16_t a_samplerMask = UINT16_MAX,
-		bool a_bindsHostSampler = false) noexcept;
+		util::ShaderSamplerUse a_samplers = {}) noexcept;
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept;
 	NativeGraphicsShaderBinding ResolveNativeGraphicsShaderBinding(

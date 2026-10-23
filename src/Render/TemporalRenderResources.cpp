@@ -447,16 +447,6 @@ namespace cs::render
 		cs::render::annotation::SetName(
 			upscaleRasterizerState.get(), "Upscaling/DepthUpscale.RasterizerState");
 
-		D3D11_SAMPLER_DESC samplerDesc = {};
-		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-		DX::ThrowIfFailed(device->CreateSamplerState(&samplerDesc, linearSampler.put()));
-		cs::render::annotation::SetName(
-			linearSampler.get(), "Upscaling/LinearClamp.Sampler");
-
 		const auto method = GetUpscaleMethod();
 		const auto sizeResult =
 			PrepareRenderSize(cs::engine::GetGraphicsState(), method);
