@@ -61,7 +61,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Skin | Mixed | Detail normal/color, default dual-lobe*, transmittance*, sweat inputs* | Ext: RFAOS/wet textures, wet-skin film | NS | H | M | Med |
 | Sky Sync | Core | Alternate sun path, moon casting*, dawn/dusk + godray dimming | N/A: daytime sun fix (native matches), Skyrim compat checks | NS | M | M | Med |
 | Subsurface Scattering | Mixed | Separable and Burley on native class-5 skin (single profile), character light* | Ext: per-pixel amount/profile channel | NS | H | M | Med |
-| [Terrain Blending](deviations/TerrainBlending.md) | Core | Deferred landscape replay, depth-ramp alpha blend into the G-buffer, Z-prepass land drop | Pending: no-blend mesh flag | Pt | H | L | Med |
+| [Terrain Blending](deviations/TerrainBlending.md) | Core | Deferred landscape replay, depth-ramp alpha blend into the G-buffer, offset Z-prepass for near terrain | Pending: no-blend mesh flag | Pt | H | L | Med |
 | Terrain Helper | Mixed | Displacement-slot gather/bind* | Ext: default-land ESP package | NS | M | M | Low |
 | [Terrain Shadows](deviations/TerrainShadows.md) | Core | Height-field producer, world receivers, time/transition events, secondary/remaining receivers, diagnostics | — | Pt | H | L | High |
 | [Terrain Variation](deviations/TerrainVariation.md) | Core | Landscape stochastic sampling, LOD anti-tiling, landscape-textured meshes, height/PBR coherence (needs Extended Materials/TruePBR consumers) | — | Pt | H | M | High |
