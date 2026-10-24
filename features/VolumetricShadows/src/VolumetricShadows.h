@@ -2,6 +2,7 @@
 
 #include "Feature.h"
 #include "FeatureCategories.h"
+#include "Render/RgbaPreview.h"
 #include "Render/ShadowCascades.h"
 #include "Render/SunShadowLights.h"
 #include "ShaderDefines.h"
@@ -84,7 +85,12 @@ namespace cs::features
 			kCascade1
 		};
 		FeatureDebugTexture GetCascadeDebugTexture(DebugCascade a_cascade) const;
+		// Render thread; converts the selected cascade's moments for display.
+		void RenderDebugPreview(ID3D11DeviceContext* a_context);
 
+		// Indexed by map mip.
+		std::array<cs::render::RgbaPreview, 2> _preview;
+		winrt::com_ptr<ID3D11ComputeShader> _previewCS;
 		MipChain _map;
 		MipChain _blurTemp;
 		winrt::com_ptr<ID3D11ComputeShader> _downsampleMip0;

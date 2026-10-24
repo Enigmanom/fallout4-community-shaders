@@ -4,6 +4,7 @@
 
 #include "Feature.h"
 #include "FeatureCategories.h"
+#include "Render/RgbaPreview.h"
 #include "ShaderDefines.h"
 
 #include <DirectXMath.h>
@@ -201,7 +202,6 @@ namespace cs::features
 		std::atomic_bool _fakeReflections{ false };
 		std::atomic_bool _engineReflectionCube{ false };
 		std::atomic_bool _cameraReadyLastFrame{ false };
-		std::atomic_bool _previewPopulated{ false };
 		std::array<std::atomic_bool, 2> _cubemapValid{};
 		std::atomic_uint32_t _captureSourceWidth{ 0 };
 		std::atomic_uint32_t _captureSourceHeight{ 0 };
@@ -239,9 +239,7 @@ namespace cs::features
 			_bc6hScratchUAVs;
 		winrt::com_ptr<ID3D11Buffer> _lightingStateBuffer;
 		winrt::com_ptr<ID3D11UnorderedAccessView> _lightingStateUAV;
-		winrt::com_ptr<ID3D11Texture2D> _previewTexture;
-		winrt::com_ptr<ID3D11ShaderResourceView> _previewSRV;
-		winrt::com_ptr<ID3D11UnorderedAccessView> _previewUAV;
+		cs::render::RgbaPreview _preview;
 
 		winrt::com_ptr<ID3D11Resource> _defaultCubemapResource;
 		winrt::com_ptr<ID3D11ShaderResourceView> _defaultCubemap;

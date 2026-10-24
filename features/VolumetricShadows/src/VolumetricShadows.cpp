@@ -34,6 +34,12 @@ namespace cs::features
 		constexpr float kLit[4]{ 1.0f, 1.0f, 0.0f, 0.0f };
 		constexpr std::uint32_t kBlurGroupSize = 128;
 		constexpr std::uint32_t kMipCount = 2;
+		constexpr const wchar_t* kPreviewPath = L"Data\\Shaders\\FO4\\VolumetricShadows\\ShadowPreviewCS.hlsl";
+
+		std::size_t CascadeMip(auto a_cascade)
+		{
+			return a_cascade == decltype(a_cascade)::kCascade0 ? 1 : 0;
+		}
 
 		constexpr std::array<std::string_view, kMipCount> kDownsamplePasses{ "VolumetricShadows/DownsampleMip0", "VolumetricShadows/DownsampleMip1" };
 		constexpr std::array<std::array<std::string_view, 2>, kMipCount> kBlurPasses{ { { "VolumetricShadows/BlurHMip0", "VolumetricShadows/BlurVMip0" },
@@ -45,12 +51,13 @@ namespace cs::features
 			return a_sourceSize / 16 / std::max(a_sourceSize / a_mapSize / 16, 1u);
 		}
 
-		winrt::com_ptr<ID3D11ComputeShader> CompileCompute(const wchar_t* a_path, const char* a_define)
+		winrt::com_ptr<ID3D11ComputeShader> CompileCompute(const wchar_t* a_path, const char* a_define = nullptr)
 		{
 			winrt::com_ptr<ID3D11ComputeShader> shader;
-			shader.attach(static_cast<ID3D11ComputeShader*>(cs::util::CompileShader(a_path, { { a_define, "1" } }, "cs_5_0")));
+			const auto defines = a_define ? std::vector<std::pair<const char*, const char*>>{ { a_define, "1" } } : std::vector<std::pair<const char*, const char*>>{};
+			shader.attach(static_cast<ID3D11ComputeShader*>(cs::util::CompileShader(a_path, defines, "cs_5_0")));
 			if (!shader)
-				L->warn("{} failed to compile; the shadow map stays lit.", a_define);
+				L->warn("{} failed to compile.", a_define ? a_define : "ShadowPreviewCS");
 			return shader;
 		}
 	}
@@ -144,6 +151,9 @@ namespace cs::features
 		_downsampleMip1 = CompileCompute(L"Data\\Shaders\\VolumetricShadows\\DownsampleShadowCS.hlsl", "DOWNSAMPLE_SHADOW_MIP1");
 		_blurHorizontal = CompileCompute(L"Data\\Shaders\\VolumetricShadows\\BlurShadowCS.hlsl", "BLUR_HORIZONTAL");
 		_blurVertical = CompileCompute(L"Data\\Shaders\\VolumetricShadows\\BlurShadowCS.hlsl", "BLUR_VERTICAL");
+		_previewCS = CompileCompute(kPreviewPath);
+		for (std::size_t mip = 0; mip < _preview.size(); ++mip)
+			_preview[mip].Create(a_device, kMapSize >> mip, kMapSize >> mip, std::format("VolumetricShadows/Preview{}", mip));
 
 		// Consumers read the map from the first draw, before any sun render.
 		winrt::com_ptr<ID3D11DeviceContext> context;
@@ -277,6 +287,17 @@ namespace cs::features
 		}
 		if (std::exchange(_loggedSkip, name) != name)
 			L->info("shadow map: {}", name);
+		RenderDebugPreview(context);
+	}
+
+	void VolumetricShadows::RenderDebugPreview(ID3D11DeviceContext* a_context)
+	{
+		const auto cascade = _debugCascade.load(std::memory_order_acquire);
+		if (cascade == DebugCascade::kNone || !a_context || !_previewCS)
+			return;
+		const std::size_t mip = CascadeMip(cascade);
+		cs::render::annotation::ScopedEvent event("VolumetricShadows/Preview");
+		_preview[mip].Convert(a_context, _previewCS.get(), _map.mipSRV[mip].get());
 	}
 
 	bool VolumetricShadows::ActiveLightReadsSoftShadow() noexcept
@@ -322,6 +343,8 @@ namespace cs::features
 
 	void VolumetricShadows::SetDebugView(std::string_view a_view) noexcept
 	{
+		for (auto& preview : _preview)
+			preview.Invalidate();
 		_debugCascade.store(
 			a_view == "cascade_0" ? DebugCascade::kCascade0 :
 			a_view == "cascade_1" ? DebugCascade::kCascade1 :
@@ -334,11 +357,7 @@ namespace cs::features
 		FeatureDebugTexture texture{ .unavailableText = "Shadow map not allocated." };
 		if (_debugCascade.load(std::memory_order_acquire) != a_cascade || !_map.texture)
 			return texture;
-		const std::size_t mip = a_cascade == DebugCascade::kCascade0 ? 1 : 0;
-		texture.texture = _map.mipSRV[mip].get();
-		texture.width = kMapSize >> mip;
-		texture.height = kMapSize >> mip;
-		return texture;
+		return _preview[CascadeMip(a_cascade)].GetDebugTexture("Shadow map preview not populated.");
 	}
 
 	void VolumetricShadows::DrawSettings()

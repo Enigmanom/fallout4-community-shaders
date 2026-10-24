@@ -57,6 +57,7 @@ namespace cs::features
 			L"Data\\Shaders\\DynamicCubemaps\\BC6HEncodeCS.hlsl";
 		constexpr const wchar_t* kPreviewPath =
 			L"Data\\Shaders\\FO4\\DynamicCubemaps\\CubemapPreviewCS.hlsl";
+		constexpr std::string_view kPreviewUnavailable = "Cubemap preview not populated.";
 		constexpr const wchar_t* kDefaultCubemapPath =
 			L"Data\\Shaders\\DynamicCubemaps\\defaultcubemap.dds";
 
@@ -186,7 +187,7 @@ namespace cs::features
 		const auto previous = _debugVisualization.exchange(
 			visualization, std::memory_order_acq_rel);
 		if (previous != visualization) {
-			_previewPopulated.store(false, std::memory_order_release);
+			_preview.Invalidate();
 		}
 	}
 
@@ -208,22 +209,14 @@ namespace cs::features
 
 	FeatureDebugTexture DynamicCubemaps::GetCubemapDebugTexture() const
 	{
-		FeatureDebugTexture texture{
-			.unavailableText = "Cubemap preview not populated."
-		};
 		const auto visualization =
 			_debugVisualization.load(std::memory_order_acquire);
 		if ((visualization != DebugVisualization::kCaptureInput &&
 				visualization != DebugVisualization::kFilteredReflections) ||
-			!_resourcesReady.load(std::memory_order_acquire) ||
-			!_previewPopulated.load(std::memory_order_acquire) ||
-			!_previewSRV) {
-			return texture;
+			!_resourcesReady.load(std::memory_order_acquire)) {
+			return { .unavailableText = kPreviewUnavailable };
 		}
-		texture.texture = _previewSRV.get();
-		texture.width = kPreviewWidth;
-		texture.height = kPreviewHeight;
-		return texture;
+		return _preview.GetDebugTexture(kPreviewUnavailable);
 	}
 
 	bool DynamicCubemaps::Configure(
@@ -635,28 +628,7 @@ namespace cs::features
 		cs::render::annotation::SetName(
 			_lightingStateBuffer.get(), "DynamicCubemaps/CaptureLightingState.Buffer");
 
-		D3D11_TEXTURE2D_DESC previewDesc{};
-		previewDesc.Width = kPreviewWidth;
-		previewDesc.Height = kPreviewHeight;
-		previewDesc.MipLevels = 1;
-		previewDesc.ArraySize = 1;
-		previewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		previewDesc.SampleDesc.Count = 1;
-		previewDesc.Usage = D3D11_USAGE_DEFAULT;
-		previewDesc.BindFlags =
-			D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
-		DX::ThrowIfFailed(a_device->CreateTexture2D(
-			&previewDesc, nullptr, _previewTexture.put()));
-		DX::ThrowIfFailed(a_device->CreateShaderResourceView(
-			_previewTexture.get(), nullptr, _previewSRV.put()));
-		DX::ThrowIfFailed(a_device->CreateUnorderedAccessView(
-			_previewTexture.get(), nullptr, _previewUAV.put()));
-		cs::render::annotation::SetName(
-			_previewTexture.get(), "DynamicCubemaps/Preview.Texture");
-		cs::render::annotation::SetName(
-			_previewSRV.get(), "DynamicCubemaps/Preview.SRV");
-		cs::render::annotation::SetName(
-			_previewUAV.get(), "DynamicCubemaps/Preview.UAV");
+		_preview.Create(a_device, kPreviewWidth, kPreviewHeight, "DynamicCubemaps/Preview");
 
 		if (auto* context = cs::engine::GetImmediateContext()) {
 			cs::render::annotation::ScopedEvent timing("DynamicCubemaps::Clear");
@@ -1207,7 +1179,7 @@ namespace cs::features
 			return;
 		}
 		auto* context = cs::engine::GetImmediateContext();
-		if (!context || !_previewCS || !_previewUAV) {
+		if (!context || !_previewCS) {
 			return;
 		}
 
@@ -1221,19 +1193,8 @@ namespace cs::features
 			return;
 		}
 		cs::render::annotation::ScopedEvent timing("DynamicCubemaps::Preview");
-		context->CSSetShaderResources(0, 1, &source);
-		ID3D11UnorderedAccessView* output = _previewUAV.get();
-		context->CSSetUnorderedAccessViews(0, 1, &output, nullptr);
-		ID3D11SamplerState* sampler = _computeSampler.get();
-		context->CSSetSamplers(0, 1, &sampler);
-		context->CSSetShader(_previewCS.get(), nullptr, 0);
-		context->Dispatch(
-			DispatchGroups(kPreviewWidth),
-			DispatchGroups(kPreviewHeight),
-			1);
-		UnbindCompute(context);
+		_preview.Convert(context, _previewCS.get(), source, _computeSampler.get());
 		_previewDispatchCount.fetch_add(1, std::memory_order_relaxed);
-		_previewPopulated.store(true, std::memory_order_release);
 	}
 
 	void DynamicCubemaps::CollectTelemetry(
