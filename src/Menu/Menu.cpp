@@ -362,14 +362,19 @@ namespace cs
 				if (!cached.loggedFailure || *cached.loggedFailure != result) {
 					D3D11_SHADER_RESOURCE_VIEW_DESC descriptor{};
 					texture.texture->GetDesc(&descriptor);
+					winrt::com_ptr<ID3D11Device> sourceDevice;
+					texture.texture->GetDevice(sourceDevice.put());
+					// The host rejects views created on another device.
 					L->warn(
-						"Debug image import failed for {} view {}: {} (result={}, format={}, dimension={})",
+						"Debug image import failed for {} view {}: {} (result={}, format={}, dimension={}, device={}, renderer={})",
 						a_feature.GetName(),
 						selectedId,
 						DMUI_ResultToString(result),
 						result,
 						static_cast<unsigned>(descriptor.Format),
-						static_cast<unsigned>(descriptor.ViewDimension));
+						static_cast<unsigned>(descriptor.ViewDimension),
+						static_cast<const void*>(sourceDevice.get()),
+						static_cast<const void*>(cs::engine::GetDevice()));
 					cached.loggedFailure = result;
 				}
 				dmui::ui::TextDisabled(

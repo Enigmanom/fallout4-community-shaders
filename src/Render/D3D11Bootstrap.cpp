@@ -47,6 +47,24 @@ namespace cs::d3d11
 			}
 		}
 
+		// Resources report the wrapped device, so a proxy shows as a mismatch.
+		void LogDeviceIdentity(ID3D11Device* a_device, ID3D11DeviceContext* a_context)
+		{
+			const D3D11_BUFFER_DESC desc{ 16, D3D11_USAGE_DEFAULT, D3D11_BIND_CONSTANT_BUFFER, 0, 0, 0 };
+			winrt::com_ptr<ID3D11Buffer> probe;
+			winrt::com_ptr<ID3D11Device> resourceDevice;
+			if (SUCCEEDED(a_device->CreateBuffer(&desc, nullptr, probe.put())))
+				probe->GetDevice(resourceDevice.put());
+			winrt::com_ptr<ID3D11Device> contextDevice;
+			a_context->GetDevice(contextDevice.put());
+			L->info(
+				"D3D11 device identity: created={}, context={}, resources={}{}",
+				static_cast<const void*>(a_device),
+				static_cast<const void*>(contextDevice.get()),
+				static_cast<const void*>(resourceDevice.get()),
+				resourceDevice && resourceDevice.get() != a_device ? " (device is a proxy over the resource device)" : "");
+		}
+
 		void InitializeShaderCache()
 		{
 			shader_cache::ResetShaderCacheCounters();
@@ -118,6 +136,9 @@ namespace cs::d3d11
 		{
 			InvokeOwner("GPU adapter diagnostics", [&] {
 				L->info("GPU adapter: {}", util::AdapterDescription(*a_device));
+			});
+			InvokeOwner("D3D11 device identity diagnostics", [&] {
+				LogDeviceIdentity(*a_device, *a_immediateContext);
 			});
 			render::annotation::Initialize(*a_immediateContext);
 			render::profiling::InitializeD3D11(*a_device, *a_immediateContext);
