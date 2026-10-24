@@ -194,7 +194,7 @@ namespace cs::features
 		std::atomic_bool _injectionsOperational{ false };
 		std::atomic_bool _resourcesReady{ false };
 		std::atomic_bool _enabledSSR{ true };
-		std::atomic<float> _materialReflections{ 1.0f };
+		std::atomic<float> _materialReflections{ 0.25f };
 		std::atomic_bool _engineCubeLod{ true };
 		std::atomic_bool _queuedReset{ false };
 		std::atomic_bool _activeReflections{ false };

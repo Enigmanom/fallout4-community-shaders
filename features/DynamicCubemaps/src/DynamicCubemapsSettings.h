@@ -24,7 +24,7 @@ namespace cs::features::dynamic_cubemaps
 	struct Settings
 	{
 		bool enabledSSR = true;
-		float materialReflections = 1.0f;
+		float materialReflections = 0.25f;
 		bool engineCubeLod = true;
 		EngineCubeSize engineCubeSize = EngineCubeSize::k1024;
 	};
