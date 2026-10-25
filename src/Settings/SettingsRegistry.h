@@ -37,7 +37,7 @@ namespace cs::settings
 		};
 
 		inline constexpr Schema kShaderCache{
-			std::tuple{ Field{ "background_compilation", "Play while shaders compile instead of waiting for them before a save loads; shaders not yet compiled render as stock.", &ShaderCache::backgroundCompilation } }
+			std::tuple{ Field{ "background_compilation", "Play while shaders compile instead of blocking the main menu until they finish; shaders not yet compiled render as stock.", &ShaderCache::backgroundCompilation } }
 		};
 
 		struct ShaderTarget

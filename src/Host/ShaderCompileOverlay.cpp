@@ -1,6 +1,7 @@
 #include "Host/ShaderCompileOverlay.h"
 
 #include "Render/Engine.h"
+#include "Render/ShaderCompileGate.h"
 #include "Render/ShaderVariantCompilation.h"
 
 #include <DearModdingUI/UI.h>
@@ -17,6 +18,15 @@ namespace cs::host
 			engine::GetShaderCompileBatch(),
 			ShaderCompileOverlayModel::Clock::now());
 		return _presentation.phase != ShaderCompilePhase::kHidden;
+	}
+
+	bool ShaderCompileOverlay::WantsInputFocus() const noexcept
+	{
+		if (_presentation.phase != ShaderCompilePhase::kCompiling || !engine::ShaderCompileBlocksPlay())
+			return false;
+		// Only the menu gates play; loads that bypass it proceed with stock shaders.
+		const auto* ui = RE::UI::GetSingleton();
+		return ui && ui->GetMenuOpen<RE::MainMenu>() && !ui->GetMenuOpen<RE::LoadingMenu>();
 	}
 
 	void ShaderCompileOverlay::Draw() const

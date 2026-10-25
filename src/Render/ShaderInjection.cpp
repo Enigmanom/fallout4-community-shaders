@@ -1894,6 +1894,14 @@ namespace cs::engine
 		service.nativeBindingGeneration.fetch_add(1, std::memory_order_release);
 	}
 
+	void StopNativeShaderVariantCompilations() noexcept
+	{
+		const auto plan =
+			GetService().published.load(std::memory_order_acquire);
+		if (plan && plan->compilationCache)
+			plan->compilationCache->Stop();
+	}
+
 	void DispatchShaderInjections(
 		ShaderInjectionTarget a_target,
 		ID3D11DeviceContext* a_context,

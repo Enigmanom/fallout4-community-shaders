@@ -6,6 +6,7 @@
 #include "Menu/Menu.h"
 #include "Menu/SettingsEdit.h"
 #include "Plugin.h"
+#include "Render/ShaderCompileGate.h"
 #include "Settings/FeatureConfig.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/Hotkey.h"
@@ -847,6 +848,32 @@ namespace cs::host
 			"shader compilation overlay",
 			_shaderCompile.Observe(),
 			ShaderCompileOverlay::ManagedOverlayOptions());
+		SyncOverlayFocus(
+			_shaderCompileOverlay,
+			"shader compilation overlay",
+			_shaderCompile.WantsInputFocus());
+		engine::StopShaderCompileOnQuit();
+	}
+
+	void HostClient::SyncOverlayFocus(
+		OverlayChannel& a_overlay,
+		std::string_view a_name,
+		bool a_wanted) noexcept
+	{
+		if (!a_overlay.page)
+			return;
+		const auto info = _client.QueryOverlayFocus(a_overlay.page->handle);
+		if ((info && info->focused) == a_wanted) {
+			a_overlay.focusFailure.reset();
+			return;
+		}
+		const auto handle = a_overlay.page->handle;
+		// Retried every frame, so Escape or a closed shell regrants focus.
+		const bool changed = a_wanted ? _client.RequestOverlayFocus(handle) : _client.ReleaseOverlayFocus(handle);
+		if (changed)
+			a_overlay.focusFailure.reset();
+		else if (_client.LastResult() != DMUI_RESULT_BUSY)
+			LogFailureOnce(std::format("{} focus", a_name), a_overlay.focusFailure);
 	}
 
 	void HostClient::SyncOverlay(

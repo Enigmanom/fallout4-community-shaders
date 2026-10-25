@@ -5,7 +5,6 @@
 #include "Menu/Menu.h"
 #include "Render/FrameBoundary.h"
 #include "Render/FrameBuffer.h"
-#include "Render/ShaderCompileGate.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassHooks.h"
 #include "Render/SwapChainHook.h"
@@ -62,12 +61,6 @@ static void OnMessage(F4SE::MessagingInterface::Message* a_msg)
 	case F4SE::MessagingInterface::kGameDataReady:
 		cs::FeatureManager::Get().OnDataLoadedAll();
 		cs::render::TemporalPipeline::Get().OnDataLoaded();
-		break;
-	case F4SE::MessagingInterface::kPreLoadGame:
-		cs::engine::WaitForShaderCompilation("loading a save");
-		break;
-	case F4SE::MessagingInterface::kNewGame:
-		cs::engine::WaitForShaderCompilation("starting a new game");
 		break;
 	default:
 		break;

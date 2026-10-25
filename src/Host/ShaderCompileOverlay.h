@@ -11,6 +11,8 @@ namespace cs::host
 	{
 	public:
 		[[nodiscard]] bool Observe() noexcept;
+		// Whether the main menu should be blocked until compilation finishes.
+		[[nodiscard]] bool WantsInputFocus() const noexcept;
 		void Draw() const;
 		[[nodiscard]] static DMUI_ManagedOverlayOptions ManagedOverlayOptions() noexcept;
 
