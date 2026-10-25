@@ -235,6 +235,7 @@ namespace cs::engine
 
 			result.samplers = util::ReflectShaderSamplers(outcome.bytecode.data(), outcome.bytecode.size()).value_or(util::ShaderSamplerUse{});
 			result.shader = std::move(shader);
+			result.cacheHit = outcome.origin == shader_cache::CompileOrigin::kCacheHit;
 			return result;
 		}
 

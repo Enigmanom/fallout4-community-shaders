@@ -13,6 +13,7 @@
 #include "Render/FrameBuffer.h"
 #include "Render/FrameProfiler.h"
 #include "Render/PixelShaderSwapBroker.h"
+#include "Render/ShaderCompileGate.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
 #include "Render/TemporalPipeline.h"
@@ -145,6 +146,7 @@ namespace cs::d3d11
 			InvokeOwner("Shader cache initialization", [] {
 				InitializeShaderCache();
 			});
+			engine::InstallShaderCompileSummaryLog();
 			util::ShaderCompilationBatch shaderCompilationBatch;
 			// The engine b12 snapshot must be live before any feature reads a camera.
 			InvokeOwner("FrameBuffer snapshot hooks", [&] {

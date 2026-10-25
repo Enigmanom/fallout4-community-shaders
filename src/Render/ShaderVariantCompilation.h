@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Render/ShaderCompileBatch.h"
 #include "Render/ShaderStage.h"
 #include "Utils/ShaderSamplerBindings.h"
 
@@ -55,6 +56,7 @@ namespace cs::engine
 		winrt::com_ptr<ID3D11DeviceChild> shader;
 		std::string error;
 		util::ShaderSamplerUse samplers;
+		bool cacheHit = false;
 	};
 
 	using ShaderVariantCompiler =
@@ -70,16 +72,6 @@ namespace cs::engine
 			ShaderVariantCompilationRequest a_request) = 0;
 		virtual void Invalidate() = 0;
 		virtual void Stop() noexcept = 0;
-	};
-
-	// A batch runs from the first queued variant to the last one finishing.
-	struct ShaderCompileBatch
-	{
-		std::uint32_t completedTasks = 0;
-		std::uint32_t failedTasks = 0;
-		std::uint32_t totalTasks = 0;
-		std::chrono::milliseconds duration{};
-		bool active = false;
 	};
 
 	using ShaderCompileBatchObserver = std::function<void(const ShaderCompileBatch&)>;

@@ -162,7 +162,8 @@ namespace cs::host
 				.categoryId = page->descriptor.categoryId.c_str(),
 				.summary = page->descriptor.summary.c_str(),
 				.sortKey = page->descriptor.sortKey,
-				.kind = page->descriptor.kind == HostPageKind::kOverlay ?
+				.kind = page->descriptor.kind == HostPageKind::kOverlay ||
+				                page->descriptor.kind == HostPageKind::kShaderCompileOverlay ?
 				            DMUI_PAGE_KIND_OVERLAY :
 				            DMUI_PAGE_KIND_SETTINGS
 			};
@@ -180,7 +181,9 @@ namespace cs::host
 			}
 			stored->handle = *handle;
 			if (stored->descriptor.kind == HostPageKind::kOverlay)
-				_overlayPage = stored;
+				_performanceOverlay.page = stored;
+			else if (stored->descriptor.kind == HostPageKind::kShaderCompileOverlay)
+				_shaderCompileOverlay.page = stored;
 		}
 		return true;
 	}
@@ -392,6 +395,9 @@ namespace cs::host
 			break;
 		case HostPageKind::kOverlay:
 			DrawOverlayPage();
+			break;
+		case HostPageKind::kShaderCompileOverlay:
+			DrawShaderCompileOverlayPage();
 			break;
 		}
 	}
@@ -728,6 +734,11 @@ namespace cs::host
 		}
 	}
 
+	void HostClient::DrawShaderCompileOverlayPage()
+	{
+		_shaderCompile.Draw();
+	}
+
 	void HostClient::ObserveFrame() noexcept
 	{
 		try {
@@ -778,7 +789,8 @@ namespace cs::host
 				renderDoc->IsHealthy() && renderDoc->CaptureHotkeysEnabled(),
 				_hotkeyEnableFailures[2]);
 			ObserveHotkeyBindings();
-			SyncOverlay();
+			SyncPerformanceOverlay();
+			SyncShaderCompileOverlay();
 		} catch (...) {
 			L->error("DearModdingUI frame observer failed");
 		}
@@ -814,46 +826,67 @@ namespace cs::host
 		}
 	}
 
-	void HostClient::SyncOverlay() noexcept
+	void HostClient::SyncPerformanceOverlay() noexcept
 	{
-		if (!_overlayPage)
-			return;
 		auto* performance = features::PerformanceOverlay::GetSingleton();
 		const bool wanted =
 			_overlayVisible.load(std::memory_order_relaxed) &&
 			performance->IsHealthy() &&
 			performance->IsOverlayActive();
-		const auto demandAction = _overlayFrameDemand.Next(wanted);
+		SyncOverlay(
+			_performanceOverlay,
+			"performance overlay",
+			wanted,
+			performance->ManagedOverlayOptions());
+	}
+
+	void HostClient::SyncShaderCompileOverlay() noexcept
+	{
+		SyncOverlay(
+			_shaderCompileOverlay,
+			"shader compilation overlay",
+			_shaderCompile.Observe(),
+			ShaderCompileOverlay::ManagedOverlayOptions());
+	}
+
+	void HostClient::SyncOverlay(
+		OverlayChannel& a_overlay,
+		std::string_view a_name,
+		bool a_wanted,
+		const DMUI_ManagedOverlayOptions& a_options) noexcept
+	{
+		if (!a_overlay.page)
+			return;
+		const auto demandAction = a_overlay.demand.Next(a_wanted);
 		if (demandAction == FrameDemandAction::kRelease) {
-			const bool released = _client.ReleaseFrame(_overlayPage->handle);
-			_overlayFrameDemand.Complete(demandAction, released);
+			const bool released = _client.ReleaseFrame(a_overlay.page->handle);
+			a_overlay.demand.Complete(demandAction, released);
 			if (released)
-				_overlayDemandFailure.reset();
+				a_overlay.demandFailure.reset();
 			else
 				LogFailureOnce(
-					"performance overlay frame release",
-					_overlayDemandFailure);
+					std::format("{} frame release", a_name),
+					a_overlay.demandFailure);
 			return;
 		}
-		if (!wanted)
+		if (!a_wanted)
 			return;
 
-		const auto options = performance->ManagedOverlayOptions();
-		if (_client.ConfigureOverlay(_overlayPage->handle, options))
-			_overlayConfigurationFailure.reset();
+		if (_client.ConfigureOverlay(a_overlay.page->handle, a_options))
+			a_overlay.configurationFailure.reset();
 		else
 			LogFailureOnce(
-				"performance overlay configuration",
-				_overlayConfigurationFailure);
+				std::format("{} configuration", a_name),
+				a_overlay.configurationFailure);
 		if (demandAction == FrameDemandAction::kRequest) {
-			const bool requested = _client.RequestFrame(_overlayPage->handle);
-			_overlayFrameDemand.Complete(demandAction, requested);
+			const bool requested = _client.RequestFrame(a_overlay.page->handle);
+			a_overlay.demand.Complete(demandAction, requested);
 			if (requested)
-				_overlayDemandFailure.reset();
+				a_overlay.demandFailure.reset();
 			else
 				LogFailureOnce(
-					"performance overlay frame request",
-					_overlayDemandFailure);
+					std::format("{} frame request", a_name),
+					a_overlay.demandFailure);
 		}
 	}
 
@@ -1042,7 +1075,7 @@ namespace cs::host
 
 	void HostClient::ResetOverlay() noexcept
 	{
-		if (_overlayPage && !_client.ResetOverlay(_overlayPage->handle))
+		if (_performanceOverlay.page && !_client.ResetOverlay(_performanceOverlay.page->handle))
 			LogFailure("reset performance overlay layout");
 	}
 

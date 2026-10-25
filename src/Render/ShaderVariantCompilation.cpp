@@ -104,9 +104,12 @@ namespace cs::engine
 				++_batch.totalTasks;
 			}
 
-			void Finished(bool a_succeeded)
+			void Finished(bool a_succeeded, bool a_cacheHit)
 			{
-				Settle([&] { ++(a_succeeded ? _batch.completedTasks : _batch.failedTasks); });
+				Settle([&] {
+					++(a_succeeded ? _batch.completedTasks : _batch.failedTasks);
+					_batch.cacheHits += a_succeeded && a_cacheHit;
+				});
 			}
 
 			void Cancelled()
@@ -358,8 +361,9 @@ namespace cs::engine
 					}
 					if (publish) {
 						const bool succeeded = !!output.shader;
+						const bool cacheHit = output.cacheHit;
 						task.handle->Complete(std::move(output));
-						Batches().Finished(succeeded);
+						Batches().Finished(succeeded, cacheHit);
 					} else {
 						task.handle->Fail(
 							"shader compilation invalidated");

@@ -242,6 +242,12 @@ namespace cs::host
 			.categoryId = std::string(kOverlayCategoryId),
 			.sortKey = kOverlaySortKey,
 			.kind = HostPageKind::kOverlay });
+		pages.push_back(HostPageDescriptor{
+			.id = std::string(kShaderCompileOverlayPageId),
+			.displayName = "Shader Compilation Overlay",
+			.categoryId = std::string(kOverlayCategoryId),
+			.sortKey = kOverlaySortKey,
+			.kind = HostPageKind::kShaderCompileOverlay });
 
 		return catalog;
 	}

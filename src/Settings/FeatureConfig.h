@@ -81,6 +81,8 @@ namespace cs::feature_config
 	};
 
 	ShaderOwnershipParseResult ParseShaderOwnership(const toml::table& a_root);
+	// Invalid or missing values fall back to the default; a_error describes an invalid one.
+	bool ParseBackgroundCompilation(const toml::table& a_root, std::string& a_error);
 
 	struct WriteResult
 	{

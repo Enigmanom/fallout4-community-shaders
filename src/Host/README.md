@@ -19,7 +19,7 @@ descriptors before any page that references their stable IDs:
 - Home, Advanced, Presets, and Changelog pages under the General category;
 - one settings page for every menu-visible registered feature, including inactive features under
   Unloaded;
-- the managed Performance Overlay page;
+- the managed Performance Overlay and Shader Compilation Overlay pages;
 - the Clear Shader Cache action;
 - frame and page-activity observers;
 - contextual Performance Overlay, RenderDoc, and log-dump hotkeys.
@@ -79,6 +79,10 @@ settings row enables Reset only while `Feature::HasModifiedSettings()` reports a
 the schema defaults. Notifications carry a title (feature or preset name, else Community Shaders).
 The Performance Overlay frame graphs are host annotated plots with 30/60/120 FPS reference lines
 in theme colors.
+
+The Shader Compilation Overlay shows only once a batch has compiled for over a second, then a
+brief "Shaders ready" summary, so a warm cache never flashes it. It is centered at the top of the
+screen, sized from the game's screen width.
 
 Performance Overlay offset and size are author defaults. DearModdingUI persists the user's
 arrangement in its `imgui.ini`; Reset Layout discards it and reapplies the defaults.

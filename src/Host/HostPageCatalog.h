@@ -16,7 +16,8 @@ namespace cs::host
 		kPresets,
 		kChangelog,
 		kFeature,
-		kOverlay
+		kOverlay,
+		kShaderCompileOverlay
 	};
 
 	struct FeaturePageInput
@@ -64,6 +65,7 @@ namespace cs::host
 	inline constexpr std::string_view kOverlayCategoryId = "overlay";
 	inline constexpr std::string_view kOverlayCategory = "Overlay";
 	inline constexpr std::string_view kOverlayPageId = "overlay";
+	inline constexpr std::string_view kShaderCompileOverlayPageId = "shader-compile-overlay";
 
 	std::string MakeAsciiId(std::string_view a_text);
 

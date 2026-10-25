@@ -31,6 +31,15 @@ namespace cs::settings
 			std::tuple{ Field{ "enable_shaders", "Use custom shaders; disabling this effectively disables all features.", &ShaderOwnership::enableShaders } }
 		};
 
+		struct ShaderCache
+		{
+			bool backgroundCompilation = false;
+		};
+
+		inline constexpr Schema kShaderCache{
+			std::tuple{ Field{ "background_compilation", "Play while shaders compile instead of waiting for them before a save loads; shaders not yet compiled render as stock.", &ShaderCache::backgroundCompilation } }
+		};
+
 		struct ShaderTarget
 		{
 			bool enabled = true;
@@ -92,6 +101,7 @@ namespace cs::settings
 			{ { "shader_ownership" }, MakeSchemaView(core::kShaderOwnership) },
 			{ { "shader_ownership", "targets" }, {}, false,
 				"Off binds the game's shader for that type, including feature changes to it." },
+			{ { "shader_cache" }, MakeSchemaView(core::kShaderCache) },
 			{ { "menu" }, MakeSchemaView(core::kMenu) },
 			{ { "menu", "debug_view_previews" }, {}, true },
 			{ { "preset" }, MakeSchemaView(core::kPreset) }
