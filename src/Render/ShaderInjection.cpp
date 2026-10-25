@@ -99,6 +99,15 @@ namespace cs::engine
 		CaptureBindings(a_context, ShaderResourceType::kRenderTarget, 0, 1);
 	}
 
+	void OverrideInjectionFrameShaderResource(ID3D11DeviceContext* a_context, UINT a_slot, ID3D11ShaderResourceView* a_value) noexcept
+	{
+		if (!t_bindings)
+			return;
+		t_bindings->Capture(a_context, ShaderResourceType::kShaderResource, a_slot, true);
+		a_context->PSSetShaderResources(a_slot, 1, &a_value);
+		RecordShaderInjectionD3DBinds();
+	}
+
 	void BeginShaderInjectionFrame(std::uint32_t a_frame) noexcept
 	{
 		if (t_drawFrameStarted && t_drawMetrics.frame == a_frame)
@@ -187,7 +196,7 @@ namespace cs::engine
 	}
 
 	void ScopedShaderInjectionBindings::Capture(
-		ID3D11DeviceContext* a_context, ShaderResourceType a_type, std::uint32_t a_slot) noexcept
+		ID3D11DeviceContext* a_context, ShaderResourceType a_type, std::uint32_t a_slot, bool a_frameOwned) noexcept
 	{
 		if (!a_context)
 			return;
@@ -195,7 +204,7 @@ namespace cs::engine
 			_context = a_context;
 		{
 			// Engine-facts: PS shadow state owns t0-t15/s0-s15 and b0-b2/b12/b13 only.
-			if (_stage == ShaderStage::kPixel &&
+			if (!a_frameOwned && _stage == ShaderStage::kPixel &&
 				((a_type == ShaderResourceType::kShaderResource && a_slot >= 16) ||
 					(a_type == ShaderResourceType::kConstantBuffer && a_slot > 2 && a_slot != 12 && a_slot != 13)))
 				return;

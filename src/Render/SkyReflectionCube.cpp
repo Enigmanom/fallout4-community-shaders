@@ -159,6 +159,18 @@ namespace cs::engine
 		const void* g_lodWorldSpace = nullptr;
 		WeatherSnapshot g_lodWeather;
 		std::optional<std::uint32_t> g_lastFrame;
+		std::optional<SkyReflectionCubeCapture> g_capture;
+		std::uint64_t g_captureSerial = 0;
+
+		class ScopedCapture
+		{
+		public:
+			explicit ScopedCapture(std::uint32_t a_face) noexcept { g_capture = { a_face, ++g_captureSerial }; }
+			~ScopedCapture() { g_capture.reset(); }
+
+			ScopedCapture(const ScopedCapture&) = delete;
+			ScopedCapture& operator=(const ScopedCapture&) = delete;
+		};
 
 		void Disable(const char* a_reason) noexcept
 		{
@@ -527,7 +539,10 @@ namespace cs::engine
 			}
 			a_camera.AddCubeMapScene(&a_skyRoot);
 			// The release flag frees the scene list so it does not grow.
-			a_camera.Click(static_cast<FaceFlags>(1u << a_face), false, true, false);
+			{
+				const ScopedCapture capture(a_face);
+				a_camera.Click(static_cast<FaceFlags>(1u << a_face), false, true, false);
+			}
 			g_faceMask.fetch_or(1u << a_face, std::memory_order_relaxed);
 			g_counters.faces.fetch_add(1, std::memory_order_relaxed);
 		}
@@ -669,6 +684,17 @@ namespace cs::engine
 		g_consumers.push_back({ std::string(a_name), std::move(a_wantsCube), std::move(a_wantsLod) });
 		L->info("Sky reflection cube consumer registered: {}", a_name);
 		return true;
+	}
+
+	ID3D11Texture2D* GetSkyReflectionCubeTexture() noexcept
+	{
+		const auto* cube = GetEngineCube();
+		return cube ? reinterpret_cast<ID3D11Texture2D*>(cube->texture) : nullptr;
+	}
+
+	std::optional<SkyReflectionCubeCapture> GetSkyReflectionCubeCapture() noexcept
+	{
+		return g_capture;
 	}
 
 	void SetSkyReflectionCubeSize(std::uint32_t a_size) noexcept
