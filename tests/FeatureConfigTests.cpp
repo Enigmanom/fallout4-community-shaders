@@ -1,3 +1,4 @@
+#include "CloudShadowsSettings.h"
 #include "DynamicCubemapsSettings.h"
 #include "ExtendedMaterialsSettings.h"
 #include "FrameGenerationSettings.h"
@@ -86,6 +87,7 @@ namespace
 			std::pair{ "ScreenSpaceShadows", MakeSchemaView(sss_settings::kSchema) },
 			std::pair{ "TerrainShadows", SchemaView{} },
 			std::pair{ "VolumetricShadows", SchemaView{} },
+			std::pair{ "CloudShadows", MakeSchemaView(cloud_shadows::kSchema) },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
 			std::pair{ "TerrainVariation", MakeSchemaView(terrain_variation::kSchema) },
 			std::pair{ "TerrainBlending", SchemaView{} },

@@ -1,5 +1,6 @@
 #include "ShaderABIChecks.h"
 
+#include "../features/CloudShadows/src/ShaderDefines.h"
 #include "../features/VolumetricShadows/src/ShaderDefines.h"
 #include "Render/DirectionalShadowLightData.h"
 #include "Render/SharedDataLayout.h"
@@ -405,6 +406,25 @@ namespace
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
+	std::string VerifyCloudShadowsABI(const std::filesystem::path& a_root)
+	{
+		namespace slots = cs::features::cloud_shadows_shader;
+		std::string error;
+		// The host binds the face depth for the cloud reject and a third output for the cube.
+		const auto sky = Reflect(a_root, "Sky.hlsl", { { "BSSKY_PIXEL_SHADER", "1" }, { "PSHADER", "1" }, { "TEX", "1" }, { "CLOUDS", "1" }, { "CLOUD_SHADOWS", "1" } }, "ps_5_0", error);
+		if (!sky)
+			return error;
+		D3D11_SHADER_DESC desc{};
+		sky->GetDesc(&desc);
+		if (BindPoint(sky.Get(), "TexDepthSampler") != slots::kCloudDepthSlot || desc.OutputParameters != 3)
+			return "Sky: ABI depth slot or output count mismatch";
+		const auto consumer = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "CLOUD_SHADOWS", "1" } }, "ps_5_0", error);
+		if (!consumer)
+			return error;
+		if (BindPoint(consumer.Get(), "CloudShadows::CloudShadowsTexture") != slots::kCloudShadowsSlot)
+			return "consumer: ABI slot mismatch";
+		return {};
+	}
 #undef ABI
 }
 
@@ -420,5 +440,7 @@ std::string VerifyShaderABI(const std::filesystem::path& a_root)
 		return "IBL ABI: " + error;
 	if (auto error = VerifyVolumetricShadowsABI(a_root); !error.empty())
 		return "Volumetric Shadows ABI: " + error;
+	if (auto error = VerifyCloudShadowsABI(a_root); !error.empty())
+		return "Cloud Shadows ABI: " + error;
 	return {};
 }

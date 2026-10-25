@@ -20,6 +20,7 @@ function main(target)
             "package/Shaders/Common/Shading.hlsli",
             "package/Shaders/Common/ShadowSampling.hlsli",
             "package/Shaders/Common/Spherical Harmonics/SphericalHarmonics.hlsli",
+            "features/Cloud Shadows/Shaders/CloudShadows/CloudShadows.hlsli",
             "features/Dynamic Cubemaps/Shaders/DynamicCubemaps",
             "features/Extended Materials/Shaders/ExtendedMaterials",
             "features/IBL/Shaders/IBL/DiffuseIBLCS.hlsl",

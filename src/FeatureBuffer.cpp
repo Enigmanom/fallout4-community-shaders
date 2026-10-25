@@ -1,5 +1,6 @@
 #include "FeatureBuffer.h"
 
+#include "CloudShadows.h"
 #include "DynamicCubemaps.h"
 #include "ExtendedMaterials.h"
 #include "ImageBasedLighting.h"
@@ -60,7 +61,10 @@ namespace cs
 					features::ExtendedMaterials::GetSingleton()),
 			.terrainBlendingSettings =
 				CollectFeatureData<TerrainBlendingFeatureData>(
-					features::TerrainBlending::GetSingleton())
+					features::TerrainBlending::GetSingleton()),
+			.cloudShadowsSettings =
+				CollectFeatureData<render::CloudShadowsSettings>(
+					features::CloudShadows::GetSingleton())
 		};
 	}
 }

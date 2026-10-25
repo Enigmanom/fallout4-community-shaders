@@ -81,8 +81,9 @@ namespace cs
 		UnifiedWaterFeatureData unifiedWaterSettings;
 		ExtendedMaterialsFeatureData extendedMaterialsSettings;
 		TerrainBlendingFeatureData terrainBlendingSettings;
+		render::CloudShadowsSettings cloudShadowsSettings;
 	};
-	static_assert(sizeof(FeatureDataCB) == 432);
+	static_assert(sizeof(FeatureDataCB) == 448);
 	static_assert(sizeof(FeatureDataCB) % 16 == 0);
 	static_assert(offsetof(FeatureDataCB, terrainShadowsSettings) == 0);
 	static_assert(offsetof(TerrainShadowsFeatureData, EnableTerrainShadow) == 0);
@@ -99,6 +100,7 @@ namespace cs
 	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 368);
 	static_assert(offsetof(FeatureDataCB, extendedMaterialsSettings) == 384);
 	static_assert(offsetof(FeatureDataCB, terrainBlendingSettings) == 416);
+	static_assert(offsetof(FeatureDataCB, cloudShadowsSettings) == 432);
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 
