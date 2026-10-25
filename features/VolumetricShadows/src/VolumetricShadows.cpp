@@ -300,19 +300,13 @@ namespace cs::features
 		_preview[mip].Convert(a_context, _previewCS.get(), _map.mipSRV[mip].get());
 	}
 
-	bool VolumetricShadows::ActiveLightReadsSoftShadow() noexcept
-	{
-		// Probe visibility takes the lobes where SKYLIGHTING is defined.
-		return cs::engine::ActiveLightHasSunShadowedFamily() &&
-		       !cs::engine::ActiveShaderInjectionVariantHasDefine(cs::engine::ShaderInjectionTarget::kBsdfLight, "SKYLIGHTING");
-	}
-
 	void VolumetricShadows::BindConsumer(ID3D11DeviceContext* a_context, cs::engine::ShaderInjectionTarget a_target)
 	{
 		// Disabled: ClearState nulls t98 each frame, so lobes stay native.
 		if (!a_context || !IsHealthy() || !_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_map.srv)
 			return;
-		if (a_target == cs::engine::ShaderInjectionTarget::kBsdfLight && !ActiveLightReadsSoftShadow())
+		// Skylighting variants still read the VSM while Skylighting is disabled.
+		if (a_target == cs::engine::ShaderInjectionTarget::kBsdfLight && !cs::engine::ActiveLightHasSunShadowedFamily())
 			return;
 		ID3D11ShaderResourceView* const map = _map.srv.get();
 		ID3D11ShaderResourceView* const lights = cs::engine::GetSunShadowLightsSRV<2>();

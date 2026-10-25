@@ -39,6 +39,6 @@ namespace FO4VolumetricShadows
 	}
 }
 
-#define FO4_VSM_SOFT_SHADOW(softShadow, viewPosition, normalView) float softShadow = FO4VolumetricShadows::GetSoftShadow(viewPosition)
+#define FO4_VSM_SOFT_SHADOW(softShadow, viewPosition) softShadow = FO4VolumetricShadows::GetSoftShadow(viewPosition)
 #define FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow) softShadow = FO4VolumetricShadows::BlendNativeShadow(softShadow, shadow)
 #endif

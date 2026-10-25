@@ -4,15 +4,36 @@
 #include "FO4/SkylightingConsumer.hlsli"
 #include "FO4/SunShadowFamilies.hlsli"
 
+// Lobe source without Skylighting: the VSM, else the pass shadow.
+#if defined(VOLUMETRIC_SHADOWS) && defined(FO4_SUN_SHADOWED_FAMILY)
+#	include "FO4/VolumetricShadowsConsumer.hlsli"
+#	define FO4_UNLOADED_SOFT_SHADOW
+#	define FO4_UNLOADED_SOFT_SHADOW_BEGIN(softShadow, viewPosition) FO4_VSM_SOFT_SHADOW(softShadow, viewPosition)
+#	define FO4_UNLOADED_SOFT_SHADOW_NATIVE(softShadow, shadow) FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow)
+#elif defined(FO4_SUN_SHADOWED_FAMILY)
+#	define FO4_UNLOADED_SOFT_SHADOW_BEGIN(softShadow, viewPosition)
+#	define FO4_UNLOADED_SOFT_SHADOW_NATIVE(softShadow, shadow) softShadow = (shadow)
+#else
+#	define FO4_UNLOADED_SOFT_SHADOW_BEGIN(softShadow, viewPosition)
+#	define FO4_UNLOADED_SOFT_SHADOW_NATIVE(softShadow, shadow)
+#endif
+
 // Soft, rim and back lobes take probe visibility (SHADOW_VIS), else the VSM.
 #if defined(SKYLIGHTING_SHADOW_VIS)
 #	define FO4_SOFT_SUN_SHADOW_ACTIVE
-#	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_SKYLIGHTING_SOFT_SHADOW(softShadow, viewPosition, normalView)
-#elif defined(VOLUMETRIC_SHADOWS) && defined(FO4_SUN_SHADOWED_FAMILY)
-#	include "FO4/VolumetricShadowsConsumer.hlsli"
+// FO4: Skylighting toggles live, so disabled lobes take the unloaded source.
+#	define FO4_SKYLIGHTING_DISABLED [branch] if (FO4SharedData::EnabledSkylighting == 0)
+#	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView)    \
+		FO4_SKYLIGHTING_SOFT_SHADOW(softShadow, viewPosition, normalView); \
+		FO4_SKYLIGHTING_DISABLED { FO4_UNLOADED_SOFT_SHADOW_BEGIN(softShadow, viewPosition); }
+#	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow) \
+		FO4_SKYLIGHTING_DISABLED { FO4_UNLOADED_SOFT_SHADOW_NATIVE(softShadow, shadow); }
+#elif defined(FO4_UNLOADED_SOFT_SHADOW)
 #	define FO4_SOFT_SUN_SHADOW_ACTIVE
-#	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) FO4_VSM_SOFT_SHADOW(softShadow, viewPosition, normalView)
-#	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow) FO4_VSM_NATIVE_SOFT_SHADOW(softShadow, shadow)
+#	define FO4_SOFT_SHADOW_BEGIN(softShadow, viewPosition, normalView) \
+		float softShadow;                                               \
+		FO4_UNLOADED_SOFT_SHADOW_BEGIN(softShadow, viewPosition)
+#	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow) FO4_UNLOADED_SOFT_SHADOW_NATIVE(softShadow, shadow)
 #endif
 #ifndef FO4_SOFT_SHADOW_NATIVE
 #	define FO4_SOFT_SHADOW_NATIVE(softShadow, shadow)

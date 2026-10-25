@@ -76,7 +76,6 @@ namespace cs::features
 		void Blur(ID3D11DeviceContext* a_context, std::size_t a_mip);
 
 		void BindConsumer(ID3D11DeviceContext* a_context, cs::engine::ShaderInjectionTarget a_target);
-		static bool ActiveLightReadsSoftShadow() noexcept;
 
 		enum class DebugCascade : std::uint8_t
 		{
