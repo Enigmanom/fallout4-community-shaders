@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+- Community Shaders now disables itself with a message when the standalone Dynamic Cubemaps F4 mod is installed; it patches the same draw call.
 - Dynamic Cubemaps: `material_reflections` now defaults to 0.25.
 - Skylighting: fixed a bright patch around the player with 3 shadow cascades (`iDirShadowSplits=3`, the High/Ultra default).
 - Volumetric Shadows: new feature ported from Skyrim CS; softens the sun's soft, rim and back lighting and shadows the sun on water.

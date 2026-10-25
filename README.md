@@ -106,6 +106,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, building, testing, and deploym
 
 - ENB is unsupported.
 - The standalone Motion Vector Fixes plugin is incompatible; CS disables itself while `MotionVectorFixes.dll` is installed.
+- The standalone Dynamic Cubemaps F4 plugin is incompatible; CS disables itself while `DynamicCubemapF4.dll` is installed.
 - Native HDR mods (RenoDX, Special K HDR) are unsupported with Upscaling or Frame Generation and untested otherwise.
 - Linux/Proton needs a Windows 10 `d3dcompiler_47.dll` in the prefix's `system32` or next to `Fallout4.exe`; Proton's built-in compiler cannot build the shaders.
 - Upscaling requires a DX12-capable GPU. DLSS requires compatible NVIDIA RTX hardware.
