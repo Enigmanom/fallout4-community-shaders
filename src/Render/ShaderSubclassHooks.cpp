@@ -10,6 +10,7 @@
 #include "Render/PrepassTechnique.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassContext.h"
+#include "Render/SkyReflectionCube.h"
 #include "Telemetry/Telemetry.h"
 
 #include <Windows.h>
@@ -216,6 +217,8 @@ namespace cs::engine
 				RE::BSShader* a_self,
 				std::uint32_t a_techniqueBits)
 			{
+				if constexpr (requires { Tag::BeforeSetupTechnique(); })
+					Tag::BeforeSetupTechnique();
 				shader_context::Scope scope(
 					a_self, Tag::Name(), a_techniqueBits);
 				return func(a_self, a_techniqueBits);
@@ -514,7 +517,13 @@ namespace cs::engine
 			CS_HOOK_SHADER_SUBCLASS(BSEffectShader, kEffect);
 			CS_HOOK_SHADER_SUBCLASS(BSLightingShader, kBsLighting);
 			CS_HOOK_SHADER_SUBCLASS(BSParticleShader, kParticle);
-			CS_HOOK_SHADER_SUBCLASS(BSSkyShader, kBsSky);
+			struct Tag_BSSkyShader
+			{
+				static const char* Name() { return "BSSkyShader"; }
+				// Sky techniques never write the cull selector.
+				static void BeforeSetupTechnique() noexcept { ReselectSkyReflectionCubeCull(); }
+			};
+			TryInstallSetupTechnique<RE::BSSkyShader, Tag_BSSkyShader>();
 			CS_HOOK_SHADER_SUBCLASS(BSUtilityShader, kUtility);
 			CS_HOOK_SHADER_SUBCLASS(BSWaterShader, kBsWater);
 

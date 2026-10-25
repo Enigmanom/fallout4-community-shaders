@@ -35,6 +35,9 @@ namespace cs::engine
 	// Render thread. Set only while the host clicks a face of the engine cube.
 	[[nodiscard]] std::optional<SkyReflectionCubeCapture> GetSkyReflectionCubeCapture() noexcept;
 
+	// Render thread. Reapplies the face cull; LOD passes leave a stale one.
+	void ReselectSkyReflectionCubeCull() noexcept;
+
 	// Engine cube and depth face size; set before the renderer creates targets.
 	void SetSkyReflectionCubeSize(std::uint32_t a_size) noexcept;
 

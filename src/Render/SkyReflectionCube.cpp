@@ -159,6 +159,8 @@ namespace cs::engine
 		const void* g_lodWorldSpace = nullptr;
 		WeatherSnapshot g_lodWeather;
 		std::optional<std::uint32_t> g_lastFrame;
+		// ClickCubeMap selects front culling (2) and exits with back (1).
+		constexpr auto kCubeCullMode = static_cast<RE::BSGraphics::RasterStateCullMode>(2);
 		std::optional<SkyReflectionCubeCapture> g_capture;
 		std::uint64_t g_captureSerial = 0;
 
@@ -684,6 +686,21 @@ namespace cs::engine
 		g_consumers.push_back({ std::string(a_name), std::move(a_wantsCube), std::move(a_wantsLod) });
 		L->info("Sky reflection cube consumer registered: {}", a_name);
 		return true;
+	}
+
+	void ReselectSkyReflectionCubeCull() noexcept
+	{
+		if (!g_capture)
+			return;
+		auto* context = GetActiveContext();
+		if (!context)
+			return;
+		// Mirrored face views need the selector ClickCubeMap writes inline.
+		auto& state = context->shadowState;
+		if (state.rasterStateCullMode.get() == kCubeCullMode)
+			return;
+		state.rasterStateCullMode = kCubeCullMode;
+		state.stateUpdateFlags |= static_cast<std::uint32_t>(RE::BSGraphics::ShaderFlags::DIRTY_RASTERIZER_STATE);
 	}
 
 	ID3D11Texture2D* GetSkyReflectionCubeTexture() noexcept
