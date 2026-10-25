@@ -6,18 +6,13 @@
 #include "FO4/FO4ShaderData.hlsli"
 #include "FO4/ForwardPosition.hlsli"
 #include "FO4/ShadowSamplingConsumer.hlsli"
+#include "FO4/WorldShadowConsumer.hlsli"
 
 namespace TerrainShadows
 {
-	float GetTerrainShadowMultFromViewPosition(float3 viewPosition)
-	{
-		// FO4: b4 supplies the absolute origin for upstream heightfield sampling.
-		return ShadowSampling::GetWorldShadow(FrameBuffer::ViewToWorld(viewPosition), FrameBuffer::CameraPosAdjust.xyz);
-	}
-
 	float GetShadowFromScreenPosition(float3 screenPosition)
 	{
-		return GetTerrainShadowMultFromViewPosition(FO4Forward::ViewPosition(screenPosition));
+		return WorldShadow::GetMultFromViewPosition(FO4Forward::ViewPosition(screenPosition));
 	}
 
 #ifdef TERRAIN_SHADOWS_FULLSCREEN_DEBUG
