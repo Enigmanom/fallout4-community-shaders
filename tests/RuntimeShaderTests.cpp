@@ -54,7 +54,7 @@ namespace
 			{ "DynamicCubemaps/InferCubemapCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } }, { { {}, { { "REFLECTIONS", "" } }, { { "FAKEREFLECTIONS", "" } } } } },
 			{ "DynamicCubemaps/SpecularIrradianceCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
 			{ "DynamicCubemaps/BC6HEncodeCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
-			{ "FO4/DynamicCubemaps/CubemapPreviewCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
+			{ "FO4/CubemapPreviewCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } }, { Toggle("SINGLE_CHANNEL") } },
 
 			{ "IBL/DiffuseIBLCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
 
