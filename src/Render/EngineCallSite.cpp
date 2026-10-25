@@ -3,6 +3,7 @@
 #include "PCH.h"
 
 #include "Log.h"
+#include "Utils/HookOwner.h"
 
 #include <cstring>
 #include <format>
@@ -71,9 +72,13 @@ namespace cs::engine
 				a_anchor.name, RuntimeLabel(), site,
 				bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]));
 		case CallSiteKind::kWrongTarget:
-			return std::unexpected(std::format(
-				"{}: {} call at {:#x} targets {:#x}, expected {:#x}",
-				a_anchor.name, RuntimeLabel(), site, classification.target, expected));
+			{
+				const auto owner = cs::util::ForeignOwner(classification.target);
+				return std::unexpected(std::format(
+					"{}: {} call at {:#x} targets {:#x}, expected {:#x}{}",
+					a_anchor.name, RuntimeLabel(), site, classification.target, expected,
+					owner ? std::format(" (redirected by {})", *owner) : std::string{}));
+			}
 		}
 		std::unreachable();
 	}
