@@ -1,5 +1,7 @@
 #include "Host/ShaderCompileOverlayModel.h"
 
+#include "Check.h"
+
 #include <iostream>
 #include <string_view>
 
@@ -9,18 +11,6 @@ namespace
 	using cs::engine::ShaderCompileBatch;
 	using cs::host::ShaderCompileOverlayModel;
 	using cs::host::ShaderCompilePhase;
-
-	int failures{};
-
-	void Check(bool a_condition, std::string_view a_expression, int a_line)
-	{
-		if (!a_condition) {
-			std::cerr << "CHECK failed at line " << a_line << ": " << a_expression << '\n';
-			++failures;
-		}
-	}
-
-#define CHECK(a_expression) Check(static_cast<bool>(a_expression), #a_expression, __LINE__)
 
 	ShaderCompileBatch Batch(bool a_active, std::chrono::milliseconds a_duration)
 	{
@@ -72,5 +62,5 @@ int main()
 	TestWarmCacheNeverShows();
 	TestSlowWarmCacheNeverShows();
 	TestColdCacheShowsThenLingers();
-	return failures ? 1 : 0;
+	return cs::tests::failures ? 1 : 0;
 }

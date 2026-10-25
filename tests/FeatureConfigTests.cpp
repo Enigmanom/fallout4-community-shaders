@@ -18,25 +18,16 @@
 #include "TerrainVariationSettings.h"
 #include "World/WeatherVariableRegistry.h"
 
+#include "Check.h"
 #include <filesystem>
 #include <fstream>
+
 #include <iostream>
 #include <set>
 #include <sstream>
 
 namespace
 {
-	int failures = 0;
-
-	void Check(bool a_condition, std::string_view a_expression, int a_line)
-	{
-		if (!a_condition) {
-			std::cerr << "CHECK failed at line " << a_line << ": " << a_expression << '\n';
-			++failures;
-		}
-	}
-
-#define CHECK(a_expression) Check(static_cast<bool>(a_expression), #a_expression, __LINE__)
 
 	using namespace cs::settings;
 	using namespace cs::feature_config;
@@ -430,12 +421,12 @@ int main()
 		TestLightAuthoring();
 	} catch (const std::exception& error) {
 		std::cerr << "Unexpected exception: " << error.what() << '\n';
-		++failures;
+		++cs::tests::failures;
 	}
 	std::error_code ignored;
 	std::filesystem::remove_all(directory, ignored);
-	if (failures) {
-		std::cerr << failures << " check(s) failed\n";
+	if (cs::tests::failures) {
+		std::cerr << cs::tests::failures << " check(s) failed\n";
 		return 1;
 	}
 	std::cout << "FeatureConfig tests passed\n";

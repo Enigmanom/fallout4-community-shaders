@@ -2,6 +2,8 @@
 #include "Settings/SettingsJson.h"
 #include "Settings/SettingsSchema.h"
 
+#include "Check.h"
+
 #include <iostream>
 #include <string_view>
 
@@ -9,18 +11,6 @@ namespace
 {
 	using namespace cs::settings;
 	using nlohmann::json;
-
-	int failures{};
-
-	void Check(bool a_condition, std::string_view a_expression, int a_line)
-	{
-		if (!a_condition) {
-			std::cerr << "CHECK failed at line " << a_line << ": " << a_expression << '\n';
-			++failures;
-		}
-	}
-
-#define CHECK(a_expression) Check(static_cast<bool>(a_expression), #a_expression, __LINE__)
 
 	struct TestSettings
 	{
@@ -118,7 +108,7 @@ int main()
 	TestRejectionsLeaveStateUntouched();
 	TestKeyClassification();
 	TestNotComparableKeysStayLive();
-	if (failures)
+	if (cs::tests::failures)
 		return 1;
 	std::cout << "Settings JSON tests passed\n";
 	return 0;
