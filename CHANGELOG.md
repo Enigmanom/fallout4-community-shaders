@@ -5,6 +5,7 @@
 - Dynamic Cubemaps: `material_reflections` now defaults to 0.25.
 - Skylighting: fixed a bright patch around the player with 3 shadow cascades (`iDirShadowSplits=3`, the High/Ultra default).
 - Volumetric Shadows: new feature ported from Skyrim CS; softens the sun's soft, rim and back lighting and shadows the sun on water.
+- Cloud Shadows: new feature ported from Skyrim CS; clouds shade the sun on terrain, objects and water, with an opacity setting and a live enable toggle. It renders the sky in the reflection cube, so it shares that cost with Dynamic Cubemaps; Skyrim CS's cloud self-shadowing is not ported.
 
 ## 0.4.1
 

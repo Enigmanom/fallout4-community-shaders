@@ -57,6 +57,7 @@ Report problems through [Issues](https://github.com/northaxosky/fallout4-communi
 |---|---|
 | **Screen Space Shadows** | Contact shadows and finer shadow detail. |
 | **Terrain Shadows** | Long-range shadows from terrain. |
+| **Cloud Shadows** | Shadows from clouds that move across the landscape and water; requires an exterior with clouds. |
 | **Terrain Variation** | Stochastic terrain texture sampling to reduce tiling, including LOD terrain and landscape-textured meshes. |
 | **Terrain Blending** | Terrain blends into objects that sink into it, removing the hard seam. |
 | **LOD Blending** | LOD terrain and object brightness and gamma matching, optional terrain vertex-color removal. |
