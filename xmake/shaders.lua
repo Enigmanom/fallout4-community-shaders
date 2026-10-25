@@ -20,6 +20,7 @@ local root = os.projectdir()
 local engine_entry_points = {
     ["effect.hlsl"] = true,
     ["distanttree.hlsl"] = true,
+    ["sky.hlsl"] = true,
     ["water.hlsl"] = true
 }
 
