@@ -407,7 +407,7 @@ namespace cs::features
 		_graphMax += Settings::kSmoothingFactor * (_averageMs + spread - _graphMax);
 		_frameGeneration = render::TemporalPipeline::Get().GetFrameGenerationDiagnostics(false).active;
 		if (_frameGeneration) {
-			// FO4: the pinned active-FG branch always selects the calculated 2x fallback.
+			// Upstream derives post-FG figures from the fixed multiplier.
 			const float postMs = _frameMs / Settings::kFrameGenerationMultiplier;
 			if (_updateTimer <= 0.0f) {
 				_postDisplayMs = postMs;
