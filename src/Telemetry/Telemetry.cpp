@@ -151,9 +151,6 @@ namespace cs::telemetry
 				.Field(
 					"passthrough_not_ready",
 					TomlInteger(summary.passthroughNotReady))
-				.Field(
-					"passthrough_disabled",
-					TomlInteger(summary.passthroughDisabled))
 				.Field("dispatches", TomlInteger(summary.dispatches))
 				.Field("draw_frame", static_cast<std::int64_t>(summary.draw.frame))
 				.Field("draw_scopes", TomlInteger(summary.draw.scopes))

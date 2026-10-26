@@ -285,22 +285,6 @@ namespace cs::engine
 			std::unreachable();
 		}
 
-		constexpr std::string_view StageAbbreviation(
-			ShaderStage a_stage) noexcept
-		{
-			static_assert(
-				static_cast<std::uint8_t>(ShaderStage::kCount) == 3);
-			switch (a_stage) {
-			case ShaderStage::kVertex:
-				return "vs";
-			case ShaderStage::kPixel:
-				return "ps";
-			case ShaderStage::kCompute:
-				return "cs";
-			}
-			std::unreachable();
-		}
-
 		constexpr ShaderStageMask kValidShaderStages =
 			ShaderStageBit(ShaderStage::kVertex) | ShaderStageBit(ShaderStage::kPixel) | ShaderStageBit(ShaderStage::kCompute);
 
@@ -323,7 +307,6 @@ namespace cs::engine
 			std::atomic<std::uint64_t> substitutions{ 0 };
 			std::atomic<std::uint64_t> passthroughCompileFail{ 0 };
 			std::atomic<std::uint64_t> passthroughNotReady{ 0 };
-			std::atomic<std::uint64_t> passthroughDisabled{ 0 };
 			std::atomic<std::uint64_t> dispatches{ 0 };
 			DeveloperShaderOverride developerOverride = DeveloperShaderOverride::kAuto;
 			ShaderInjectionDefines defines;
@@ -673,61 +656,6 @@ namespace cs::engine
 		{
 			const auto* metadata = GetShaderInjectionTarget(a_target);
 			return metadata ? metadata->supportedStages : 0;
-		}
-
-		enum class MatchedShaderOutcome : std::uint8_t
-		{
-			kKeptStock,
-			kCompileFailed,
-			kNotReady,
-			kDisabled,
-			kReplaced
-		};
-
-		struct RecordedSwapCounts
-		{
-			std::uint64_t targetSubstitutions = 0;
-			std::uint64_t totalSubstitutions = 0;
-		};
-
-		RecordedSwapCounts RecordMatchedShaderOutcome(
-			ShaderInjectionTarget a_target,
-			MatchedShaderOutcome a_outcome) noexcept
-		{
-			auto& service = GetService();
-			SwapCountersGuard guard(service);
-			auto& runtime = service.runtime[ToIndex(a_target)];
-			runtime.matches.fetch_add(1, std::memory_order_relaxed);
-			switch (a_outcome) {
-			case MatchedShaderOutcome::kCompileFailed:
-				runtime.passthroughCompileFail.fetch_add(
-					1, std::memory_order_relaxed);
-				break;
-			case MatchedShaderOutcome::kNotReady:
-				runtime.passthroughNotReady.fetch_add(
-					1, std::memory_order_relaxed);
-				break;
-			case MatchedShaderOutcome::kDisabled:
-				runtime.passthroughDisabled.fetch_add(
-					1, std::memory_order_relaxed);
-				break;
-			case MatchedShaderOutcome::kReplaced:
-				runtime.substitutions.fetch_add(
-					1, std::memory_order_relaxed);
-				break;
-			case MatchedShaderOutcome::kKeptStock:
-				break;
-			}
-
-			RecordedSwapCounts counts;
-			counts.targetSubstitutions =
-				runtime.substitutions.load(std::memory_order_relaxed);
-			for (const auto& targetRuntime : service.runtime) {
-				counts.totalSubstitutions +=
-					targetRuntime.substitutions.load(
-						std::memory_order_relaxed);
-			}
-			return counts;
 		}
 
 		void LogLateMutation(std::string_view a_operation)
@@ -2497,9 +2425,6 @@ namespace cs::engine
 				snapshot.passthroughNotReady =
 					runtime.passthroughNotReady.load(
 						std::memory_order_relaxed);
-				snapshot.passthroughDisabled =
-					runtime.passthroughDisabled.load(
-						std::memory_order_relaxed);
 			}
 			snapshot.dispatches =
 				runtime.dispatches.load(std::memory_order_relaxed);
@@ -2532,9 +2457,6 @@ namespace cs::engine
 						std::memory_order_relaxed);
 				summary.passthroughNotReady +=
 					runtime.passthroughNotReady.load(
-						std::memory_order_relaxed);
-				summary.passthroughDisabled +=
-					runtime.passthroughDisabled.load(
 						std::memory_order_relaxed);
 				summary.dispatches += runtime.dispatches.load(std::memory_order_relaxed);
 			}

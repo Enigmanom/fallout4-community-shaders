@@ -176,7 +176,6 @@ namespace cs::engine
 		std::uint64_t substitutions = 0;
 		std::uint64_t passthroughCompileFail = 0;
 		std::uint64_t passthroughNotReady = 0;
-		std::uint64_t passthroughDisabled = 0;
 		std::uint64_t dispatches = 0;
 	};
 
@@ -204,7 +203,6 @@ namespace cs::engine
 		std::uint64_t substitutions = 0;
 		std::uint64_t passthroughCompileFail = 0;
 		std::uint64_t passthroughNotReady = 0;
-		std::uint64_t passthroughDisabled = 0;
 		std::uint64_t dispatches = 0;
 		ComputeDispatchBridgeStatus computeBridge;
 		ShaderInjectionDrawMetrics draw;
