@@ -2,12 +2,14 @@
 
 #include "Log.h"
 #include "Render/Annotation.h"
+#include "Render/RenderHooks.h"
 #include "Shared/PerfUtils.h"
 
 #include <algorithm>
 #include <atomic>
 #include <map>
 #include <mutex>
+#include <utility>
 
 #ifdef TRACY_SUPPORT
 #	include <tracy/Tracy.hpp>
@@ -41,6 +43,8 @@ namespace cs::render::profiling
 			bool enabled{};
 			bool queriesWanted{};
 			std::string activePass;
+			bool activeYields{};
+			std::string pausedPass;
 			std::map<int, ShaderTiming> shaderFrame;
 			std::vector<ShaderTiming> shaderTimings;
 			int shaderType = -1;
@@ -88,6 +92,8 @@ namespace cs::render::profiling
 			state.profiler.EndPass();
 			state.activePass.clear();
 		}
+		state.activeYields = false;
+		state.pausedPass.clear();
 		state.profiler.EndFrame();
 		state.queriesWanted = a_telemetryEnabled || state.enabled;
 		if (state.queriesWanted && state.device && !state.initialized) {
@@ -132,10 +138,26 @@ namespace cs::render::profiling
 	{
 		auto& state = State();
 		// FO4: annotation scopes can nest, but the shared profiler requires disjoint passes.
-		if (!state.queriesWanted || !state.initialized || !state.activePass.empty())
+		if (!state.queriesWanted || !state.initialized)
 			return false;
+		if (!state.activePass.empty()) {
+			if (!state.activeYields)
+				return false;
+			// An engine pass pauses so the nested CS pass is timed once, outside it.
+			state.profiler.EndPass();
+			state.pausedPass = std::move(state.activePass);
+			state.activeYields = false;
+		}
 		state.activePass = a_name;
 		state.profiler.BeginPass(state.activePass);
+		return true;
+	}
+
+	bool BeginEnginePass(std::string_view a_name)
+	{
+		if (!BeginPass(a_name))
+			return false;
+		State().activeYields = true;
 		return true;
 	}
 
@@ -146,6 +168,36 @@ namespace cs::render::profiling
 			return;
 		state.profiler.EndPass();
 		state.activePass.clear();
+		state.activeYields = false;
+		if (!state.pausedPass.empty()) {
+			state.activePass = std::move(state.pausedPass);
+			state.pausedPass.clear();
+			state.activeYields = true;
+			state.profiler.BeginPass(state.activePass);
+		}
+	}
+
+	bool InstallDeferredCompositePass()
+	{
+		// The pass spans the stock composite only; feature callbacks stay outside it.
+		static bool began = false;
+		static annotation::SpannedEvent event;
+		constexpr auto kPass = "DeferredComposite";
+		const auto innermostPre = static_cast<engine::HookPriority>(1000);
+		const auto innermostPost = static_cast<engine::HookPriority>(-1000);
+		return engine::RegisterPostDeferredComposite(
+				   [] {
+					   event.End();
+					   if (std::exchange(began, false))
+						   EndPass();
+				   },
+				   innermostPost) &&
+		       engine::RegisterPreDeferredComposite(
+				   [] {
+					   began = BeginEnginePass(kPass);
+					   event.Begin(kPass, false);
+				   },
+				   innermostPre);
 	}
 
 	void SetShaderFamily(int a_type, std::string_view a_name)

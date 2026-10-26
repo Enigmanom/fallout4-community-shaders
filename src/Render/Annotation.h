@@ -3,6 +3,7 @@
 #include <d3d11_1.h>
 #include <d3d12.h>
 
+#include <optional>
 #include <string_view>
 
 namespace cs::render::annotation
@@ -31,6 +32,17 @@ namespace cs::render::annotation
 		ID3DUserDefinedAnnotation* _d3d11{};
 		ID3D12GraphicsCommandList* _d3d12{};
 		bool _profile{};
+	};
+
+	// An event that opens in one callback and closes in another, e.g. a Pre/Post hook pair.
+	class SpannedEvent
+	{
+	public:
+		void Begin(std::string_view a_name, bool a_profile = true) noexcept { _event.emplace(a_name, a_profile); }
+		void End() noexcept { _event.reset(); }
+
+	private:
+		std::optional<ScopedEvent> _event;
 	};
 
 	void SetMarker(std::string_view a_name) noexcept;
