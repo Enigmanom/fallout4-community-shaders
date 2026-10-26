@@ -31,32 +31,40 @@ namespace cs::engine
 		OutermostPost = 1000,
 	};
 
+	// kObserve callbacks issue no GPU work that touches draw bindings, so the
+	// binding cache stays trusted around them.
+	enum class HookEffect : std::uint8_t
+	{
+		kGpuWork,
+		kObserve
+	};
+
 	// True on the startup thread before the first render hook fires.
 	[[nodiscard]] bool RenderHookRegistrationAllowed(const char* a_where);
 
 	// Register only during Load or OnPostPostLoad.
-	bool RegisterPostDeferredPrePass(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPreDeferredPrePass(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPostDeferredComposite(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostDeferredPrePass(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPreDeferredPrePass(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPostDeferredComposite(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 	// Right after the main sun's cascades render, before focus shadows reuse them.
-	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 	// Before the stock precipitation occlusion pass.
-	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 	// After the stock precipitation occlusion pass; it runs in clear weather too.
-	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	// Start of Render_PreUI, before the world camera or frame targets are set.
-	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	// After the update-water callback returns.
-	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	// Around each ProcessCommandBuffer replay (one technique bucket).
-	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	enum class ShadowLightKind : std::uint8_t
 	{
@@ -65,14 +73,14 @@ namespace cs::engine
 		kParabolic  // omnidirectional
 	};
 	// Bracket every Render of that light kind, whatever its mask.
-	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority = HookPriority::Default);
-	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
+	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	// After all sky and cloud draws in the main color target, before water and alpha.
-	bool RegisterPostForwardSky(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostForwardSky(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	// After every engine ResetState, including loading-screen and UI callers.
-	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority = HookPriority::Default, HookEffect effect = HookEffect::kGpuWork);
 
 	// One world batch-4 bucket: every pass in it shares the technique.
 	struct HeldPrepassBucket

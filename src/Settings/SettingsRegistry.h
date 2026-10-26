@@ -102,6 +102,20 @@ namespace cs::settings
 		};
 	}
 
+	// A missing section keeps the defaults; a_error names an invalid value.
+	template <class... Fields>
+	typename Schema<Fields...>::SettingsType ParseCoreSection(
+		const toml::table& a_root,
+		std::string_view a_section,
+		const Schema<Fields...>& a_schema,
+		std::string& a_error)
+	{
+		typename Schema<Fields...>::SettingsType parsed;
+		if (const auto* table = a_root[a_section].as_table())
+			ParseTable(a_schema, *table, parsed, a_error);
+		return parsed;
+	}
+
 	inline Registry BuildCoreRegistry()
 	{
 		Registry registry{

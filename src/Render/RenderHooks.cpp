@@ -38,6 +38,7 @@ namespace cs::engine
 		{
 			HookPriority priority;
 			RenderHookCallback cb;
+			HookEffect effect = HookEffect::kGpuWork;
 		};
 
 		constexpr std::size_t kShadowLightKindCount = 3;
@@ -135,9 +136,14 @@ namespace cs::engine
 			bool _active;
 		};
 
+		[[nodiscard]] bool AnyGpuWork(const std::vector<PrioritizedCallback>& v) noexcept
+		{
+			return std::ranges::any_of(v, [](const PrioritizedCallback& e) { return e.effect == HookEffect::kGpuWork; });
+		}
+
 		void Dispatch(const std::vector<PrioritizedCallback>& v)
 		{
-			const ScopedForeignWork work(!v.empty());
+			const ScopedForeignWork work(AnyGpuWork(v));
 			for (auto& entry : v) {
 				entry.cb();
 			}
@@ -167,7 +173,7 @@ namespace cs::engine
 		// Callbacks run inside engine frames, so failures are logged, not unwound.
 		void DispatchGuarded(const std::vector<PrioritizedCallback>& v, const char* a_where) noexcept
 		{
-			const ScopedForeignWork work(!v.empty());
+			const ScopedForeignWork work(AnyGpuWork(v));
 			for (auto& entry : v) {
 				try {
 					entry.cb();
@@ -536,22 +542,6 @@ namespace cs::engine
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		template <class Hook>
-		bool EnsureDetourInstalled(bool& a_installed, REL::VariantID a_id, const char* a_name)
-		{
-			if (a_installed) {
-				return true;
-			}
-			stl::detour_thunk<Hook>(a_id);
-			if (Hook::func.address() == 0) {
-				L->error("Hook failed on {}", a_name);
-				return false;
-			}
-			a_installed = true;
-			L->info("Hook installed on {}", a_name);
-			return true;
-		}
-
 		bool EnsureWaterUpdateInstalled()
 		{
 			return EnsureDetourInstalled<UpdateWaterFunc_Hook>(
@@ -859,105 +849,105 @@ namespace cs::engine
 		return RegistrationAllowed(a_where);
 	}
 
-	bool RegisterPostDeferredPrePass(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostDeferredPrePass(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostDeferredPrePass"))
 			return false;
-		InsertByPriority(g_postDeferredPrePass, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postDeferredPrePass, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureDeferredPrePassInstalled();
 		return true;
 	}
 
-	bool RegisterPreDeferredPrePass(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreDeferredPrePass(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PreDeferredPrePass"))
 			return false;
-		InsertByPriority(g_preDeferredPrePass, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_preDeferredPrePass, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureDeferredPrePassInstalled();
 		return true;
 	}
 
-	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PreDeferredLightsImpl"))
 			return false;
-		InsertByPriority(g_preDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_preDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureDeferredLightsImplInstalled();
 		return true;
 	}
 
-	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostDeferredLightsImpl"))
 			return false;
-		InsertByPriority(g_postDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureDeferredLightsImplInstalled();
 		return true;
 	}
 
-	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PreDeferredComposite"))
 			return false;
-		InsertByPriority(g_preDeferredComposite, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_preDeferredComposite, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureDeferredCompositeInstalled();
 		return true;
 	}
 
-	bool RegisterPostDeferredComposite(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostDeferredComposite(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostDeferredComposite"))
 			return false;
-		InsertByPriority(g_postDeferredComposite, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postDeferredComposite, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureDeferredCompositeInstalled();
 		return true;
 	}
 
-	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PreWaterUpdate"))
 			return false;
-		InsertByPriority(g_preWaterUpdate, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_preWaterUpdate, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureWaterUpdateInstalled();
 	}
 
-	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostWaterUpdate"))
 			return false;
-		InsertByPriority(g_postWaterUpdate, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postWaterUpdate, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureWaterUpdateInstalled();
 	}
 
-	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PreCommandBufferReplay"))
 			return false;
-		InsertByPriority(g_preCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_preCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureCommandBufferRouteInstalled();
 	}
 
-	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostCommandBufferReplay"))
 			return false;
-		InsertByPriority(g_postCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureCommandBufferRouteInstalled();
 	}
 
-	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PreShadowLightRender"))
 			return false;
-		InsertByPriority(g_preShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_preShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureShadowLightRenderInstalled(a_kind);
 	}
 
-	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostShadowLightRender"))
 			return false;
-		InsertByPriority(g_postShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureShadowLightRenderInstalled(a_kind);
 	}
 
@@ -985,44 +975,44 @@ namespace cs::engine
 		return true;
 	}
 
-	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostResetState"))
 			return false;
-		InsertByPriority(g_postResetState, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postResetState, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureResetStateInstalled();
 	}
 
-	bool RegisterPostForwardSky(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostForwardSky(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostForwardSky"))
 			return false;
-		InsertByPriority(g_postForwardSky, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postForwardSky, PrioritizedCallback{ priority, std::move(callback), effect });
 		EnsureForwardSkyInstalled();
 		return true;
 	}
 
-	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostSunShadowRender"))
 			return false;
-		InsertByPriority(g_postSunShadowRender, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postSunShadowRender, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsureSunShadowRenderInstalled();
 	}
 
-	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PrePrecipitationOcclusion"))
 			return false;
-		InsertByPriority(g_prePrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_prePrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsurePrecipitationOcclusionInstalled();
 	}
 
-	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		if (!RegistrationAllowed("PostPrecipitationOcclusion"))
 			return false;
-		InsertByPriority(g_postPrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback) });
+		InsertByPriority(g_postPrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback), effect });
 		return EnsurePrecipitationOcclusionInstalled();
 	}
 

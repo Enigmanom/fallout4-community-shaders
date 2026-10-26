@@ -180,6 +180,7 @@ namespace cs::render::profiling
 	bool InstallDeferredCompositePass()
 	{
 		// Stock composite only; feature callbacks stay outside the pass.
+		// Timestamp queries touch no bindings, so both hooks only observe.
 		static bool began = false;
 		static annotation::SpannedEvent event;
 		constexpr auto kPass = "DeferredComposite";
@@ -189,13 +190,15 @@ namespace cs::render::profiling
 					   if (std::exchange(began, false))
 						   EndPass();
 				   },
-				   engine::HookPriority::InnermostPost) &&
+				   engine::HookPriority::InnermostPost,
+				   engine::HookEffect::kObserve) &&
 		       engine::RegisterPreDeferredComposite(
 				   [] {
 					   began = BeginEnginePass(kPass);
 					   event.Begin(kPass, false);
 				   },
-				   engine::HookPriority::InnermostPre);
+				   engine::HookPriority::InnermostPre,
+				   engine::HookEffect::kObserve);
 	}
 
 	void SetShaderFamily(int a_type, std::string_view a_name)

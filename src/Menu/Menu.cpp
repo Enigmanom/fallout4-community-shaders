@@ -998,47 +998,38 @@ namespace cs
 				"draw diagnostics section"))
 			return;
 		{
-			dmui::SettingsTableScope options{ a_client, "advanced-frame-annotations" };
-			if (options.Result() != DMUI_RESULT_OK) {
-				CheckHostResult(a_client, false, "begin frame annotations table");
-				return;
-			}
-			if (options.Visible()) {
-				dmui::SettingsRowScope row{
-					a_client,
-					"frame-annotations",
-					"Frame annotations",
-					"Names engine passes and draws in GPU captures such as RenderDoc. Adds CPU cost."
-				};
-				if (row.Result() != DMUI_RESULT_OK) {
-					CheckHostResult(a_client, false, "begin frame annotations row");
-					return;
-				}
-				if (row.Visible()) {
-					bool requested = render::frame_annotations::Requested();
-					if (dmui::ui::Checkbox("##frame-annotations", &requested))
-						(void)render::frame_annotations::SetRequested(requested);
-					if (render::frame_annotations::Requested() != render::frame_annotations::Installed()) {
-						dmui::ui::SameLine();
-						if (!DrawRestartRequired(a_client, "draw frame annotations restart status"))
-							return;
-					}
-				}
-				if (!row.End()) {
-					CheckHostResult(a_client, false, "end frame annotations row");
-					return;
-				}
-			}
-			if (!CheckHostResult(a_client, options.End(), "end frame annotations table"))
-				return;
-		}
-		{
 			dmui::SettingsTableScope table{ a_client, "advanced-diagnostics" };
 			if (table.Result() != DMUI_RESULT_OK) {
 				CheckHostResult(a_client, false, "begin diagnostics table");
 				return;
 			}
 			if (table.Visible()) {
+				{
+					dmui::SettingsRowScope row{
+						a_client,
+						"frame-annotations",
+						"Frame annotations",
+						"Names engine passes and draws in GPU captures such as RenderDoc. Adds CPU cost."
+					};
+					if (row.Result() != DMUI_RESULT_OK) {
+						CheckHostResult(a_client, false, "begin frame annotations row");
+						return;
+					}
+					if (row.Visible()) {
+						bool requested = render::frame_annotations::Requested();
+						if (dmui::ui::Checkbox("##frame-annotations", &requested))
+							(void)render::frame_annotations::SetRequested(requested);
+						if (render::frame_annotations::Requested() != render::frame_annotations::Installed()) {
+							dmui::ui::SameLine();
+							if (!DrawRestartRequired(a_client, "draw frame annotations restart status"))
+								return;
+						}
+					}
+					if (!row.End()) {
+						CheckHostResult(a_client, false, "end frame annotations row");
+						return;
+					}
+				}
 				const std::array values{
 					std::pair{ "Plugin version", Plugin::VERSION.string(".") },
 					std::pair{ "Build", std::string(CS_BUILD_DESCRIBE) },

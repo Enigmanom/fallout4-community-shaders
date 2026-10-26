@@ -471,22 +471,6 @@ namespace cs::feature_config
 		return result;
 	}
 
-	bool ParseBackgroundCompilation(const toml::table& a_root, std::string& a_error)
-	{
-		settings::core::ShaderCache parsed;
-		if (const auto* table = a_root["shader_cache"].as_table())
-			settings::ParseTable(settings::core::kShaderCache, *table, parsed, a_error);
-		return parsed.backgroundCompilation;
-	}
-
-	bool ParseFrameAnnotations(const toml::table& a_root, std::string& a_error)
-	{
-		settings::core::Diagnostics parsed;
-		if (const auto* table = a_root["diagnostics"].as_table())
-			settings::ParseTable(settings::core::kDiagnostics, *table, parsed, a_error);
-		return parsed.frameAnnotations;
-	}
-
 	ScalarReadStatus ReadBool(const toml::table& a_table, std::string_view a_key, bool& a_value)
 	{
 		const auto* node = a_table.get(a_key);

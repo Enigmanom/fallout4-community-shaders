@@ -4,6 +4,7 @@
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderVariantCompilation.h"
 #include "Settings/FeatureConfig.h"
+#include "Settings/SettingsRegistry.h"
 
 #include <RE/M/Main.h>
 
@@ -82,7 +83,9 @@ namespace cs::engine
 		// The setting is file-only, so one read serves the session.
 		static const bool blocks = [] {
 			std::string error;
-			const bool background = feature_config::ParseBackgroundCompilation(feature_config::GetRoot(), error);
+			const bool background = settings::ParseCoreSection(
+				feature_config::GetRoot(), "shader_cache", settings::core::kShaderCache, error)
+			                            .backgroundCompilation;
 			if (!error.empty())
 				L->warn("shader_cache.{}; using the default", error);
 			return !background;
