@@ -401,7 +401,7 @@ namespace cs::engine
 			static inline REL::Relocation<void(RE::BSShadowDirectionalLight*, std::uint32_t)> func;
 		};
 
-		// Spot and omnidirectional shadow maps have no stock-caller boundary to preserve.
+		// Local lights have no stock-caller boundary to preserve.
 		template <ShadowLightKind Kind, class Light>
 		struct LocalShadowRender_Hook
 		{

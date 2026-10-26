@@ -24,6 +24,11 @@ namespace cs::engine
 		Early = -100,
 		Default = 0,
 		Late = 100,
+		// Brackets that enclose, or sit inside, every feature callback.
+		OutermostPre = -1000,
+		InnermostPost = -1000,
+		InnermostPre = 1000,
+		OutermostPost = 1000,
 	};
 
 	// True on the startup thread before the first render hook fires.
@@ -49,7 +54,7 @@ namespace cs::engine
 	// After the update-water callback returns.
 	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
 
-	// Around every ProcessCommandBuffer replay: the draws of one technique bucket.
+	// Around each ProcessCommandBuffer replay (one technique bucket).
 	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
 	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
 

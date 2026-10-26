@@ -810,14 +810,7 @@ namespace cs
 					if (row.Visible() &&
 						_startupLoads.RequiresRestart(feature->GetConfigKey(), loadAtBoot)) {
 						dmui::ui::SameLine();
-						if (!CheckHostResult(
-								a_client,
-								dmui::DrawStyledText(
-									a_client,
-									"Restart required",
-									{ .tone =
-											dmui::TextTone::kStatusWarning }),
-								"draw startup restart status"))
+						if (!DrawRestartRequired(a_client, "draw startup restart status"))
 							return;
 					}
 					if (!row.End()) {
@@ -1027,13 +1020,7 @@ namespace cs
 						(void)render::frame_annotations::SetRequested(requested);
 					if (render::frame_annotations::Requested() != render::frame_annotations::Installed()) {
 						dmui::ui::SameLine();
-						if (!CheckHostResult(
-								a_client,
-								dmui::DrawStyledText(
-									a_client,
-									"Restart required",
-									{ .tone = dmui::TextTone::kStatusWarning }),
-								"draw frame annotations restart status"))
+						if (!DrawRestartRequired(a_client, "draw frame annotations restart status"))
 							return;
 					}
 				}
@@ -1452,6 +1439,17 @@ namespace cs
 	void Menu::RequestClearRenderDocCaptures() noexcept
 	{
 		_clearRequested.store(ClearRequest::kClearRenderDocCaptures, std::memory_order_release);
+	}
+
+	bool Menu::DrawRestartRequired(dmui::Client& a_client, std::string_view a_operation)
+	{
+		return CheckHostResult(
+			a_client,
+			dmui::DrawStyledText(
+				a_client,
+				"Restart required",
+				{ .tone = dmui::TextTone::kStatusWarning }),
+			a_operation);
 	}
 
 	bool Menu::CheckHostResult(

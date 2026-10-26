@@ -110,7 +110,10 @@ namespace cs::feature_config
 		const toml::table& a_delta);
 	WriteResult UpdateFeatureLoad(std::string_view a_featureKey, bool a_load);
 	WriteResult UpdateFeatureEnabled(std::string_view a_featureKey, bool a_enabled);
-	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value);
+	WriteResult UpdateTopLevelSection(
+		std::string_view a_section,
+		const toml::table& a_value,
+		SectionWrite a_mode = SectionWrite::kReplace);
 
 	enum class ScalarReadStatus
 	{

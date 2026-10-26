@@ -15,7 +15,7 @@ namespace cs::telemetry
 	class Sink;
 }
 
-// Every shader subclass with its own vtable, for hooks that wrap a virtual on all of them.
+// Shader subclasses with their own vtable, for hooks wrapping a virtual.
 #define CS_SHADER_SUBCLASSES(X)               \
 	X(BSBloodSplatterShader, kBloodSplatter); \
 	X(BSDFCompositeShader, kBsdfComposite);   \

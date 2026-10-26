@@ -44,7 +44,6 @@ namespace cs::render::frame_annotations
 		std::atomic_bool g_live{ false };
 		std::atomic_int g_forces{ 0 };
 
-		// Always: emits whenever the hook exists. Live: also requires the live flag.
 		enum class Gate : std::uint8_t
 		{
 			kAlways,
@@ -56,21 +55,29 @@ namespace cs::render::frame_annotations
 			return a_gate == Gate::kAlways || Enabled();
 		}
 
-		// Annotation-only event; the profiler times leaf passes, never engine containers.
+		template <class Name>
+		[[nodiscard]] std::string_view NameView(const Name& a_name, std::string& a_storage)
+		{
+			if constexpr (std::invocable<const Name&>) {
+				a_storage = a_name();
+				return a_storage;
+			} else {
+				return a_name;
+			}
+		}
+
+		// Annotation only: the profiler times leaf passes, not containers.
 		class Scope
 		{
 		public:
-			Scope(Gate a_gate, std::string_view a_name) noexcept
+			// The name is a string_view or a generator, run only when the gate is open.
+			template <class Name>
+			Scope(Gate a_gate, const Name& a_name)
 			{
-				if (Open(a_gate))
-					_event.emplace(a_name, false);
-			}
-
-			template <std::invocable Name>
-			Scope(Gate a_gate, Name&& a_name)
-			{
-				if (Open(a_gate))
-					_event.emplace(a_name(), false);
+				if (!Open(a_gate))
+					return;
+				std::string storage;
+				_event.emplace(NameView(a_name, storage), false);
 			}
 
 			Scope(const Scope&) = delete;
@@ -86,7 +93,7 @@ namespace cs::render::frame_annotations
 			return name ? name : "Unknown";
 		}
 
-		// The pixel shader BeginTechnique bound last on this render thread.
+		// SetupGeometry has no pixel shader id; BeginTechnique saw it last.
 		struct BoundTechnique
 		{
 			const RE::BSShader* shader{};
@@ -138,8 +145,7 @@ namespace cs::render::frame_annotations
 			stl::write_vfunc<Shader, RestoreGeometry_Hook<Shader>>();
 		}
 
-		// The engine's imagespace shaders share two functions: Render draws, Dispatch runs compute.
-		// Both receive the ImageSpaceEffect base embedded at the end of the BSShader.
+		// Shared by every imagespace shader; `this` is the embedded effect base.
 		[[nodiscard]] std::string ImageSpaceEventName(RE::ImageSpaceEffect* a_effect, std::string_view a_kind)
 		{
 			auto* shader = reinterpret_cast<RE::BSImagespaceShader*>(
@@ -201,7 +207,6 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// One pass-list bucket: every pass in it shares the technique.
 		struct RenderPassImpl_Hook
 		{
 			static bool thunk(RE::BSBatchRenderer* a_this, RE::BSRenderPass* a_head, std::uint32_t a_technique, bool a_alpha)
@@ -242,7 +247,6 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// BSCubeMapCamera::ClickCubeMap, a virtual of the camera.
 		struct ClickCubeMap_Hook
 		{
 			static std::uint64_t thunk(RE::NiAVObject* a_camera, std::int32_t a_faces, bool a_silhouette, bool a_release, bool a_lodOnly)
@@ -265,7 +269,7 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// DrawWorld::Imagespace is the engine's Render_UI effect chain.
+		// The engine calls this Render_UI; it is the whole effect chain.
 		struct Imagespace_Hook
 		{
 			static void thunk()
@@ -277,7 +281,7 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// The world and first-person cameras, then four floats the stock callers pass through.
+		// Stock callers pass the cameras plus four floats; the floats are opaque.
 		struct DoZPrePass_Hook
 		{
 			static void thunk(
@@ -296,28 +300,13 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// Bracket callbacks of one engine pass; outermost, so feature work stays inside it.
-		constexpr auto kOutermostPre = static_cast<engine::HookPriority>(-1000);
-		constexpr auto kOutermostPost = static_cast<engine::HookPriority>(1000);
-
-		template <class Name>
-		[[nodiscard]] std::string_view NameView(const Name& a_name, std::string& a_storage)
-		{
-			if constexpr (std::invocable<const Name&>) {
-				a_storage = a_name();
-				return a_storage;
-			} else {
-				return a_name;
-			}
-		}
-
-		// The name is a string_view or a generator; a generator runs only when the gate is open.
+		// The name is a string_view or a generator, run only when the gate is open.
 		template <class RegisterPre, class RegisterPost, class Name>
 		void BracketPass(RegisterPre a_pre, RegisterPost a_post, Name a_name, Gate a_gate = Gate::kAlways)
 		{
 			auto span = std::make_shared<annotation::SpannedEvent>();
 			// Post first: a pre without its post would leave the event open.
-			if (!a_post([span] { span->End(); }, kOutermostPost) ||
+			if (!a_post([span] { span->End(); }, engine::HookPriority::OutermostPost) ||
 				!a_pre(
 					[span, a_name, a_gate] {
 						if (!Open(a_gate))
@@ -325,7 +314,7 @@ namespace cs::render::frame_annotations
 						std::string storage;
 						span->Begin(NameView(a_name, storage), false);
 					},
-					kOutermostPre))
+					engine::HookPriority::OutermostPre))
 				L->error("Engine pass unavailable");
 		}
 
@@ -348,7 +337,7 @@ namespace cs::render::frame_annotations
 			BracketPass(&RegisterPreDeferredLightsImpl, &RegisterPostDeferredLightsImpl, "Deferred Lights");
 			BracketPass(&RegisterPrePrecipitationOcclusion, &RegisterPostPrecipitationOcclusion, "Precipitation Occlusion");
 			BracketPass(&RegisterPreWaterUpdate, &RegisterPostWaterUpdate, "Water Effects");
-			// Replays run inside RenderBatches, not RenderPassImpl; the last bound technique names them.
+			// Replays run in RenderBatches, outside RenderPassImpl ranges.
 			BracketPass(&RegisterPreCommandBufferReplay, &RegisterPostCommandBufferReplay, [] { return std::format("BSBatchRenderer::CommandBuffer [{}:{:X}]", ShaderLabel(t_bound.shader), t_bound.pixelShaderId); }, Gate::kLive);
 			BracketPass(&PreShadow<ShadowLightKind::kDirectional>, &PostShadow<ShadowLightKind::kDirectional>, "Directional Light Shadowmaps");
 			BracketPass(&PreShadow<ShadowLightKind::kFrustum>, &PostShadow<ShadowLightKind::kFrustum>, "Spot Light Shadowmaps");
@@ -381,7 +370,6 @@ namespace cs::render::frame_annotations
 			Detour<Forward_Hook>(RE::ID::DrawWorld::Forward, "DrawWorld::Forward");
 			Detour<Imagespace_Hook>(RE::ID::DrawWorld::Imagespace, "DrawWorld::Imagespace");
 
-			// NiAccumulator::FinishAccumulating, then the two BSShaderAccumulator phases.
 			Vfunc<0x29, FinishAccumulating_Hook<FinishPhase::kAll>>(RE::VTABLE::BSShaderAccumulator);
 			Vfunc<0x2E, FinishAccumulating_Hook<FinishPhase::kPreResolveDepth>>(RE::VTABLE::BSShaderAccumulator);
 			Vfunc<0x2F, FinishAccumulating_Hook<FinishPhase::kPostResolveDepth>>(RE::VTABLE::BSShaderAccumulator);
@@ -422,7 +410,8 @@ namespace cs::render::frame_annotations
 	bool SetRequested(bool a_requested)
 	{
 		const auto saved = feature_config::UpdateTopLevelSection(
-			"diagnostics", toml::table{ { "frame_annotations", a_requested } });
+			"diagnostics", toml::table{ { "frame_annotations", a_requested } },
+			feature_config::SectionWrite::kMerge);
 		if (!saved) {
 			L->warn("Failed to save diagnostics.frame_annotations: {}", saved.error);
 			return false;

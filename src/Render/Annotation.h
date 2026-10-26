@@ -34,7 +34,7 @@ namespace cs::render::annotation
 		bool _profile{};
 	};
 
-	// An event that opens in one callback and closes in another, e.g. a Pre/Post hook pair.
+	// Spans a Pre/Post hook pair, so no C++ scope can own it.
 	class SpannedEvent
 	{
 	public:

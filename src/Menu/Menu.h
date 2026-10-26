@@ -76,6 +76,7 @@ namespace cs
 			const DMUI_DialogDescriptor& a_descriptor,
 			dmui::DialogSession::Submit a_submit);
 		bool ClearShaderCache(std::string& a_error);
+		bool DrawRestartRequired(dmui::Client& a_client, std::string_view a_operation);
 		bool CheckHostResult(
 			dmui::Client& a_client,
 			bool a_succeeded,

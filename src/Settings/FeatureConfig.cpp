@@ -425,10 +425,10 @@ namespace cs::feature_config
 		return UpdateOwnedSettingsAt(kConfigPath, path, toml::table{ { "enabled", a_enabled } }, SectionWrite::kMerge);
 	}
 
-	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value)
+	WriteResult UpdateTopLevelSection(std::string_view a_section, const toml::table& a_value, SectionWrite a_mode)
 	{
 		const std::array path{ a_section };
-		return UpdateOwnedSettingsAt(kConfigPath, path, a_value);
+		return UpdateOwnedSettingsAt(kConfigPath, path, a_value, a_mode);
 	}
 
 	ShaderOwnershipParseResult ParseShaderOwnership(const toml::table& a_root)

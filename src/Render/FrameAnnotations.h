@@ -9,10 +9,8 @@ namespace RE
 
 namespace cs::render::frame_annotations
 {
-	// Names engine passes and draws in GPU captures. The hooks exist only when
-	// diagnostics.frame_annotations was on at startup; Enabled() gates the per-draw events.
+	// Hooks exist only if on at startup; Enabled() gates per-draw events.
 	void Install();
-	// Names the engine's render targets and depth stencils.
 	void OnDataLoaded();
 
 	[[nodiscard]] bool Installed() noexcept;
@@ -21,7 +19,7 @@ namespace cs::render::frame_annotations
 	// Saves the setting and, once installed, applies it to the live flag.
 	bool SetRequested(bool a_requested);
 
-	// Live flag for the per-draw events. Capture tools hold a ScopedForce to see them all.
+	// Capture tools hold a ScopedForce so every event emits.
 	[[nodiscard]] bool Enabled() noexcept;
 
 	class ScopedForce
@@ -36,6 +34,5 @@ namespace cs::render::frame_annotations
 		ScopedForce& operator=(ScopedForce&&) = delete;
 	};
 
-	// Called by the BeginTechnique hook after the native technique binds.
 	void OnTechniqueBound(const RE::BSShader* a_shader, std::uint32_t a_pixelShaderId);
 }
