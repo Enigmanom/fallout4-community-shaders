@@ -24,6 +24,33 @@ namespace cs::engine
 		}
 	}
 
+	std::optional<ShaderInjectionDefines> GatherShaderInjectionDefines(
+		ShaderInjectionTarget a_target,
+		ShaderStageMask a_stages,
+		std::span<const ShaderReplacementRegistration> a_contributions,
+		std::string* a_error)
+	{
+		ShaderInjectionDefines defines;
+		for (const auto& contribution : a_contributions) {
+			if (contribution.targetId != a_target || (contribution.stages & a_stages) == 0 ||
+				!contribution.feature || !contribution.feature->IsLoaded() ||
+				!contribution.feature->HasShaderDefine(a_target)) {
+				continue;
+			}
+			if (!MergeDefines(
+					defines,
+					{ { std::string(contribution.feature->GetShaderDefineName()), "1" } },
+					a_error)) {
+				return std::nullopt;
+			}
+			for (const auto& [name, value] : contribution.feature->GetShaderDefineOptions(a_target)) {
+				if (!MergeDefines(defines, { { std::string(name), std::string(value) } }, a_error))
+					return std::nullopt;
+			}
+		}
+		return defines;
+	}
+
 	std::optional<ShaderVariantCompilationDescriptor>
 	BuildEffectiveShaderCompileRequest(
 		const ShaderInjectionTargetMetadata& a_target,
@@ -33,32 +60,18 @@ namespace cs::engine
 		GameRuntime a_runtime,
 		std::string* a_error)
 	{
+		auto defines = GatherShaderInjectionDefines(a_target.id, ShaderStageBit(a_stage), a_contributions, a_error);
+		if (!defines)
+			return std::nullopt;
+		const bool substrateActive = !defines->empty();
 		ShaderVariantCompilationDescriptor request{
 			.sourcePath = a_family.sourcePath,
 			.entryPoint = a_family.entryPoint,
-			.profile = a_family.profile
+			.profile = a_family.profile,
+			.defines = std::move(*defines)
 		};
-		request.defines.emplace("FRAMEBUFFER_REGISTER", "b4");
-		const auto stage = ShaderStageBit(a_stage);
-		bool substrateActive = false;
-		for (const auto& contribution : a_contributions) {
-			if (contribution.targetId != a_target.id || (contribution.stages & stage) == 0 ||
-				!contribution.feature || !contribution.feature->IsLoaded() ||
-				!contribution.feature->HasShaderDefine(a_target.id)) {
-				continue;
-			}
-			substrateActive = true;
-			if (!MergeDefines(
-					request.defines,
-					{ { std::string(contribution.feature->GetShaderDefineName()), "1" } },
-					a_error)) {
-				return std::nullopt;
-			}
-			for (const auto& [name, value] : contribution.feature->GetShaderDefineOptions(a_target.id)) {
-				if (!MergeDefines(request.defines, { { std::string(name), std::string(value) } }, a_error))
-					return std::nullopt;
-			}
-		}
+		if (!MergeDefines(request.defines, { { "FRAMEBUFFER_REGISTER", "b4" } }, a_error))
+			return std::nullopt;
 		if (substrateActive && !MergeDefines(
 								   request.defines,
 								   { { shader_injection_defines::kSubstrate, "1" } },
@@ -73,20 +86,6 @@ namespace cs::engine
 		if (a_error)
 			a_error->clear();
 		return request;
-	}
-
-	std::string DescribeShaderInjectionDefines(
-		const ShaderInjectionDefines& a_defines)
-	{
-		std::string names;
-		for (const auto& [name, value] : a_defines) {
-			if (!names.empty())
-				names += ",";
-			names += name;
-			names += "=";
-			names += value;
-		}
-		return names.empty() ? std::string("none") : names;
 	}
 
 }

@@ -37,20 +37,6 @@ namespace cs::engine
 			std::unreachable();
 		}
 
-		std::string DescribeDefines(
-			const std::vector<std::pair<std::string, std::string>>& a_defines)
-		{
-			std::string result;
-			for (const auto& [name, value] : a_defines) {
-				if (!result.empty())
-					result += ",";
-				result += name;
-				result += "=";
-				result += value;
-			}
-			return result.empty() ? "none" : result;
-		}
-
 		void LogCompilationFailure(
 			const ShaderVariantCompilationRequest& a_request,
 			std::string_view a_error)
@@ -64,7 +50,7 @@ namespace cs::engine
 				a_request.sourcePath.string(),
 				a_request.entryPoint,
 				a_request.profile,
-				DescribeDefines(a_request.defines),
+				DescribeShaderInjectionDefines(a_request.defines),
 				a_error.empty() ? "shader compilation failed" : a_error);
 		}
 

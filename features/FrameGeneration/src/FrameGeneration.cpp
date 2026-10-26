@@ -190,7 +190,11 @@ namespace cs::features
 		}
 		settings = candidate;
 		_liveSettings = cs::settings::BindLiveSettings(frame_generation::kSchema, settings,
-			[] { render::TemporalPipeline::Get().SubmitLiveConfiguration(); }, { "detailed_diagnostics" });
+			[this] {
+				render::TemporalPipeline::Get().SetDetailedTracing(settings.detailedDiagnostics);
+				render::TemporalPipeline::Get().SubmitLiveConfiguration();
+			},
+			{ "detailed_diagnostics" });
 		return true;
 	}
 
@@ -200,44 +204,11 @@ namespace cs::features
 			settings.detailedDiagnostics);
 	}
 
-	bool FrameGeneration::StageFromPreset(
-		const toml::table& a_table,
-		const PresetApplyContext&,
-		std::string& a_error)
+	void FrameGeneration::OnRuntimeQuarantined(std::string_view a_phase, std::string_view a_reason) noexcept
 	{
-		toml::table config;
-		config.insert_or_assign("settings", a_table);
-		auto candidate = settings;
-		if (!settings::Parse(frame_generation::kSchema, config, candidate, a_error)) {
-			return false;
-		}
-		_stagedSettings = candidate;
-		return true;
-	}
-
-	void FrameGeneration::CommitStagedSwap() noexcept
-	{
-		if (_stagedSettings) {
-			settings = *_stagedSettings;
-		}
-	}
-
-	bool FrameGeneration::CommitStagedFinalize()
-	{
-		if (!_stagedSettings) {
-			return true;
-		}
-		_stagedSettings.reset();
-		const bool saved = SaveSettings();
-		render::TemporalPipeline::Get().SetDetailedTracing(
-			settings.detailedDiagnostics);
-		render::TemporalPipeline::Get().SubmitLiveConfiguration();
-		return saved;
-	}
-
-	void FrameGeneration::ExportToPreset(toml::table& a_out)
-	{
-		a_out = settings::SerializeFull(frame_generation::kSchema, settings);
+		render::TemporalPipeline::Get().PostFailure(
+			render::temporal::FailureDomain::kFrameGeneration,
+			std::string(a_phase) + ": " + std::string(a_reason));
 	}
 
 	bool FrameGeneration::SaveSettings()

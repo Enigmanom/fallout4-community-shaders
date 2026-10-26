@@ -119,45 +119,11 @@ namespace cs::features
 		       cs::engine::ValidateShaderInjectionRoutes("UpscalingImageSpaceUv", a_error);
 	}
 
-	bool Upscaling::StageFromPreset(
-		const toml::table& a_table,
-		const PresetApplyContext&,
-		std::string& a_error)
+	void Upscaling::OnRuntimeQuarantined(std::string_view a_phase, std::string_view a_reason) noexcept
 	{
-		toml::table config;
-		config.insert_or_assign("settings", a_table);
-		auto candidate = settings;
-		if (!settings::Parse(render::temporal::kSchema, config, candidate, a_error)) {
-			return false;
-		}
-		candidate.enabled =
-			candidate.upscaleMethod !=
-			static_cast<std::uint32_t>(UpscaleMethod::kNONE);
-		_stagedSettings = candidate;
-		return true;
-	}
-
-	void Upscaling::CommitStagedSwap() noexcept
-	{
-		if (_stagedSettings) {
-			settings = *_stagedSettings;
-		}
-	}
-
-	bool Upscaling::CommitStagedFinalize()
-	{
-		if (!_stagedSettings) {
-			return true;
-		}
-		_stagedSettings.reset();
-		const bool saved = SaveSettings();
-		render::TemporalPipeline::Get().SubmitLiveConfiguration();
-		return saved;
-	}
-
-	void Upscaling::ExportToPreset(toml::table& a_out)
-	{
-		a_out = settings::SerializeFull(render::temporal::kSchema, settings);
+		render::TemporalPipeline::Get().PostFailure(
+			render::temporal::FailureDomain::kSuperResolution,
+			std::string(a_phase) + ": " + std::string(a_reason));
 	}
 
 	std::vector<std::string_view> Upscaling::GetRestartSettings() const

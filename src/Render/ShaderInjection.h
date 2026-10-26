@@ -215,8 +215,25 @@ namespace cs::engine
 		ShaderInjectionDrawMetrics draw;
 	};
 
-	std::string DescribeShaderInjectionDefines(
-		const ShaderInjectionDefines& a_defines);
+	template <class Defines>
+	std::string DescribeShaderInjectionDefines(const Defines& a_defines)
+	{
+		std::string names;
+		for (const auto& [name, value] : a_defines) {
+			if (!names.empty())
+				names += ",";
+			names += name;
+			names += "=";
+			names += value;
+		}
+		return names.empty() ? std::string("none") : names;
+	}
+
+	std::optional<ShaderInjectionDefines> GatherShaderInjectionDefines(
+		ShaderInjectionTarget a_target,
+		ShaderStageMask a_stages,
+		std::span<const ShaderReplacementRegistration> a_contributions,
+		std::string* a_error = nullptr);
 
 	std::optional<ShaderVariantCompilationDescriptor>
 	BuildEffectiveShaderCompileRequest(

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <exception>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
@@ -27,7 +28,6 @@ namespace cs
 		class SettingsEdit;
 	}
 
-	struct PresetApplyContext;
 	namespace weather
 	{
 		class Profiles;
@@ -72,7 +72,7 @@ namespace cs
 		// Runs on the UI event thread; queue render-thread work instead of doing it.
 		virtual void OnLoadingMenuClosed() {}
 		virtual void Prepass() {}
-		virtual void OnRuntimeQuarantined() noexcept {}
+		virtual void OnRuntimeQuarantined(std::string_view, std::string_view) noexcept {}
 		// Fires after IsEnabled() flips; resources stay alive while disabled.
 		virtual void OnEnabledChanged(bool) noexcept {}
 
@@ -89,6 +89,7 @@ namespace cs
 		virtual void DrawSettings() {}
 		// False keeps recorded edits pending for a later flush.
 		virtual bool SaveSettings() { return true; }
+		bool Persist();
 		virtual settings::SettingsBinding GetSettingsBinding() const { return {}; }
 		settings::SchemaView GetSettingsSchema() const
 		{
@@ -116,7 +117,7 @@ namespace cs
 		virtual FullscreenDebugData GetFullscreenDebugData() const noexcept { return {}; }
 
 		virtual void RestoreDefaultSettings() {}
-		void RestoreDefaults();
+		bool RestoreDefaults();
 
 		bool HasResettableSettings() const { return SupportsEnableToggle() || static_cast<bool>(GetSettingsBinding()); }
 		bool HasModifiedSettings() const
@@ -152,28 +153,8 @@ namespace cs
 		// Show load failures instead of silently skipping.
 		virtual void DrawFailLoadMessage() {}
 
-		// Features join presets by default.
-		virtual bool ParticipatesInPresets() const { return false; }
-
-		// Presets skip test-mode features.
-		virtual bool IsInTestMode() const { return false; }
-
-		// Multi-word features should override the snake_case key.
-		virtual std::string GetPresetKey() const;
-
-		// Staging must not mutate live state.
-		virtual bool StageFromPreset(const toml::table&,
-			const PresetApplyContext&,
-			std::string&) { return true; }
-
-		// Swap all staged state before finalization.
-		virtual void CommitStagedSwap() noexcept {}
-		virtual bool CommitStagedFinalize() { return true; }
-
-		// Empty output opts out of saving.
-		virtual void ExportToPreset(toml::table&) {}
-
 	protected:
+		bool SaveEnabled();
 		settings::LiveSettingsAccess _liveSettings;
 
 	private:
@@ -188,7 +169,6 @@ namespace cs
 		void ApplyActivationResult(const ActivationResult& a_result) { _state.ApplyActivationResult(a_result); }
 		void SetRuntimeStateOnly(FeatureRuntimeState a_state) noexcept { _state.runtimeState = a_state; }
 		void ComposeEnabledLiveSettings();
-		bool SaveEnabled();
 		void ResetLoadFailure() noexcept
 		{
 			_loadFailed = false;
@@ -255,7 +235,6 @@ namespace cs
 			Feature& a_feature,
 			std::string_view a_phase,
 			std::string_view a_reason) noexcept;
-		void FinishRuntimeCallbackPass() noexcept;
 
 		// Health-gates a_fn and quarantines the feature if it throws.
 		template <class Fn>
@@ -267,16 +246,20 @@ namespace cs
 				a_fn();
 			} catch (const std::exception& e) {
 				QuarantineRuntimeCallback(a_feature, a_phase, e.what());
-				FinishRuntimeCallbackPass();
 			} catch (...) {
 				QuarantineRuntimeCallback(a_feature, a_phase, "non-standard exception");
-				FinishRuntimeCallbackPass();
 			}
 		}
 
 		std::optional<settings::PreparedLiveSettings> PrepareLiveSettings(
 			Feature& a_feature,
 			const toml::table& a_values,
+			std::string_view a_phase,
+			std::string& a_error);
+		std::optional<settings::PreparedLiveSettings> PrepareLiveSettingsFromOverrides(
+			Feature& a_feature,
+			const toml::table* a_overrides,
+			const toml::node* a_enabled,
 			std::string_view a_phase,
 			std::string& a_error);
 		bool SaveAllSettings(std::string& a_error);
@@ -289,7 +272,12 @@ namespace cs
 		// Runs after the injection freeze so features can reject a partial delivery path.
 		void ValidateShaderInjectionsAll();
 
-		const std::vector<Feature*>& GetAll() const noexcept { return _loadedFeatures; }
+		auto GetAll() const noexcept
+		{
+			return _loadedFeatures | std::views::filter([](Feature* a_feature) noexcept {
+				return a_feature && a_feature->IsHealthy();
+			});
+		}
 		const std::vector<Feature*>& GetRegisteredFeatures() const noexcept { return _registeredFeatures; }
 		bool ApplyDebugViews(std::span<const FeatureDebugSelection> a_selections);
 		Feature* GetFullscreenDebugFeature() const noexcept { return _fullscreenDebugFeature.load(std::memory_order_acquire); }

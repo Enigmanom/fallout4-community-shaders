@@ -84,10 +84,10 @@ namespace cs::engine
 		static const bool blocks = [] {
 			std::string error;
 			const bool background = settings::ParseCoreSection(
-				feature_config::GetRoot(), "shader_cache", settings::core::kShaderCache, error)
+				settings::core::kShaderCache, feature_config::GetRoot(), "shader_cache", error)
 			                            .backgroundCompilation;
 			if (!error.empty())
-				L->warn("shader_cache.{}; using the default", error);
+				L->warn("{}; using the default", error);
 			return !background;
 		}();
 		return blocks;

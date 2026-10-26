@@ -43,27 +43,31 @@ namespace cs::settings
 			a_value);
 	}
 
+	void WriteValue(toml::table& a_table, std::string_view a_key, const Value& a_value)
+	{
+		std::visit([&](const auto& value) {
+			using T = std::remove_cvref_t<decltype(value)>;
+			if constexpr (std::same_as<T, Float2> || std::same_as<T, Float3> || std::same_as<T, Color4>) {
+				toml::array components;
+				for (float component : value)
+					components.push_back(static_cast<double>(component));
+				a_table.insert_or_assign(a_key, std::move(components));
+			} else if constexpr (std::same_as<T, float>) {
+				a_table.insert_or_assign(a_key, static_cast<double>(value));
+			} else if constexpr (std::same_as<T, std::uint64_t>) {
+				a_table.insert_or_assign(a_key, static_cast<std::int64_t>(value));
+			} else {
+				a_table.insert_or_assign(a_key, value);
+			}
+		},
+			a_value);
+	}
+
 	toml::table DefaultValues(const SchemaView& a_schema)
 	{
 		toml::table table;
-		for (const auto& field : a_schema) {
-			std::visit([&](const auto& value) {
-				using T = std::remove_cvref_t<decltype(value)>;
-				if constexpr (std::same_as<T, Float2> || std::same_as<T, Float3> || std::same_as<T, Color4>) {
-					toml::array components;
-					for (float component : value)
-						components.push_back(static_cast<double>(component));
-					table.insert_or_assign(field.key, std::move(components));
-				} else if constexpr (std::same_as<T, float>) {
-					table.insert_or_assign(field.key, static_cast<double>(value));
-				} else if constexpr (std::same_as<T, std::uint64_t>) {
-					table.insert_or_assign(field.key, static_cast<std::int64_t>(value));
-				} else {
-					table.insert_or_assign(field.key, value);
-				}
-			},
-				field.defaultValue);
-		}
+		for (const auto& field : a_schema)
+			WriteValue(table, field.key, field.defaultValue);
 		return table;
 	}
 }

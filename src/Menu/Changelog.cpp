@@ -1,6 +1,7 @@
 #include "Log.h"
 #include "Menu/ChangelogResource.h"
 #include "Menu/Menu.h"
+#include "Menu/Section.h"
 #include "Utils/ModuleResource.h"
 
 #include <string>
@@ -121,10 +122,8 @@ namespace cs
 {
 	void Menu::DrawChangelog(dmui::Client& a_client)
 	{
-		if (!CheckHostResult(
-				a_client,
-				a_client.DrawSectionHeader("Changelog"),
-				"draw changelog section"))
+		const ui::Section section{ "changelog", "Changelog" };
+		if (!section)
 			return;
 
 		const auto& history = Changelog();

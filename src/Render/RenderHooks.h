@@ -110,7 +110,8 @@ namespace cs::engine
 
 	// Install the post-dirty-state deferred draw anchor.
 	bool EnsureDeferredDrawAnchorInstalled();
-	void RegisterPreFullscreenDeferredLightDraw(
+	bool RegisterPreFullscreenDeferredLightDraw(
 		RenderHookCallback callback,
-		HookPriority priority = HookPriority::Default);
+		HookPriority priority = HookPriority::Default,
+		HookEffect effect = HookEffect::kGpuWork);
 }

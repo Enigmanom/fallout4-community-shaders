@@ -23,7 +23,7 @@ namespace cs::features
 		bool Configure(const toml::table&, std::string&) override;
 		void Load() override;
 		void OnDataLoaded() override;
-		void OnRuntimeQuarantined() noexcept override;
+		void OnRuntimeQuarantined(std::string_view, std::string_view) noexcept override;
 		void DrawSettings() override;
 		void DrawOverlay() override;
 		bool IsOverlayActive() const override { return settings.ShowInOverlay || _testing || _restorePending; }

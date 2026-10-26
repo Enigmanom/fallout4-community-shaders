@@ -447,10 +447,10 @@ namespace cs::render::frame_annotations
 	{
 		std::string error;
 		const bool requested = settings::ParseCoreSection(
-			feature_config::GetRoot(), "diagnostics", settings::core::kDiagnostics, error)
+			settings::core::kDiagnostics, feature_config::GetRoot(), "diagnostics", error)
 		                           .frameAnnotations;
 		if (!error.empty())
-			L->warn("diagnostics.{}; using the default", error);
+			L->warn("{}; using the default", error);
 		g_requested.store(requested, std::memory_order_relaxed);
 		if (!requested)
 			return;

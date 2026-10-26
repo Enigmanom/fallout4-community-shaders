@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <atomic>
 #include <map>
-#include <mutex>
 #include <utility>
 
 #ifdef TRACY_SUPPORT
@@ -32,7 +31,6 @@ namespace cs::render::profiling
 #endif
 			}
 
-			std::mutex mutex;
 #ifdef TRACY_SUPPORT
 			TracyD3D11Ctx tracyContext{};
 #endif
@@ -66,7 +64,6 @@ namespace cs::render::profiling
 		if (!a_device || !a_context)
 			return;
 		auto& state = State();
-		const std::scoped_lock lock{ state.mutex };
 		state.device = a_device;
 		state.context = a_context;
 #ifdef TRACY_SUPPORT
@@ -82,7 +79,6 @@ namespace cs::render::profiling
 		FrameMark;
 #endif
 		auto& state = State();
-		const std::scoped_lock lock{ state.mutex };
 #ifdef TRACY_SUPPORT
 		if (state.tracyContext)
 			TracyD3D11Collect(state.tracyContext);

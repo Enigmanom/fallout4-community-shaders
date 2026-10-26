@@ -238,7 +238,7 @@ namespace cs::features
 			_refreshHz = std::max(30.0f, static_cast<float>(mode.dmDisplayFrequency));
 	}
 
-	void PerformanceOverlay::OnRuntimeQuarantined() noexcept
+	void PerformanceOverlay::OnRuntimeQuarantined(std::string_view, std::string_view) noexcept
 	{
 		render::profiling::SetEnabled(false);
 		AbortTest("Performance Overlay was quarantined; restart required");

@@ -754,17 +754,6 @@ namespace cs::engine
 			L->warn("{} rejected after shader-injection freeze; restart required.", a_operation);
 		}
 
-		ShaderInjectionDefines GetDefines(const ShaderReplacementRegistration& a_registration)
-		{
-			const auto* feature = a_registration.feature;
-			if (!feature || !feature->IsLoaded() || !feature->HasShaderDefine(a_registration.targetId))
-				return {};
-			ShaderInjectionDefines defines{ { std::string(feature->GetShaderDefineName()), "1" } };
-			for (const auto& [name, value] : feature->GetShaderDefineOptions(a_registration.targetId))
-				defines.emplace(name, value);
-			return defines;
-		}
-
 		std::vector<FrozenTarget> FreezeTargets(
 			const std::vector<ShaderReplacementRegistration>& a_registrations)
 		{
@@ -787,8 +776,6 @@ namespace cs::engine
 					}
 
 					++target.contributors;
-					const auto defines = GetDefines(registration);
-					target.defines.insert(defines.begin(), defines.end());
 					target.contributions.push_back(registration);
 					if (registration.bind) {
 						target.binds.push_back({ registration.stages,
@@ -807,6 +794,13 @@ namespace cs::engine
 					}
 				}
 
+				std::string defineError;
+				if (auto defines = GatherShaderInjectionDefines(
+						metadata.id, SupportedStages(metadata.id), target.contributions, &defineError)) {
+					target.defines = std::move(*defines);
+				} else {
+					L->error("Shader target '{}': {}", metadata.name, defineError);
+				}
 				auto& runtime = GetService().runtime[targetIndex];
 				runtime.contributors.store(target.contributors, std::memory_order_relaxed);
 				runtime.defines = target.defines;

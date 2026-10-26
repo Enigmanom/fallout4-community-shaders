@@ -475,7 +475,7 @@ namespace cs::features
 		InstallHook<Luminance>(RE::ID::BSLight::GetLuminanceAtPoint);
 		g_state.hooks = true;
 	}
-	void InverseSquareLighting::OnRuntimeQuarantined() noexcept
+	void InverseSquareLighting::OnRuntimeQuarantined(std::string_view, std::string_view) noexcept
 	{
 		g_state.validated = false;
 		std::scoped_lock lock(g_state.mutex);
