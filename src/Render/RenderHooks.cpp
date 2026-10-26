@@ -9,8 +9,11 @@
 #include "Render/ShaderInjection.h"
 
 #include "RE/B/BSGeometry.h"
+#include "RE/B/BSShadowFrustumLight.h"
+#include "RE/B/BSShadowParabolicLight.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -37,6 +40,8 @@ namespace cs::engine
 			RenderHookCallback cb;
 		};
 
+		constexpr std::size_t kShadowLightKindCount = 3;
+
 		std::vector<PrioritizedCallback> g_postDeferredPrePass;
 		std::vector<PrioritizedCallback> g_preDeferredPrePass;
 		std::vector<PrioritizedCallback> g_preDeferredLightsImpl;
@@ -45,9 +50,13 @@ namespace cs::engine
 		std::vector<PrioritizedCallback> g_postDeferredComposite;
 		std::vector<PrioritizedCallback> g_preFullscreenDeferredLightDraw;
 		std::vector<PrioritizedCallback> g_postForwardSky;
+		std::vector<PrioritizedCallback> g_prePrecipitationOcclusion;
 		std::vector<PrioritizedCallback> g_postPrecipitationOcclusion;
 		std::vector<PrioritizedCallback> g_postSunShadowRender;
 		std::vector<PrioritizedCallback> g_preWaterUpdate;
+		std::vector<PrioritizedCallback> g_postWaterUpdate;
+		std::array<std::vector<PrioritizedCallback>, kShadowLightKindCount> g_preShadowLightRender;
+		std::array<std::vector<PrioritizedCallback>, kShadowLightKindCount> g_postShadowLightRender;
 		std::vector<PrioritizedCallback> g_postResetState;
 		struct PrepassHold
 		{
@@ -76,6 +85,8 @@ namespace cs::engine
 		bool g_forwardSkyInstalled = false;
 		bool g_precipitationOcclusionInstalled = false;
 		bool g_sunShadowRenderInstalled = false;
+		bool g_frustumShadowRenderInstalled = false;
+		bool g_parabolicShadowRenderInstalled = false;
 		bool g_waterUpdateInstalled = false;
 		bool g_resetStateInstalled = false;
 		bool g_insideDeferredLightsImpl = false;
@@ -354,6 +365,7 @@ namespace cs::engine
 			static void thunk()
 			{
 				MarkRegistrationClosed();
+				Dispatch(g_prePrecipitationOcclusion);
 				func();
 				DispatchGuarded(g_postPrecipitationOcclusion, "Precipitation occlusion");
 			}
@@ -371,12 +383,27 @@ namespace cs::engine
 		{
 			static void thunk(RE::BSShadowDirectionalLight* a_this, std::uint32_t a_mask)
 			{
+				Dispatch(g_preShadowLightRender[static_cast<std::size_t>(ShadowLightKind::kDirectional)]);
 				func(a_this, a_mask);
 				constexpr std::uint32_t kMainSunMask = 7;
 				if (a_mask == kMainSunMask && g_insideDeferredLightsImpl && a_this == GetSunShadowLight())
 					DispatchGuarded(g_postSunShadowRender, "Post sun shadow render");
+				Dispatch(g_postShadowLightRender[static_cast<std::size_t>(ShadowLightKind::kDirectional)]);
 			}
 			static inline REL::Relocation<void(RE::BSShadowDirectionalLight*, std::uint32_t)> func;
+		};
+
+		// Spot and omnidirectional shadow maps have no stock-caller boundary to preserve.
+		template <ShadowLightKind Kind, class Light>
+		struct LocalShadowRender_Hook
+		{
+			static void thunk(Light* a_this, std::uint32_t a_mask)
+			{
+				Dispatch(g_preShadowLightRender[static_cast<std::size_t>(Kind)]);
+				func(a_this, a_mask);
+				Dispatch(g_postShadowLightRender[static_cast<std::size_t>(Kind)]);
+			}
+			static inline REL::Relocation<void(Light*, std::uint32_t)> func;
 		};
 
 		// DrawWorld::Forward renders sky batch 7, then cloud group 14; water and alpha follow.
@@ -403,6 +430,7 @@ namespace cs::engine
 				MarkRegistrationClosed();
 				DispatchGuarded(g_preWaterUpdate, "Pre water update");
 				original.load(std::memory_order_acquire)(a_cullingProcess);
+				DispatchGuarded(g_postWaterUpdate, "Post water update");
 			}
 
 			static void thunk(Callback a_callback)
@@ -557,29 +585,72 @@ namespace cs::engine
 			L->info("Hook installed on DrawWorld::DeferredLightsImpl");
 		}
 
+		constexpr std::size_t kShadowRenderVtableSlot = 10;
+
+		// Render is slot 10 on every shadow light; refuse a layout that disagrees.
+		template <class Hook>
+		bool EnsureShadowRenderInstalled(
+			bool& a_installed,
+			const auto& a_vtable,
+			REL::VariantID a_render,
+			const char* a_name)
+		{
+			if (a_installed) {
+				return true;
+			}
+			REL::Relocation<std::uintptr_t> vtable{ a_vtable[0] };
+			const auto slot = vtable.address() + kShadowRenderVtableSlot * sizeof(std::uintptr_t);
+			const auto expected = a_render.address();
+			if (*reinterpret_cast<const std::uintptr_t*>(slot) != expected) {
+				L->error("{} vtable slot {} is not Render ({:#x}); shadow render hook unavailable", a_name, kShadowRenderVtableSlot, expected);
+				return false;
+			}
+			stl::write_vfunc<kShadowRenderVtableSlot, Hook>(a_vtable[0]);
+			a_installed = Hook::func.address() != 0;
+			if (!a_installed) {
+				L->error("Hook failed on {}::Render", a_name);
+				return false;
+			}
+			L->info("Hook installed on {}::Render (vtable slot {})", a_name, kShadowRenderVtableSlot);
+			return true;
+		}
+
 		bool EnsureSunShadowRenderInstalled()
 		{
 			if (g_sunShadowRenderInstalled) {
 				return true;
 			}
-			constexpr std::size_t kRenderVtableSlot = 10;
-			REL::Relocation<std::uintptr_t> vtable{ RE::VTABLE::BSShadowDirectionalLight[0] };
-			const auto slot = vtable.address() + kRenderVtableSlot * sizeof(std::uintptr_t);
-			const auto expected = RE::ID::BSShadowDirectionalLight::Render.address();
-			if (*reinterpret_cast<const std::uintptr_t*>(slot) != expected) {
-				L->error("BSShadowDirectionalLight vtable slot {} is not Render ({:#x}); sun shadow hook unavailable", kRenderVtableSlot, expected);
-				return false;
-			}
-			stl::write_vfunc<kRenderVtableSlot, SunShadowRender_Hook>(RE::VTABLE::BSShadowDirectionalLight[0]);
-			g_sunShadowRenderInstalled = SunShadowRender_Hook::func.address() != 0;
-			if (!g_sunShadowRenderInstalled) {
-				L->error("Hook failed on BSShadowDirectionalLight::Render");
+			if (!EnsureShadowRenderInstalled<SunShadowRender_Hook>(
+					g_sunShadowRenderInstalled,
+					RE::VTABLE::BSShadowDirectionalLight,
+					RE::ID::BSShadowDirectionalLight::Render,
+					"BSShadowDirectionalLight")) {
 				return false;
 			}
 			// The inside-DeferredLightsImpl flag only flips while that hook is installed.
 			EnsureDeferredLightsImplInstalled();
-			L->info("Hook installed on BSShadowDirectionalLight::Render (vtable slot {})", kRenderVtableSlot);
 			return true;
+		}
+
+		bool EnsureShadowLightRenderInstalled(ShadowLightKind a_kind)
+		{
+			switch (a_kind) {
+			case ShadowLightKind::kDirectional:
+				return EnsureSunShadowRenderInstalled();
+			case ShadowLightKind::kFrustum:
+				return EnsureShadowRenderInstalled<LocalShadowRender_Hook<ShadowLightKind::kFrustum, RE::BSShadowFrustumLight>>(
+					g_frustumShadowRenderInstalled,
+					RE::VTABLE::BSShadowFrustumLight,
+					RE::ID::BSShadowFrustumLight::Render,
+					"BSShadowFrustumLight");
+			case ShadowLightKind::kParabolic:
+				return EnsureShadowRenderInstalled<LocalShadowRender_Hook<ShadowLightKind::kParabolic, RE::BSShadowParabolicLight>>(
+					g_parabolicShadowRenderInstalled,
+					RE::VTABLE::BSShadowParabolicLight,
+					RE::ID::BSShadowParabolicLight::Render,
+					"BSShadowParabolicLight");
+			}
+			return false;
 		}
 
 		void EnsureDeferredPrePassInstalled()
@@ -793,20 +864,22 @@ namespace cs::engine
 		return true;
 	}
 
-	void RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
 	{
 		if (!RegistrationAllowed("PreDeferredLightsImpl"))
-			return;
+			return false;
 		InsertByPriority(g_preDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredLightsImplInstalled();
+		return true;
 	}
 
-	void RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
+	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
 	{
 		if (!RegistrationAllowed("PostDeferredLightsImpl"))
-			return;
+			return false;
 		InsertByPriority(g_postDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureDeferredLightsImplInstalled();
+		return true;
 	}
 
 	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority)
@@ -833,6 +906,30 @@ namespace cs::engine
 			return false;
 		InsertByPriority(g_preWaterUpdate, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsureWaterUpdateInstalled();
+	}
+
+	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PostWaterUpdate"))
+			return false;
+		InsertByPriority(g_postWaterUpdate, PrioritizedCallback{ priority, std::move(callback) });
+		return EnsureWaterUpdateInstalled();
+	}
+
+	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PreShadowLightRender"))
+			return false;
+		InsertByPriority(g_preShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback) });
+		return EnsureShadowLightRenderInstalled(a_kind);
+	}
+
+	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PostShadowLightRender"))
+			return false;
+		InsertByPriority(g_postShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback) });
+		return EnsureShadowLightRenderInstalled(a_kind);
 	}
 
 	bool RegisterWorldPrepassHold(
@@ -882,6 +979,14 @@ namespace cs::engine
 			return false;
 		InsertByPriority(g_postSunShadowRender, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsureSunShadowRenderInstalled();
+	}
+
+	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PrePrecipitationOcclusion"))
+			return false;
+		InsertByPriority(g_prePrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback) });
+		return EnsurePrecipitationOcclusionInstalled();
 	}
 
 	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority)
