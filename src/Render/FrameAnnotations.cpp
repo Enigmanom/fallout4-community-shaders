@@ -277,6 +277,25 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
+		// The world and first-person cameras, then four floats the stock callers pass through.
+		struct DoZPrePass_Hook
+		{
+			static void thunk(
+				RE::BSGraphics::Renderer* a_this,
+				RE::NiCamera* a_world,
+				RE::NiCamera* a_firstPerson,
+				float a_1,
+				float a_2,
+				float a_3,
+				float a_4)
+			{
+				const Scope scope(Gate::kAlways, "Depth");
+				func(a_this, a_world, a_firstPerson, a_1, a_2, a_3, a_4);
+			}
+
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
 		// Bracket callbacks of one engine pass; outermost, so feature work stays inside it.
 		constexpr auto kOutermostPre = static_cast<engine::HookPriority>(-1000);
 		constexpr auto kOutermostPost = static_cast<engine::HookPriority>(1000);
@@ -358,6 +377,7 @@ namespace cs::render::frame_annotations
 			Detour<RenderPassImpl_Hook>(RE::ID::BSBatchRenderer::RenderPassImpl, "BSBatchRenderer::RenderPassImpl");
 			Detour<Accumulator_RenderBatches_Hook>(RE::ID::BSShaderAccumulator::RenderBatches, "BSShaderAccumulator::RenderBatches");
 			Detour<ClickCubeMap_Hook>(RE::ID::BSCubeMapCamera::ClickCubeMap, "BSCubeMapCamera::ClickCubeMap");
+			Detour<DoZPrePass_Hook>(RE::ID::BSGraphics::Renderer::DoZPrePass, "BSGraphics::Renderer::DoZPrePass");
 			Detour<Forward_Hook>(RE::ID::DrawWorld::Forward, "DrawWorld::Forward");
 			Detour<Imagespace_Hook>(RE::ID::DrawWorld::Imagespace, "DrawWorld::Imagespace");
 
