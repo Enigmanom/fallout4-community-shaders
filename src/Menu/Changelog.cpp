@@ -4,40 +4,19 @@
 #include "Menu/ChangelogResource.h"
 #include "Menu/Menu.h"
 
-#include <REX/W32/KERNEL32.h>
+#include "Utils/ModuleResource.h"
 
 namespace
 {
 	[[nodiscard]] cs::ChangelogHistory LoadChangelog()
 	{
-		cs::ChangelogHistory result;
-		const auto module = reinterpret_cast<HMODULE>(REX::W32::GetCurrentModule());
-		if (!module) {
-			result.error = "current module handle is unavailable";
+		const auto text = cs::LoadRcData(IDR_CHANGELOG);
+		if (!text) {
+			cs::ChangelogHistory result;
+			result.error = text.error();
 			return result;
 		}
-		const auto resource = ::FindResourceW(
-			module, MAKEINTRESOURCEW(IDR_CHANGELOG), MAKEINTRESOURCEW(10));
-		if (!resource) {
-			result.error = "RCDATA resource was not found";
-			return result;
-		}
-		const auto size = ::SizeofResource(module, resource);
-		if (size == 0) {
-			result.error = "RCDATA resource is empty";
-			return result;
-		}
-		const auto loaded = ::LoadResource(module, resource);
-		if (!loaded) {
-			result.error = "RCDATA resource could not be loaded";
-			return result;
-		}
-		const auto* data = static_cast<const char*>(::LockResource(loaded));
-		if (!data) {
-			result.error = "RCDATA resource could not be read";
-			return result;
-		}
-		return cs::ParseChangelogHistory({ data, size });
+		return cs::ParseChangelogHistory(*text);
 	}
 
 	[[nodiscard]] const cs::ChangelogHistory& Changelog()
