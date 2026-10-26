@@ -32,13 +32,16 @@ namespace cs::engine
 			std::bitset<Count> tracked;
 			// Still bound as recorded since the last invalidation.
 			std::bitset<Count> trusted;
+			// Bound once per pass, so any change before the next pass bind is a loss.
+			std::bitset<Count> persistent;
 
-			void Record(UINT a_start, UINT a_count, T* const* a_values) noexcept
+			void Record(UINT a_start, UINT a_count, T* const* a_values, bool a_persistent) noexcept
 			{
 				for (UINT i = 0; i < a_count; ++i) {
 					expected[a_start + i] = a_values[i];
 					tracked.set(a_start + i);
 					trusted.set(a_start + i);
+					persistent.set(a_start + i, a_persistent);
 				}
 			}
 
@@ -56,7 +59,7 @@ namespace cs::engine
 					while (i + run < a_count && !(trusted.test(slot + run) && expected[slot + run] == a_values[i + run]))
 						++run;
 					SetStageBindings(a_context, a_stage, slot, run, a_values + i);
-					Record(slot, run, a_values + i);
+					Record(slot, run, a_values + i, false);
 					++calls;
 					i += run;
 				}
@@ -71,7 +74,8 @@ namespace cs::engine
 					T* actual = nullptr;
 					GetStageBindings(a_context, a_stage, slot, 1, &actual);
 					++a_metrics.checks;
-					if (actual != expected[slot]) {
+					// Untrusted draw bindings may change legitimately; they rebind on next use.
+					if (actual != expected[slot] && (trusted.test(slot) || persistent.test(slot))) {
 						++a_metrics.lost;
 						++a_metrics.lostTotal;
 						a_lost.set(slot);
@@ -155,7 +159,7 @@ namespace cs::engine
 	{
 		if (auto* stage = Stage(a_stage)) {
 			SetStageBindings(a_context, a_stage, a_start, a_count, a_views);
-			stage->resources.Record(a_start, a_count, a_views);
+			stage->resources.Record(a_start, a_count, a_views, true);
 		}
 	}
 
@@ -163,7 +167,7 @@ namespace cs::engine
 	{
 		if (auto* stage = Stage(a_stage)) {
 			SetStageBindings(a_context, a_stage, a_start, a_count, a_buffers);
-			stage->buffers.Record(a_start, a_count, a_buffers);
+			stage->buffers.Record(a_start, a_count, a_buffers, true);
 		}
 	}
 

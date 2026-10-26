@@ -293,8 +293,8 @@ namespace cs::features
 		DrawHeld(a_buckets, kData);
 		ID3D11ShaderResourceView* noView = nullptr;
 		ID3D11Buffer* noBuffer = nullptr;
-		context->PSSetShaderResources(kObjectDepthSlot, 1, &noView);
-		context->PSSetConstantBuffers(kReplayPassSlot, 1, &noBuffer);
+		cs::engine::BindFrameShaderResources(context, cs::engine::ShaderStage::kPixel, kObjectDepthSlot, 1, &noView);
+		cs::engine::BindFrameConstantBuffers(context, cs::engine::ShaderStage::kPixel, kReplayPassSlot, 1, &noBuffer);
 	}
 
 	void TerrainBlending::BindReplayDraw(ID3D11DeviceContext* a_context) noexcept
