@@ -89,14 +89,6 @@ namespace cs::engine
 	// Plugin GPU work or engine resets may have changed bindings the draw caches trust.
 	void InvalidateShaderInjectionBindings() noexcept;
 
-	struct EngineDrawFlushState
-	{
-		const void* variant = nullptr;
-		// PS sampler slots the engine resubmits during this flush.
-		std::uint16_t resubmitted = 0;
-		std::uint16_t requested = 0;
-	};
-
 	// Brackets one engine SetDirtyStates flush and the injection dispatch after it.
 	class ScopedEngineDrawFlush
 	{
@@ -109,7 +101,6 @@ namespace cs::engine
 
 	private:
 		RE::BSGraphics::RendererShadowState* _state = nullptr;
-		EngineDrawFlushState _flush;
 		std::uint16_t _released = 0;
 		bool _active = false;
 	};

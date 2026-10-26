@@ -131,11 +131,21 @@ namespace cs::engine
 		{
 			std::uint16_t mask = 0;
 			std::array<ID3D11SamplerState*, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> values{};
-			const void* owner = nullptr;
+		};
+
+		struct NativeVariant;
+
+		// The engine draw flush whose injection dispatch is running.
+		struct EngineDrawFlushState
+		{
+			NativeVariant* variant = nullptr;
+			// PS sampler slots the engine resubmits during this flush.
+			std::uint16_t resubmitted = 0;
+			std::uint16_t requested = 0;
 		};
 
 		thread_local SamplerOverrides t_samplerOverrides;
-		thread_local EngineDrawFlushState* t_engineFlush = nullptr;
+		thread_local EngineDrawFlushState t_engineFlush;
 		std::atomic_bool g_engineSamplerRestore{ true };
 
 		RE::BSGraphics::RendererShadowState* GetEngineShadowState() noexcept
@@ -164,7 +174,6 @@ namespace cs::engine
 			RecordShaderInjectionD3DBinds();
 			overrides.mask |= bit;
 			overrides.values[a_slot] = a_sampler;
-			overrides.owner = a_flush.variant;
 		}
 	}
 
@@ -185,8 +194,8 @@ namespace cs::engine
 			const bool pixel = ActiveBindingStage() == ShaderStage::kPixel;
 			if (pixel && (t_samplerMask & (1u << slot)) == 0)
 				continue;
-			if (pixel && t_engineFlush) {
-				BindEngineFlushSampler(*t_engineFlush, a_context, slot, a_values[slot - a_start]);
+			if (pixel && t_engineFlush.variant) {
+				BindEngineFlushSampler(t_engineFlush, a_context, slot, a_values[slot - a_start]);
 			} else if (t_bindings) {
 				t_bindings->BindSampler(a_context, slot, a_values[slot - a_start]);
 			} else {
@@ -462,6 +471,8 @@ namespace cs::engine
 			// Published after preparation stores its final compilation (or none).
 			std::atomic<bool> settled{ false };
 			std::atomic<util::ShaderSamplerUse> samplers{ util::ShaderSamplerUse{} };
+			// Render thread: PS sampler slots its last engine-flush dispatch bound.
+			std::uint16_t samplerRequests = 0;
 			static_assert(std::atomic<util::ShaderSamplerUse>::is_always_lock_free);
 		};
 
@@ -2434,22 +2445,22 @@ namespace cs::engine
 			return;
 		const ScopedInjectionTimer timer;
 		auto* variant = a_dispatches ? FindBoundPixelVariant(GetImmediateContext()) : nullptr;
-		if (t_samplerOverrides.mask && (!variant || variant != t_samplerOverrides.owner)) {
-			_released = t_samplerOverrides.mask;
-			ReleaseSamplerOverrides(_state);
+		// Keep only overrides this variant re-requested last time; the engine restores the rest now.
+		auto& overrides = t_samplerOverrides;
+		if (const auto release = static_cast<std::uint16_t>(overrides.mask & ~(variant ? variant->samplerRequests : 0))) {
+			_released = release;
+			_state->psSamplerModifiedBits |= release;
+			overrides.mask &= static_cast<std::uint16_t>(~release);
 		}
-		_flush.variant = variant;
-		_flush.resubmitted = static_cast<std::uint16_t>(_state->psSamplerModifiedBits);
 		if (variant) {
 			_active = true;
-			t_engineFlush = &_flush;
+			t_engineFlush = { .variant = variant, .resubmitted = static_cast<std::uint16_t>(_state->psSamplerModifiedBits) };
 		}
 	}
 
 	ScopedEngineDrawFlush::~ScopedEngineDrawFlush() noexcept
 	{
-		if (_active)
-			t_engineFlush = nullptr;
+		const auto flush = _active ? std::exchange(t_engineFlush, {}) : EngineDrawFlushState{};
 		if (!_state)
 			return;
 		if (_released && (_state->psSamplerModifiedBits & _released)) {
@@ -2459,23 +2470,21 @@ namespace cs::engine
 		}
 		if (!_active)
 			return;
-		const ScopedInjectionTimer timer;
+		flush.variant->samplerRequests = flush.requested;
 		auto& overrides = t_samplerOverrides;
 		// The engine resubmitted these slots, replacing overrides this draw did not request.
-		overrides.mask &= static_cast<std::uint16_t>(~(_flush.resubmitted & ~_flush.requested));
-		if (const auto stale = static_cast<std::uint16_t>(overrides.mask & ~_flush.requested)) {
+		overrides.mask &= static_cast<std::uint16_t>(~(flush.resubmitted & ~flush.requested));
+		if (const auto stale = static_cast<std::uint16_t>(overrides.mask & ~flush.requested)) {
 			_state->psSamplerModifiedBits |= stale;
 			overrides.mask &= static_cast<std::uint16_t>(~stale);
 		}
-		if (!overrides.mask)
-			overrides = {};
 	}
 
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept
 	{
 		const ScopedInjectionTimer timer;
-		if (auto* variant = FindBoundPixelVariant(a_context)) {
+		if (auto* variant = t_engineFlush.variant ? t_engineFlush.variant : FindBoundPixelVariant(a_context)) {
 			const ActiveVariantScope scope(variant);
 			DispatchShaderInjections(variant->target, a_context, variant->samplers.load(std::memory_order_relaxed));
 		}
