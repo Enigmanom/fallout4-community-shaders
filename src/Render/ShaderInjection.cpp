@@ -11,6 +11,7 @@
 #include "Render/ShaderFamilyDescriptor.h"
 #include "Render/ShaderVariantCompilation.h"
 #include "Render/SharedData.h"
+#include "Render/StockShaderVariants.h"
 #include "Settings/FeatureConfig.h"
 
 #include <algorithm>
@@ -23,6 +24,7 @@
 #include <d3dcompiler.h>
 #include <exception>
 #include <filesystem>
+#include <format>
 #include <limits>
 #include <map>
 #include <memory>
@@ -1860,6 +1862,43 @@ namespace cs::engine
 			"Shader injection freeze: targets requested={} published={}; native variants compile asynchronously from observed descriptors.",
 			summary.requested,
 			summary.published);
+	}
+
+	std::size_t PrewarmShaderInjectionVariants()
+	{
+		auto& service = GetService();
+		const auto plan = service.published.load(std::memory_order_acquire);
+		if (!plan)
+			return 0;
+		std::array<std::size_t, static_cast<std::size_t>(ShaderInjectionTarget::kCount)> perTarget{};
+		std::size_t total = 0;
+		const auto rows = GetStockShaderVariants(plan->runtime);
+		for (const auto& row : rows) {
+			// Rows without a native name have no shader the engine could bind.
+			if (row.nativeName.empty() || !ShaderEnabled(row.target) ||
+				(SupportedStages(row.target) & ShaderStageBit(row.stage)) == 0)
+				continue;
+			const auto* target = FindPublishedTarget(*plan, row.target);
+			if (!target || target->contributions.empty())
+				continue;
+			const auto variant = FindOrPrepareNativeVariant(
+				*plan, *target, MakeNativeVariantKey(row.Family()));
+			if (!variant)
+				continue;
+			std::scoped_lock lock(variant->mutex);
+			if (variant->compilation) {
+				++perTarget[ToIndex(row.target)];
+				++total;
+			}
+		}
+		std::string breakdown;
+		for (const auto& metadata : kTargets) {
+			if (const auto count = perTarget[ToIndex(metadata.id)]) {
+				breakdown += std::format("{}{}={}", breakdown.empty() ? "" : ", ", metadata.name, count);
+			}
+		}
+		L->info("Shader prewarm: {} variants queued ({})", total, breakdown.empty() ? "none" : breakdown);
+		return total;
 	}
 
 	void InvalidateNativeShaderVariantCompilations(std::span<const ShaderInjectionTarget> a_targets) noexcept

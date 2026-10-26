@@ -177,6 +177,9 @@ namespace cs::d3d11
 			InvokeOwner("FeatureManager shader-injection validation", [&] {
 				FeatureManager::Get().ValidateShaderInjectionsAll();
 			});
+			InvokeOwner("Shader variant prewarm", [] {
+				engine::PrewarmShaderInjectionVariants();
+			});
 			InvokeOwner("Debug-view selection", [] {
 				Menu::Get().ApplyDebugViewSelections();
 			});

@@ -240,6 +240,8 @@ namespace cs::engine
 		std::string& a_error);
 
 	void FreezeAndCompileShaderInjections(ID3D11Device* a_device);
+	// Queues every stock variant of contributed targets ahead of observed binds.
+	std::size_t PrewarmShaderInjectionVariants();
 	bool EnsureComputeDispatchBridgeInstalled(
 		ID3D11DeviceContext* a_immediateContext) noexcept;
 	[[nodiscard]] bool ComputeDispatchBridgeInstalled() noexcept;

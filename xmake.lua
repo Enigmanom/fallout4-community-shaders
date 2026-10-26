@@ -221,15 +221,26 @@ target(plugin_name, function()
         "features/*/src/**.cpp",
         "extern/bethesda-devbench/include/DevBenchAPI.cpp"
     )
-    add_files("src/Menu/Changelog.rc", { includedirs = os.projectdir() })
+    local resources = {
+        ["src/Menu/Changelog.rc"] = { "CHANGELOG.md" },
+        ["src/Render/StockShaderTables.rc"] = {
+            "tests/data/stock-shader-identity.tsv",
+            "tests/data/stock-shader-identity-OG-1.10.163.tsv"
+        }
+    }
+    for resource in pairs(resources) do
+        add_files(resource, { includedirs = os.projectdir() })
+    end
 
     before_build(function(target)
-        local changelog = path.join(os.projectdir(), "CHANGELOG.md")
-        local resource_object = target:objectfile("src/Menu/Changelog.rc")
-
         -- The resource rule does not track RCDATA payload files.
-        if os.isfile(resource_object) and os.mtime(changelog) > os.mtime(resource_object) then
-            os.rm(resource_object)
+        for resource, payloads in pairs(resources) do
+            local resource_object = target:objectfile(resource)
+            for _, payload in ipairs(payloads) do
+                if os.isfile(resource_object) and os.mtime(path.join(os.projectdir(), payload)) > os.mtime(resource_object) then
+                    os.rm(resource_object)
+                end
+            end
         end
     end)
 
@@ -440,6 +451,7 @@ local function stock_shader_identity_target(name, compiler, tests)
             "src/Render/ShaderFamilyDescriptor.cpp",
             "src/Render/ShaderInjectionCompileRequest.cpp",
             "src/Render/ShaderVariantRecipe.cpp",
+            "src/Render/StockShaderTable.cpp",
             "src/Utils/CSSha1.cpp",
             "src/Utils/ShaderCompile.cpp"
         )
