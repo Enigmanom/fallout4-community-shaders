@@ -11,13 +11,11 @@ namespace cs::host
 	{
 	public:
 		[[nodiscard]] bool Observe() noexcept;
-		[[nodiscard]] bool WantsInputFocus() const noexcept;
 		void Draw() const;
-		[[nodiscard]] static DMUI_ManagedOverlayOptions ManagedOverlayOptions() noexcept;
+		[[nodiscard]] static DMUI_ManagedOverlayOptions ManagedOverlayOptions(std::uint32_t a_abiMinor) noexcept;
 
 	private:
 		ShaderCompileOverlayModel _model;
 		ShaderCompilePresentation _presentation;
-		bool _blocksPlay{};
 	};
 }

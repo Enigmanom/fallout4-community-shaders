@@ -1,7 +1,6 @@
 #include "Host/ShaderCompileOverlay.h"
 
 #include "Render/Engine.h"
-#include "Render/ShaderCompileGate.h"
 #include "Render/ShaderVariantCompilation.h"
 
 #include <DearModdingUI/UI.h>
@@ -15,18 +14,8 @@ namespace cs::host
 	bool ShaderCompileOverlay::Observe() noexcept
 	{
 		const auto batch = engine::GetShaderCompileBatch();
-		_blocksPlay = ShaderCompileOverlayModel::BlocksPlay(batch);
 		_presentation = _model.Update(batch, ShaderCompileOverlayModel::Clock::now());
 		return _presentation.phase != ShaderCompilePhase::kHidden;
-	}
-
-	bool ShaderCompileOverlay::WantsInputFocus() const noexcept
-	{
-		if (!_blocksPlay || !engine::ShaderCompileBlocksPlay())
-			return false;
-		// Only the menu gates play; loads that bypass it proceed with stock shaders.
-		const auto* ui = RE::UI::GetSingleton();
-		return ui && ui->GetMenuOpen<RE::MainMenu>() && !ui->GetMenuOpen<RE::LoadingMenu>();
 	}
 
 	void ShaderCompileOverlay::Draw() const
@@ -41,13 +30,11 @@ namespace cs::host
 			fraction = batch.totalTasks ? std::min(1.0f, static_cast<float>(done) / static_cast<float>(batch.totalTasks)) : 0.0f;
 
 		if (ready) {
-			dmui::ui::TextColored(theme.success, "Shaders ready");
-			dmui::ui::SameLine();
+			dmui::ui::TextColored(theme.success, "Shaders ready:");
 			dmui::ui::TextDisabled("%u compiled, %u cache hits, %.1f s",
 				batch.CompiledTasks(), batch.cacheHits, seconds);
 		} else {
-			dmui::ui::Text("Compiling shaders");
-			dmui::ui::SameLine();
+			dmui::ui::Text("Compiling shaders:");
 			dmui::ui::TextDisabled("%u / %u, %u cache hits, %.1f s",
 				done, batch.totalTasks, batch.cacheHits, seconds);
 		}
@@ -61,7 +48,7 @@ namespace cs::host
 		dmui::ui::PopStyleColor();
 	}
 
-	DMUI_ManagedOverlayOptions ShaderCompileOverlay::ManagedOverlayOptions() noexcept
+	DMUI_ManagedOverlayOptions ShaderCompileOverlay::ManagedOverlayOptions(std::uint32_t a_abiMinor) noexcept
 	{
 		constexpr float kWidthFraction = 0.4f;
 		constexpr float kMinWidth = 640.0f;
@@ -73,10 +60,10 @@ namespace cs::host
 		const float width = display > 0.0f ?
 		                        std::min(std::max(display * kWidthFraction, kMinWidth), display - 2.0f * kMargin) :
 		                        kMinWidth;
-		// FREE offset is the left edge in host-unscaled px; size is exact px.
 		const float left = display > 0.0f ? std::floor((display - width) * 0.5f) : kMargin;
+		// Hosts before ABI 2.2 reject SCREEN_POSITION; FREE offsets scale instead.
 		return {
-			.anchor = DMUI_OVERLAY_ANCHOR_FREE,
+			.anchor = a_abiMinor >= 2 ? DMUI_OVERLAY_ANCHOR_SCREEN_POSITION : DMUI_OVERLAY_ANCHOR_FREE,
 			.offset = { left, kMargin },
 			.size = { width, 0.0f },
 			.minimumSize = { 0.0f, 0.0f },

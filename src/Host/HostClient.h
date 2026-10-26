@@ -64,7 +64,6 @@ namespace cs::host
 			FrameDemandTracker demand;
 			std::optional<DMUI_Result> configurationFailure;
 			std::optional<DMUI_Result> demandFailure;
-			std::optional<DMUI_Result> focusFailure;
 		};
 
 		bool RegisterPages();
@@ -84,10 +83,6 @@ namespace cs::host
 			std::string_view a_name,
 			bool a_wanted,
 			const DMUI_ManagedOverlayOptions& a_options) noexcept;
-		void SyncOverlayFocus(
-			OverlayChannel& a_overlay,
-			std::string_view a_name,
-			bool a_wanted) noexcept;
 		void ObserveHotkeyBindings() noexcept;
 		void ObserveHotkeyBinding(
 			const char* a_name,

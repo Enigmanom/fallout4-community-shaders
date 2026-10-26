@@ -37,16 +37,8 @@ namespace
 		ShaderCompileOverlayModel model;
 		const auto t0 = ShaderCompileOverlayModel::Clock::time_point{};
 		const auto slowWarm = AllCacheHits(true, 3000ms);
-		CHECK(ShaderCompileOverlayModel::BlocksPlay(slowWarm));
+		CHECK(cs::engine::BatchHoldsLoads(slowWarm));
 		CHECK(model.Update(slowWarm, t0).phase == ShaderCompilePhase::kCompiling);
-	}
-
-	void TestBlocksPlayKeysOnBatchState()
-	{
-		using Model = ShaderCompileOverlayModel;
-		CHECK(!Model::BlocksPlay(Batch(true, 200ms)));
-		CHECK(Model::BlocksPlay(Batch(true, Model::kRevealDelay)));
-		CHECK(!Model::BlocksPlay(Batch(false, 3000ms)));
 	}
 
 	void TestColdCacheShowsThenLingers()
@@ -71,7 +63,6 @@ int main()
 {
 	TestWarmCacheNeverShows();
 	TestBlockingBatchIsVisible();
-	TestBlocksPlayKeysOnBatchState();
 	TestColdCacheShowsThenLingers();
 	return cs::tests::failures ? 1 : 0;
 }

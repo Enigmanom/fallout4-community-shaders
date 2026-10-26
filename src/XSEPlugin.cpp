@@ -117,6 +117,7 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f
 	}
 
 	cs::engine::InstallShaderSubclassHooks();
+	cs::engine::InstallShaderCompileLoadGate();
 	cs::render::TemporalPipeline::Get().RegisterCreationRouter();
 
 	auto& featureManager = cs::FeatureManager::Get();
