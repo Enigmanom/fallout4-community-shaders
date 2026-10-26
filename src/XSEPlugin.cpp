@@ -3,8 +3,10 @@
 #include "Host/HostClient.h"
 #include "Log.h"
 #include "Menu/Menu.h"
+#include "Render/FrameAnnotations.h"
 #include "Render/FrameBoundary.h"
 #include "Render/FrameBuffer.h"
+#include "Render/FrameProfiler.h"
 #include "Render/ShaderCompileGate.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassHooks.h"
@@ -61,6 +63,7 @@ static void OnMessage(F4SE::MessagingInterface::Message* a_msg)
 		break;
 	case F4SE::MessagingInterface::kGameDataReady:
 		cs::FeatureManager::Get().OnDataLoadedAll();
+		cs::render::frame_annotations::OnDataLoaded();
 		cs::render::TemporalPipeline::Get().OnDataLoaded();
 		break;
 	default:
@@ -126,6 +129,9 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f
 	cs::Menu::Get().Load();
 	cs::engine::InstallFrameBuffer();
 	cs::telemetry::Install();
+	if (!cs::render::profiling::InstallDeferredCompositePass())
+		L->error("DeferredComposite profiler pass registration failed");
+	cs::render::frame_annotations::Install();
 	// Registration closes once the boundary installs.
 	cs::render::RegisterPostSwap(&cs::engine::StopShaderCompileOnQuit);
 	cs::render::InstallFrameBoundary();

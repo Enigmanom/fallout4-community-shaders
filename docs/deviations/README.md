@@ -33,6 +33,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 
 ## Features
 
+- [Frame Annotations](FrameAnnotations.md)
 - [InverseSquareLighting](InverseSquareLighting.md)
 - [WaterEffects](WaterEffects.md)
 - [Unified Water](UnifiedWater.md)

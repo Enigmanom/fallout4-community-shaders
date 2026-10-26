@@ -5,6 +5,7 @@
 #include "Log.h"
 #include "PCH.h"
 #include "Render/Engine.h"
+#include "Render/FrameAnnotations.h"
 #include "Render/FrameProfiler.h"
 #include "Render/NativeShaderFamily.h"
 #include "Render/PrepassTechnique.h"
@@ -104,6 +105,7 @@ namespace cs::engine
 				if (result) {
 					const auto* name = a_shader->GetFxpFilename();
 					render::profiling::SetShaderFamily(a_shader->shaderType, name ? name : "Unknown");
+					render::frame_annotations::OnTechniqueBound(a_shader, a_pixelShaderId);
 				}
 				return result;
 			}
@@ -506,17 +508,7 @@ namespace cs::engine
 	void InstallShaderSubclassHooks()
 	{
 		std::call_once(g_installOnce, [] {
-			CS_HOOK_SHADER_SUBCLASS(BSBloodSplatterShader, kBloodSplatter);
-			CS_HOOK_SHADER_SUBCLASS(BSDFCompositeShader, kBsdfComposite);
-			CS_HOOK_SHADER_SUBCLASS(BSDFLightShader, kBsdfLight);
-			CS_HOOK_SHADER_SUBCLASS(BSDFPrePassShader, kDeferredPrepass);
-			CS_HOOK_SHADER_SUBCLASS(BSDistantTreeShader, kDistantTree);
-			CS_HOOK_SHADER_SUBCLASS(BSEffectShader, kEffect);
-			CS_HOOK_SHADER_SUBCLASS(BSLightingShader, kBsLighting);
-			CS_HOOK_SHADER_SUBCLASS(BSParticleShader, kParticle);
-			CS_HOOK_SHADER_SUBCLASS(BSSkyShader, kBsSky);
-			CS_HOOK_SHADER_SUBCLASS(BSUtilityShader, kUtility);
-			CS_HOOK_SHADER_SUBCLASS(BSWaterShader, kBsWater);
+			CS_SHADER_SUBCLASSES(CS_HOOK_SHADER_SUBCLASS);
 
 			TryPatch("BSShader archive loader observer", [] {
 				stl::detour_thunk<ReloadFromStreamHook>(RE::ID::BSShader::Load);

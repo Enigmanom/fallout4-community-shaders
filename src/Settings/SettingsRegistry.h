@@ -40,6 +40,15 @@ namespace cs::settings
 			std::tuple{ Field{ "background_compilation", "Play while shaders compile instead of holding Continue, Load, and New Game until they finish; shaders not yet compiled render as stock.", &ShaderCache::backgroundCompilation, {}, ApplyTiming::kNextLaunch } }
 		};
 
+		struct Diagnostics
+		{
+			bool frameAnnotations = false;
+		};
+
+		inline constexpr Schema kDiagnostics{
+			std::tuple{ Field{ "frame_annotations", "Name engine passes and draws in GPU captures (RenderDoc, Nsight); adds CPU cost.", &Diagnostics::frameAnnotations, {}, ApplyTiming::kNextLaunch } }
+		};
+
 		struct ShaderTarget
 		{
 			bool enabled = true;
@@ -102,6 +111,7 @@ namespace cs::settings
 			{ { "shader_ownership", "targets" }, {}, false,
 				"Off binds the game's shader for that type, including feature changes to it." },
 			{ { "shader_cache" }, MakeSchemaView(core::kShaderCache) },
+			{ { "diagnostics" }, MakeSchemaView(core::kDiagnostics) },
 			{ { "menu" }, MakeSchemaView(core::kMenu) },
 			{ { "menu", "debug_view_previews" }, {}, true },
 			{ { "preset" }, MakeSchemaView(core::kPreset) }

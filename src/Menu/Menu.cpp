@@ -6,6 +6,7 @@
 #include "Menu/Section.h"
 #include "Plugin.h"
 #include "Render/Engine.h"
+#include "Render/FrameAnnotations.h"
 #include "Render/ShaderCacheClear.h"
 #include "Render/ShaderInjection.h"
 #include "RenderDoc.h"
@@ -1003,6 +1004,47 @@ namespace cs
 				a_client.DrawSectionHeader("Diagnostics"),
 				"draw diagnostics section"))
 			return;
+		{
+			dmui::SettingsTableScope options{ a_client, "advanced-frame-annotations" };
+			if (options.Result() != DMUI_RESULT_OK) {
+				CheckHostResult(a_client, false, "begin frame annotations table");
+				return;
+			}
+			if (options.Visible()) {
+				dmui::SettingsRowScope row{
+					a_client,
+					"frame-annotations",
+					"Frame annotations",
+					"Names engine passes and draws in GPU captures such as RenderDoc. Adds CPU cost."
+				};
+				if (row.Result() != DMUI_RESULT_OK) {
+					CheckHostResult(a_client, false, "begin frame annotations row");
+					return;
+				}
+				if (row.Visible()) {
+					bool requested = render::frame_annotations::Requested();
+					if (dmui::ui::Checkbox("##frame-annotations", &requested))
+						(void)render::frame_annotations::SetRequested(requested);
+					if (render::frame_annotations::Requested() != render::frame_annotations::Installed()) {
+						dmui::ui::SameLine();
+						if (!CheckHostResult(
+								a_client,
+								dmui::DrawStyledText(
+									a_client,
+									"Restart required",
+									{ .tone = dmui::TextTone::kStatusWarning }),
+								"draw frame annotations restart status"))
+							return;
+					}
+				}
+				if (!row.End()) {
+					CheckHostResult(a_client, false, "end frame annotations row");
+					return;
+				}
+			}
+			if (!CheckHostResult(a_client, options.End(), "end frame annotations table"))
+				return;
+		}
 		{
 			dmui::SettingsTableScope table{ a_client, "advanced-diagnostics" };
 			if (table.Result() != DMUI_RESULT_OK) {

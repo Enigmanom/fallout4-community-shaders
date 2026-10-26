@@ -466,6 +466,7 @@ namespace cs::features
 		}
 		const auto id = ++_lastRequestId;
 		_active = ActiveCapture{ .id = id, .request = a_request, .binding = std::move(binding) };
+		_annotationForce.emplace();
 		return id;
 	}
 
@@ -481,6 +482,7 @@ namespace cs::features
 		{
 			std::scoped_lock lock(_captureMutex);
 			observers = _observers;
+			_annotationForce.reset();
 		}
 		if (a_completion.error.empty())
 			L->info("Capture {} finished: {} files", a_completion.id, a_completion.captures.size());
