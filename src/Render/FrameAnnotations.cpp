@@ -313,9 +313,7 @@ namespace cs::render::frame_annotations
 		{
 			auto span = std::make_shared<annotation::SpannedEvent>();
 			// Post first: a pre without its post would leave the event open.
-			// Annotations touch no draw bindings, so they register as observers.
-			constexpr auto kEffect = engine::HookEffect::kObserve;
-			if (!a_post([span] { span->End(); }, engine::HookPriority::OutermostPost, kEffect) ||
+			if (!a_post([span] { span->End(); }, engine::HookPriority::OutermostPost) ||
 				!a_pre(
 					[span, a_name, a_gate] {
 						if (!Open(a_gate))
@@ -323,23 +321,22 @@ namespace cs::render::frame_annotations
 						std::string storage;
 						span->Begin(NameView(a_name, storage), false);
 					},
-					engine::HookPriority::OutermostPre,
-					kEffect)) {
+					engine::HookPriority::OutermostPre)) {
 				std::string storage;
 				L->error("Engine pass '{}' unavailable", NameView(a_name, storage));
 			}
 		}
 
 		template <engine::ShadowLightKind Kind>
-		bool PreShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority, engine::HookEffect a_effect)
+		bool PreShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority)
 		{
-			return engine::RegisterPreShadowLightRender(Kind, std::move(a_callback), a_priority, a_effect);
+			return engine::RegisterPreShadowLightRender(Kind, std::move(a_callback), a_priority);
 		}
 
 		template <engine::ShadowLightKind Kind>
-		bool PostShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority, engine::HookEffect a_effect)
+		bool PostShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority)
 		{
-			return engine::RegisterPostShadowLightRender(Kind, std::move(a_callback), a_priority, a_effect);
+			return engine::RegisterPostShadowLightRender(Kind, std::move(a_callback), a_priority);
 		}
 
 		void InstallEnginePasses()

@@ -186,15 +186,13 @@ namespace cs::render::profiling
 					   if (std::exchange(began, false))
 						   EndPass();
 				   },
-				   engine::HookPriority::InnermostPost,
-				   engine::HookEffect::kObserve) &&
+				   engine::HookPriority::InnermostPost) &&
 		       engine::RegisterPreDeferredComposite(
 				   [] {
 					   began = BeginEnginePass(kPass);
 					   event.Begin(kPass, false);
 				   },
-				   engine::HookPriority::InnermostPre,
-				   engine::HookEffect::kObserve);
+				   engine::HookPriority::InnermostPre);
 	}
 
 	void SetShaderFamily(int a_type, std::string_view a_name)
