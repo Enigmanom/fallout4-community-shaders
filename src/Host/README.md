@@ -33,9 +33,8 @@ With no compatible host, shader features, presets, TOML configuration, telemetry
 debug selections continue headless. There is intentionally no menu, overlay, notification UI, or
 diagnostic hotkey path.
 
-Frame annotations (`diagnostics.frame_annotations`, Advanced > Diagnostics) install their engine hooks
-only when on at startup; the checkbox then toggles the per-draw events live, and turning it on needs a
-restart. A RenderDoc capture holds `frame_annotations::ScopedForce` from request to completion.
+Frame annotations (`diagnostics.frame_annotations`, Advanced > Diagnostics) install hooks only when on at
+startup; the checkbox toggles per-draw events live. RenderDoc captures force them on.
 
 Startup loading is edited only in Advanced with positive checked-to-load controls. Home reports
 startup results; feature pages retain live effect controls and actionable failure/restart notices.

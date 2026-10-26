@@ -2,7 +2,8 @@
 
 ## 0.5.0
 
-- Frame annotations: new Advanced > Diagnostics setting (`diagnostics.frame_annotations`, restart required) that names engine passes, shader draws, imagespace effects and render targets in RenderDoc captures; captures turn it on for their frames. The deferred composite now appears in profiler timings.
+- Frame annotations: `diagnostics.frame_annotations` (Advanced > Diagnostics, restart required) names engine passes, draws and render targets in GPU captures; RenderDoc captures force it on while installed.
+- Performance Overlay: DeferredComposite timing.
 - Continue, Load, and New Game wait behind the main menu's loading spinner until shaders finish compiling, with a progress window when DearModdingUI is installed; set `background_compilation` in `[shader_cache]` to play while they compile. All shader variants now precompile at startup instead of as the game first draws them.
 - Community Shaders now disables itself with a message when the standalone Dynamic Cubemaps F4 mod is installed; it patches the same draw call.
 - Dynamic Cubemaps: `material_reflections` now defaults to 0.25.
