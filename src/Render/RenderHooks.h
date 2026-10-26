@@ -49,6 +49,10 @@ namespace cs::engine
 	// After the update-water callback returns.
 	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
 
+	// Around every ProcessCommandBuffer replay: the draws of one technique bucket.
+	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
+
 	enum class ShadowLightKind : std::uint8_t
 	{
 		kDirectional,

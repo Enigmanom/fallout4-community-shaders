@@ -55,6 +55,8 @@ namespace cs::engine
 		std::vector<PrioritizedCallback> g_postSunShadowRender;
 		std::vector<PrioritizedCallback> g_preWaterUpdate;
 		std::vector<PrioritizedCallback> g_postWaterUpdate;
+		std::vector<PrioritizedCallback> g_preCommandBufferReplay;
+		std::vector<PrioritizedCallback> g_postCommandBufferReplay;
 		std::array<std::vector<PrioritizedCallback>, kShadowLightKindCount> g_preShadowLightRender;
 		std::array<std::vector<PrioritizedCallback>, kShadowLightKindCount> g_postShadowLightRender;
 		std::vector<PrioritizedCallback> g_postResetState;
@@ -267,8 +269,14 @@ namespace cs::engine
 		{
 			static void thunk(RE::BSGraphics::Renderer* a_this, Args... a_args)
 			{
-				const DrawRouteScope scope(Route);
-				func(a_this, a_args...);
+				if constexpr (Route == DrawRoute::kCommandBuffer)
+					Dispatch(g_preCommandBufferReplay);
+				{
+					const DrawRouteScope scope(Route);
+					func(a_this, a_args...);
+				}
+				if constexpr (Route == DrawRoute::kCommandBuffer)
+					Dispatch(g_postCommandBufferReplay);
 			}
 			static inline REL::Relocation<void(RE::BSGraphics::Renderer*, Args...)> func;
 			static inline bool installed = false;
@@ -786,6 +794,12 @@ namespace cs::engine
 			return EnsureDetourInstalled<Hook>(Hook::installed, a_id, a_name);
 		}
 
+		bool EnsureCommandBufferRouteInstalled()
+		{
+			return InstallDrawRoute<DrawRoute::kCommandBuffer, &RE::BSGraphics::Renderer::ProcessCommandBuffer>(
+				RE::ID::BSGraphics::Renderer::ProcessCommandBuffer, "ProcessCommandBuffer");
+		}
+
 		bool InstallDrawRoutes()
 		{
 			using Renderer = RE::BSGraphics::Renderer;
@@ -802,8 +816,7 @@ namespace cs::engine
 					   ID::DrawDynamicTriShape, "DrawDynamicTriShape") &&
 			       InstallDrawRoute<DrawRoute::kParticleShaderTriShape, &Renderer::DrawParticleShaderTriShape>(
 					   ID::DrawParticleShaderTriShape, "DrawParticleShaderTriShape") &&
-			       InstallDrawRoute<DrawRoute::kCommandBuffer, &Renderer::ProcessCommandBuffer>(
-					   ID::ProcessCommandBuffer, "ProcessCommandBuffer") &&
+			       EnsureCommandBufferRouteInstalled() &&
 			       InstallCommandBufferRecordDraws();
 		}
 
@@ -914,6 +927,22 @@ namespace cs::engine
 			return false;
 		InsertByPriority(g_postWaterUpdate, PrioritizedCallback{ priority, std::move(callback) });
 		return EnsureWaterUpdateInstalled();
+	}
+
+	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PreCommandBufferReplay"))
+			return false;
+		InsertByPriority(g_preCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback) });
+		return EnsureCommandBufferRouteInstalled();
+	}
+
+	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PostCommandBufferReplay"))
+			return false;
+		InsertByPriority(g_postCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback) });
+		return EnsureCommandBufferRouteInstalled();
 	}
 
 	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)

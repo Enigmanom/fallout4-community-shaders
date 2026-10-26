@@ -16,6 +16,7 @@
 #include "RE/B/BSDistantTreeShader.h"
 #include "RE/B/BSEffectShader.h"
 #include "RE/B/BSGeometry.h"
+#include "RE/B/BSImagespaceShader.h"
 #include "RE/B/BSLightingShader.h"
 #include "RE/B/BSParticleShader.h"
 #include "RE/B/BSRenderPass.h"
@@ -23,7 +24,6 @@
 #include "RE/B/BSSkyShader.h"
 #include "RE/B/BSUtilityShader.h"
 #include "RE/B/BSWaterShader.h"
-#include "RE/I/ImageSpaceManager.h"
 
 #include <atomic>
 #include <concepts>
@@ -32,14 +32,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-
-// The engine's effect IDs run past magic_enum's default range.
-template <>
-struct magic_enum::customize::enum_range<RE::ImageSpaceManager::ImageSpaceEffectEnum>
-{
-	static constexpr int min = 0;
-	static constexpr int max = 231;
-};
 
 namespace cs::render::frame_annotations
 {
@@ -146,20 +138,38 @@ namespace cs::render::frame_annotations
 			stl::write_vfunc<Shader, RestoreGeometry_Hook<Shader>>();
 		}
 
-		[[nodiscard]] std::string EffectEventName(std::uint32_t a_effect)
+		// The engine's imagespace shaders share two functions: Render draws, Dispatch runs compute.
+		// Both receive the ImageSpaceEffect base embedded at the end of the BSShader.
+		[[nodiscard]] std::string ImageSpaceEventName(RE::ImageSpaceEffect* a_effect, std::string_view a_kind)
 		{
-			const auto name = magic_enum::enum_name(static_cast<RE::ImageSpaceManager::ImageSpaceEffectEnum>(a_effect));
-			auto label = name.empty() ? std::format("ImageSpaceEffect {}", a_effect) : std::string(name);
-			label += label.contains("_CS") ? " Dispatch" : " Draw";
-			return label;
+			auto* shader = reinterpret_cast<RE::BSImagespaceShader*>(
+				reinterpret_cast<std::byte*>(a_effect) - RE::BSShader::GetRuntimeSize());
+			const char* className = shader->GetShaderClassName();
+			return std::format("{} {}", className ? std::string_view{ className } : ShaderLabel(shader), a_kind);
 		}
 
-		struct RenderEffect_Hook
+		struct ImageSpaceRender_Hook
 		{
-			static std::uint64_t thunk(RE::ImageSpaceManager* a_this, std::uint32_t a_effect, std::uint32_t a_3, std::uint32_t a_4, void* a_param)
+			static std::uint64_t thunk(RE::ImageSpaceEffect* a_this, RE::BSTriShape* a_shape, RE::ImageSpaceEffectParam* a_param)
 			{
-				const Scope scope(Gate::kAlways, [&] { return EffectEventName(a_effect); });
-				return func(a_this, a_effect, a_3, a_4, a_param);
+				const Scope scope(Gate::kAlways, [&] { return ImageSpaceEventName(a_this, "Draw"); });
+				return func(a_this, a_shape, a_param);
+			}
+
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
+		struct ImageSpaceDispatch_Hook
+		{
+			static std::uint64_t thunk(
+				RE::ImageSpaceEffect* a_this,
+				RE::ImageSpaceEffectParam* a_param,
+				bool a_useAsyncPipe,
+				std::uint32_t a_effect,
+				RE::ImageSpaceEffect::EffectDesc* a_desc)
+			{
+				const Scope scope(Gate::kAlways, [&] { return ImageSpaceEventName(a_this, "Dispatch"); });
+				return func(a_this, a_param, a_useAsyncPipe, a_effect, a_desc);
 			}
 
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -232,7 +242,7 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// Not in CommonLibF4; BSCubeMapCamera::ClickCubeMap, a virtual of the camera.
+		// BSCubeMapCamera::ClickCubeMap, a virtual of the camera.
 		struct ClickCubeMap_Hook
 		{
 			static std::uint64_t thunk(RE::NiAVObject* a_camera, std::int32_t a_faces, bool a_silhouette, bool a_release, bool a_lodOnly)
@@ -267,30 +277,37 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// The parameters are opaque here; only the integer registers are forwarded.
-		struct DoZPrePass_Hook
-		{
-			static std::uint64_t thunk(void* a_1, void* a_2, void* a_3, void* a_4, std::int32_t a_5)
-			{
-				const Scope scope(Gate::kAlways, "Depth");
-				return func(a_1, a_2, a_3, a_4, a_5);
-			}
-
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
 		// Bracket callbacks of one engine pass; outermost, so feature work stays inside it.
 		constexpr auto kOutermostPre = static_cast<engine::HookPriority>(-1000);
 		constexpr auto kOutermostPost = static_cast<engine::HookPriority>(1000);
 
-		template <class RegisterPre, class RegisterPost>
-		void BracketPass(RegisterPre a_pre, RegisterPost a_post, std::string_view a_name)
+		template <class Name>
+		[[nodiscard]] std::string_view NameView(const Name& a_name, std::string& a_storage)
+		{
+			if constexpr (std::invocable<const Name&>) {
+				a_storage = a_name();
+				return a_storage;
+			} else {
+				return a_name;
+			}
+		}
+
+		// The name is a string_view or a generator; a generator runs only when the gate is open.
+		template <class RegisterPre, class RegisterPost, class Name>
+		void BracketPass(RegisterPre a_pre, RegisterPost a_post, Name a_name, Gate a_gate = Gate::kAlways)
 		{
 			auto span = std::make_shared<annotation::SpannedEvent>();
 			// Post first: a pre without its post would leave the event open.
 			if (!a_post([span] { span->End(); }, kOutermostPost) ||
-				!a_pre([span, a_name] { span->Begin(a_name, false); }, kOutermostPre))
-				L->error("Engine pass '{}' unavailable", a_name);
+				!a_pre(
+					[span, a_name, a_gate] {
+						if (!Open(a_gate))
+							return;
+						std::string storage;
+						span->Begin(NameView(a_name, storage), false);
+					},
+					kOutermostPre))
+				L->error("Engine pass unavailable");
 		}
 
 		template <engine::ShadowLightKind Kind>
@@ -312,6 +329,8 @@ namespace cs::render::frame_annotations
 			BracketPass(&RegisterPreDeferredLightsImpl, &RegisterPostDeferredLightsImpl, "Deferred Lights");
 			BracketPass(&RegisterPrePrecipitationOcclusion, &RegisterPostPrecipitationOcclusion, "Precipitation Occlusion");
 			BracketPass(&RegisterPreWaterUpdate, &RegisterPostWaterUpdate, "Water Effects");
+			// Replays run inside RenderBatches, not RenderPassImpl; the last bound technique names them.
+			BracketPass(&RegisterPreCommandBufferReplay, &RegisterPostCommandBufferReplay, [] { return std::format("BSBatchRenderer::CommandBuffer [{}:{:X}]", ShaderLabel(t_bound.shader), t_bound.pixelShaderId); }, Gate::kLive);
 			BracketPass(&PreShadow<ShadowLightKind::kDirectional>, &PostShadow<ShadowLightKind::kDirectional>, "Directional Light Shadowmaps");
 			BracketPass(&PreShadow<ShadowLightKind::kFrustum>, &PostShadow<ShadowLightKind::kFrustum>, "Spot Light Shadowmaps");
 			BracketPass(&PreShadow<ShadowLightKind::kParabolic>, &PostShadow<ShadowLightKind::kParabolic>, "Omnidirectional Light Shadowmaps");
@@ -333,15 +352,14 @@ namespace cs::render::frame_annotations
 
 		void InstallEngineHooks()
 		{
-			// OG: IDs.h names 325252, an adjacent function; the engine-facts address is 1309722.
-			Detour<RenderEffect_Hook>(REL::VariantID{ 1309722, 2316595, 2316595 }, "ImageSpaceManager::RenderEffect");
+			Detour<ImageSpaceRender_Hook>(RE::ID::BSImagespaceShader::Render, "BSImagespaceShader::Render");
+			Detour<ImageSpaceDispatch_Hook>(RE::ID::BSImagespaceShader::Dispatch, "BSImagespaceShader::Dispatch");
 			Detour<BatchRenderer_RenderBatches_Hook>(RE::ID::BSBatchRenderer::RenderBatches, "BSBatchRenderer::RenderBatches");
 			Detour<RenderPassImpl_Hook>(RE::ID::BSBatchRenderer::RenderPassImpl, "BSBatchRenderer::RenderPassImpl");
 			Detour<Accumulator_RenderBatches_Hook>(RE::ID::BSShaderAccumulator::RenderBatches, "BSShaderAccumulator::RenderBatches");
-			Detour<ClickCubeMap_Hook>(REL::VariantID{ 593615, 2318829, 2318829 }, "BSCubeMapCamera::ClickCubeMap");
+			Detour<ClickCubeMap_Hook>(RE::ID::BSCubeMapCamera::ClickCubeMap, "BSCubeMapCamera::ClickCubeMap");
 			Detour<Forward_Hook>(RE::ID::DrawWorld::Forward, "DrawWorld::Forward");
 			Detour<Imagespace_Hook>(RE::ID::DrawWorld::Imagespace, "DrawWorld::Imagespace");
-			Detour<DoZPrePass_Hook>(RE::ID::BSGraphics::Renderer::DoZPrePass, "BSGraphics::Renderer::DoZPrePass");
 
 			// NiAccumulator::FinishAccumulating, then the two BSShaderAccumulator phases.
 			Vfunc<0x29, FinishAccumulating_Hook<FinishPhase::kAll>>(RE::VTABLE::BSShaderAccumulator);
