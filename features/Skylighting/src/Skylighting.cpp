@@ -456,8 +456,10 @@ namespace cs::features
 	{
 		const auto state = CaptureFrame();
 		// Keyed on anchor frames so skipped frames report; state changes log at once.
-		if (++_anchorFrames == 1 || _anchorFrames % kSummaryIntervalFrames == 0 || state != _loggedState || std::exchange(_summaryPending, false))
-			LogCaptureSummary(state);
+		const bool periodic = ++_anchorFrames % kSummaryIntervalFrames == 0;
+		const bool changed = _anchorFrames == 1 || state != _loggedState || std::exchange(_summaryPending, false);
+		if (changed || periodic)
+			LogCaptureSummary(state, changed ? spdlog::level::info : spdlog::level::debug);
 	}
 
 	Skylighting::CaptureState Skylighting::CaptureFrame()
@@ -493,7 +495,9 @@ namespace cs::features
 			_summaryPending = true;
 		}
 
-		const auto start = std::chrono::steady_clock::now();
+		// Clock reads only feed the summary log and telemetry.
+		const bool timed = cs::telemetry::pump::Enabled();
+		const auto start = timed ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
 
 		frameCount++;
 
@@ -560,15 +564,17 @@ namespace cs::features
 
 		_counters.captures.fetch_add(1, std::memory_order_relaxed);
 		_counters.stockTargetRestored.store(result.stockTargetRestored, std::memory_order_relaxed);
-		const auto cpuMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
-		_windowCpuMsSum += cpuMs;
-		_windowCpuMsMax = std::max(_windowCpuMsMax, cpuMs);
-		++_windowCaptures;
+		if (timed) {
+			const auto cpuMs = std::chrono::duration<float, std::milli>(std::chrono::steady_clock::now() - start).count();
+			_windowCpuMsSum += cpuMs;
+			_windowCpuMsMax = std::max(_windowCpuMsMax, cpuMs);
+			++_windowCaptures;
+		}
 		return CaptureState::kCaptured;
 	}
 
 	// Render thread only; one line per window keeps the capture log cheap.
-	void Skylighting::LogCaptureSummary(CaptureState a_state)
+	void Skylighting::LogCaptureSummary(CaptureState a_state, spdlog::level::level_enum a_level)
 	{
 		_loggedState = a_state;
 		const auto& a_matrix = OcclusionTransform;
@@ -621,7 +627,8 @@ namespace cs::features
 			if (result.valid && result.name == kProbeUpdatePass)
 				_probeCounters.gpuMs.store(result.gpuTimeMs, std::memory_order_relaxed);
 		}
-		CaptureLog->info(
+		CaptureLog->log(
+			a_level,
 			"summary enabled={} state={} anchor_frames={} frame={} captures={} skipped_interior={} skipped_disabled={} skipped_targets={} failed={} "
 			"L={:.0f} sh4pi=({:.3f},{:.3f},{:.3f},{:.3f}) quadrant={} "
 			"accepted={} delegated={} own_built={} own_new={} own_landscape={} own_not_casting={} own_alpha_blended={} own_other={} stock_only={} "

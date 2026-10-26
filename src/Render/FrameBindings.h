@@ -14,6 +14,7 @@ namespace cs::engine
 	struct FrameBindingMetrics
 	{
 		std::uint64_t skipped = 0;
+		bool collect = false;
 	};
 
 	// Stage-dispatched context binds and reads; unknown stages are no-ops.
@@ -24,7 +25,8 @@ namespace cs::engine
 	void GetStageBindings(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11Buffer**) noexcept;
 	void GetStageBindings(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11SamplerState**) noexcept;
 
-	void ResetFrameBindings() noexcept;
+	// Starts a frame; metrics accumulate only when a_collectMetrics is set.
+	void ResetFrameBindings(bool a_collectMetrics = false) noexcept;
 	// Outputs or plugin GPU work may have unbound views; rebind on next use.
 	void InvalidateFrameBindings() noexcept;
 	// Advances on reset or invalidation; earlier outputs may be gone.

@@ -26,6 +26,8 @@ namespace cs::host
 {
 	namespace
 	{
+		constexpr std::uint32_t kBindingPollFrames = 120;
+
 		constexpr dmui::ClientOptions kClientOptions{
 			.capabilities = DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT
 		};
@@ -652,8 +654,15 @@ namespace cs::host
 
 			auto* performance = features::PerformanceOverlay::GetSingleton();
 			FeatureManager::Get().RunRuntimeCallback(*performance, "DearModdingUI::TickHostFrame", [&] {
-				const auto videoMemory = _client.QueryVideoMemory();
-				if (videoMemory) {
+				// Memory is shown by the visible overlay and in telemetry only.
+				const bool wantsMemory = telemetry::pump::Enabled() ||
+				                         (_overlayVisible.load(std::memory_order_relaxed) && performance->IsHealthy() && performance->IsOverlayActive());
+				decltype(_client.QueryVideoMemory()) videoMemory;
+				if (wantsMemory)
+					videoMemory = _client.QueryVideoMemory();
+				if (!wantsMemory) {
+					_videoMemoryFailure.reset();
+				} else if (videoMemory) {
 					_videoMemoryFailure.reset();
 				} else {
 					LogFailureOnce("video-memory query", _videoMemoryFailure);
@@ -664,7 +673,13 @@ namespace cs::host
 			});
 			for (auto& channel : _hotkeys)
 				SetHotkeyEnabled(channel);
-			ObserveHotkeyBindings();
+			// Bindings change only through host UI and are only logged.
+			if (_bindingPollCountdown == 0) {
+				_bindingPollCountdown = kBindingPollFrames;
+				ObserveHotkeyBindings();
+			} else {
+				--_bindingPollCountdown;
+			}
 			SyncPerformanceOverlay();
 			SyncShaderCompileOverlay();
 		} catch (...) {
@@ -823,8 +838,12 @@ namespace cs::host
 	{
 		if (!a_channel.handle)
 			return;
-		if (_client.SetHotkeyActionEnabled(*a_channel.handle, a_channel.enabled())) {
+		const bool wanted = a_channel.enabled();
+		if (a_channel.appliedEnabled == wanted)
+			return;
+		if (_client.SetHotkeyActionEnabled(*a_channel.handle, wanted)) {
 			a_channel.enableFailure.reset();
+			a_channel.appliedEnabled = wanted;
 			return;
 		}
 

@@ -34,6 +34,9 @@ namespace cs::host
 
 	bool ShaderCompileOverlay::Observe() noexcept
 	{
+		// Idle and hidden: no batch can have changed the presentation.
+		if (_presentation.phase == ShaderCompilePhase::kHidden && !engine::IsShaderCompileBatchActive())
+			return false;
 		const auto batch = engine::GetShaderCompileBatch();
 		_presentation = _model.Update(batch, ShaderCompileOverlayModel::Clock::now());
 		return _presentation.phase != ShaderCompilePhase::kHidden;

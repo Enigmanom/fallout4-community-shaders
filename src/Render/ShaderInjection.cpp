@@ -13,6 +13,7 @@
 #include "Render/SharedData.h"
 #include "Render/StockShaderVariants.h"
 #include "Settings/FeatureConfig.h"
+#include "Telemetry/Telemetry.h"
 #include "Utils/ShaderInclude.h"
 
 #include <algorithm>
@@ -48,6 +49,19 @@ namespace cs::engine
 		thread_local bool t_drawFrameStarted = false;
 		std::mutex g_drawMetricsMutex;
 		ShaderInjectionDrawMetrics g_completedDrawMetrics;
+		// Sampled once per frame; counters are skipped unless telemetry is on.
+		std::atomic<bool> g_collectMetrics{ false };
+
+		template <class Counter>
+		void Tally(Counter& a_counter, std::uint64_t a_amount = 1) noexcept
+		{
+			if (!g_collectMetrics.load(std::memory_order_relaxed))
+				return;
+			if constexpr (requires { a_counter.fetch_add(a_amount, std::memory_order_relaxed); })
+				a_counter.fetch_add(a_amount, std::memory_order_relaxed);
+			else
+				a_counter += a_amount;
+		}
 
 		ShaderStage ActiveBindingStage() noexcept
 		{
@@ -233,13 +247,15 @@ namespace cs::engine
 	{
 		if (t_drawFrameStarted && t_drawMetrics.frame == a_frame)
 			return;
-		{
+		if (g_collectMetrics.load(std::memory_order_relaxed)) {
 			std::scoped_lock lock(g_drawMetricsMutex);
 			t_drawMetrics.frameBindings = GetFrameBindingMetrics();
 			g_completedDrawMetrics = t_drawMetrics;
 		}
+		const bool collect = telemetry::pump::Enabled();
+		g_collectMetrics.store(collect, std::memory_order_relaxed);
 		t_drawMetrics = { .frame = a_frame };
-		ResetFrameBindings();
+		ResetFrameBindings(collect);
 		ReleaseSamplerOverrides(GetEngineShadowState());
 		t_committedOutputs.reset();
 		t_drawFrameStarted = true;
@@ -248,7 +264,7 @@ namespace cs::engine
 	void RecordShaderInjectionD3DBinds(std::uint32_t a_count) noexcept
 	{
 		if (t_bindings && ActiveBindingStage() == ShaderStage::kPixel)
-			t_drawMetrics.d3dBinds += a_count;
+			Tally(t_drawMetrics.d3dBinds, a_count);
 	}
 
 	ScopedShaderInjectionBindings::ScopedShaderInjectionBindings(ShaderStage a_stage) noexcept :
@@ -261,7 +277,7 @@ namespace cs::engine
 		const auto finish = [this] {
 			t_bindings = _previous;
 			if (_stage == ShaderStage::kPixel && (!_previous || _previous->GetStage() != ShaderStage::kPixel))
-				++t_drawMetrics.scopes;
+				Tally(t_drawMetrics.scopes);
 		};
 		if (!_context) {
 			finish();
@@ -278,8 +294,8 @@ namespace cs::engine
 		calls += RestoreRuns(_context, _stage, std::span(_resources).first(_resourceCount));
 		calls += RestoreRuns(_context, _stage, std::span(_samplers).first(_samplerCount));
 		if (_stage == ShaderStage::kPixel) {
-			t_drawMetrics.restores += _bufferCount + _resourceCount + _samplerCount + (_blendCaptured ? 1u : 0u);
-			t_drawMetrics.d3dBinds += calls;
+			Tally(t_drawMetrics.restores, _bufferCount + _resourceCount + _samplerCount + (_blendCaptured ? 1u : 0u));
+			Tally(t_drawMetrics.d3dBinds, calls);
 		}
 		finish();
 	}
@@ -298,21 +314,21 @@ namespace cs::engine
 				_context->OMGetBlendState(&_blend, _blendFactor, &_sampleMask);
 				_blendCaptured = true;
 				if (_stage == ShaderStage::kPixel)
-					++t_drawMetrics.captures;
+					Tally(t_drawMetrics.captures);
 			}
 			if (a_type == ShaderResourceType::kShaderResource &&
 				std::ranges::none_of(std::span(_resources).first(_resourceCount), [&](const auto& r) { return r.slot == a_slot; })) {
 				auto& resource = _resources[_resourceCount++];
 				resource = { a_slot, nullptr };
 				if (_stage == ShaderStage::kPixel)
-					++t_drawMetrics.captures;
+					Tally(t_drawMetrics.captures);
 				GetStageBindings(_context, _stage, a_slot, 1, &resource.value);
 			} else if (a_type == ShaderResourceType::kConstantBuffer &&
 					   std::ranges::none_of(std::span(_buffers).first(_bufferCount), [&](const auto& b) { return b.slot == a_slot; })) {
 				auto& buffer = _buffers[_bufferCount++];
 				buffer = { a_slot, nullptr };
 				if (_stage == ShaderStage::kPixel)
-					++t_drawMetrics.captures;
+					Tally(t_drawMetrics.captures);
 				GetStageBindings(_context, _stage, a_slot, 1, &buffer.value);
 			}
 		}
@@ -336,7 +352,7 @@ namespace cs::engine
 			binding = &_samplers[_samplerCount++];
 			*binding = { a_slot, original, original };
 			if (_stage == ShaderStage::kPixel)
-				++t_drawMetrics.captures;
+				Tally(t_drawMetrics.captures);
 		}
 		if (binding->current == a_sampler)
 			return;
@@ -1143,7 +1159,7 @@ namespace cs::engine
 					continue;
 				try {
 					bind.callback(a_context);
-					runtime.dispatches.fetch_add(1, std::memory_order_relaxed);
+					Tally(runtime.dispatches);
 				} catch (const std::exception& e) {
 					CS_LOG_EVERY_MS(
 						L,
@@ -1169,7 +1185,7 @@ namespace cs::engine
 			UINT a_threadGroupCountY,
 			UINT a_threadGroupCountZ) noexcept
 		{
-			g_computeBridgeCalls.fetch_add(1, std::memory_order_relaxed);
+			Tally(g_computeBridgeCalls);
 			if (!a_context) {
 				g_computeContextRejections.fetch_add(
 					1, std::memory_order_relaxed);
@@ -2139,10 +2155,8 @@ namespace cs::engine
 		if (!ShaderEnabled(resolution->target))
 			return native;
 		auto& runtime = GetService().runtime[ToIndex(resolution->target)];
-		runtime.matches.fetch_add(resolution->matches, std::memory_order_relaxed);
-		runtime.substitutions.fetch_add(
-			(resolution->binding.vertex != a_nativeVertex) + (resolution->binding.pixel != a_nativePixel),
-			std::memory_order_relaxed);
+		Tally(runtime.matches, resolution->matches);
+		Tally(runtime.substitutions, (resolution->binding.vertex != a_nativeVertex) + (resolution->binding.pixel != a_nativePixel));
 		return resolution->binding;
 	}
 
@@ -2169,7 +2183,7 @@ namespace cs::engine
 			}
 			if (!owner)
 				return a_nativeCompute;
-			GetService().runtime[ToIndex(owner->target)].computeBindCalls.fetch_add(1, std::memory_order_relaxed);
+			Tally(GetService().runtime[ToIndex(owner->target)].computeBindCalls);
 			if (!ShaderEnabled(owner->target))
 				return a_nativeCompute;
 			const auto* target =
@@ -2187,7 +2201,7 @@ namespace cs::engine
 
 			auto& runtime =
 				GetService().runtime[ToIndex(owner->target)];
-			runtime.matches.fetch_add(1, std::memory_order_relaxed);
+			Tally(runtime.matches);
 			auto* replacement =
 				AcquireNativeReplacementWrapper<
 					RE::BSGraphics::ComputeShader,
@@ -2198,8 +2212,7 @@ namespace cs::engine
 					a_nativeCompute);
 			if (!replacement)
 				return a_nativeCompute;
-			runtime.substitutions.fetch_add(
-				1, std::memory_order_relaxed);
+			Tally(runtime.substitutions);
 			return replacement;
 		} catch (const std::exception& e) {
 			CS_LOG_EVERY_MS(

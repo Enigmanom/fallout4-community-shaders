@@ -89,6 +89,8 @@ namespace cs::host
 			std::optional<DMUI_HotkeyActionHandle> handle;
 			std::string bindingSnapshot;
 			std::optional<DMUI_Result> enableFailure;
+			// Last state the host accepted; the host is called only on change.
+			std::optional<bool> appliedEnabled;
 			std::function<bool()> enabled;
 		};
 
@@ -148,6 +150,7 @@ namespace cs::host
 			HotkeyChannel{ "telemetry dump" }
 		};
 		std::optional<DMUI_Result> _videoMemoryFailure;
+		std::uint32_t _bindingPollCountdown{};
 		std::atomic_bool _overlayVisible{ false };
 		std::atomic_bool _registrationComplete{};
 		std::atomic_bool _readyLogged{};

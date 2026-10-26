@@ -47,7 +47,8 @@ namespace cs::engine
 				for (UINT i = 0; i < a_count;) {
 					const UINT slot = a_start + i;
 					if (trusted.test(slot) && expected[slot] == a_values[i]) {
-						++a_metrics.skipped;
+						if (a_metrics.collect)
+							++a_metrics.skipped;
 						++i;
 						continue;
 					}
@@ -110,10 +111,10 @@ namespace cs::engine
 		ForStage<&ID3D11DeviceContext::VSGetSamplers, &ID3D11DeviceContext::PSGetSamplers, &ID3D11DeviceContext::CSGetSamplers>(a_context, a_stage, a_start, a_count, a_values);
 	}
 
-	void ResetFrameBindings() noexcept
+	void ResetFrameBindings(bool a_collectMetrics) noexcept
 	{
 		t_bindings = {};
-		t_metrics = {};
+		t_metrics = { .collect = a_collectMetrics };
 		++t_epoch;
 	}
 

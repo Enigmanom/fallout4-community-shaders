@@ -104,13 +104,16 @@ namespace cs::render::profiling
 			state.initialized = false;
 		}
 		++state.sequence;
+		state.shaderType = -1;
+		// Per-shader timings are collected only while the overlay wants them.
+		if (!state.enabled)
+			return;
 		for (auto& timing : state.shaderTimings) {
 			const auto& sample = state.shaderFrame[timing.type];
 			timing.calls = timing.calls * 0.95f + sample.calls * 0.05f;
 			timing.milliseconds = timing.milliseconds * 0.95f + sample.milliseconds * 0.05f;
 		}
 		state.shaderFrame.clear();
-		state.shaderType = -1;
 		state.lastDraw = Util::GetNowSecs();
 	}
 

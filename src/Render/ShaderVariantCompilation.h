@@ -79,6 +79,8 @@ namespace cs::engine
 	// Observers run on compile worker threads and must not block.
 	void AddShaderCompileBatchObserver(ShaderCompileBatchObserver a_observer);
 	ShaderCompileBatch GetShaderCompileBatch();
+	// True from the first enqueued task until the batch settles.
+	[[nodiscard]] bool IsShaderCompileBatchActive() noexcept;
 
 	std::shared_ptr<ShaderVariantCompilationCache>
 	CreateAsyncShaderVariantCompilationCache(

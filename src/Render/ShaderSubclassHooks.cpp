@@ -278,9 +278,11 @@ namespace cs::engine
 				if (!classifier)
 					continue;
 				const bool flagged = classifier(a_pass, a_path);
-				auto& counts = g_classifierCounts[component][static_cast<std::size_t>(a_path)];
-				counts.classified.fetch_add(1, std::memory_order_relaxed);
-				counts.flagged.fetch_add(flagged ? 1u : 0u, std::memory_order_relaxed);
+				if (telemetry::pump::Enabled()) {
+					auto& counts = g_classifierCounts[component][static_cast<std::size_t>(a_path)];
+					counts.classified.fetch_add(1, std::memory_order_relaxed);
+					counts.flagged.fetch_add(flagged ? 1u : 0u, std::memory_order_relaxed);
+				}
 				request.lane[component] = flagged ? 1.0f : 0.0f;
 			}
 			return request;

@@ -84,7 +84,7 @@ namespace cs::features
 		void CreateProbeResources(ID3D11Device* a_device);
 		void CreateDebugResources();
 		FeatureDebugTexture GetOcclusionDebugTexture() const;
-		void LogCaptureSummary(CaptureState a_state);
+		void LogCaptureSummary(CaptureState a_state, spdlog::level::level_enum a_level = spdlog::level::info);
 
 		// Reasons accumulate until the next exterior capture consumes them.
 		enum ResetReason : std::uint8_t

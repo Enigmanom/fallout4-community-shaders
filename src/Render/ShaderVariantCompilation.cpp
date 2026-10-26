@@ -100,6 +100,7 @@ namespace cs::engine
 				if (_outstanding++ == 0) {
 					_batch = { .active = true };
 					_started = std::chrono::steady_clock::now();
+					_active.store(true, std::memory_order_relaxed);
 				}
 				++_batch.totalTasks;
 			}
@@ -122,6 +123,9 @@ namespace cs::engine
 				const std::scoped_lock lock(_mutex);
 				_observers.push_back(std::move(a_observer));
 			}
+
+			// Lock-free; lets per-frame pollers skip the snapshot while idle.
+			bool Active() const noexcept { return _active.load(std::memory_order_relaxed); }
 
 			ShaderCompileBatch Snapshot() const
 			{
@@ -151,6 +155,7 @@ namespace cs::engine
 					if (--_outstanding != 0)
 						return;
 					_batch.active = false;
+					_active.store(false, std::memory_order_relaxed);
 					_batch.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
 						std::chrono::steady_clock::now() - _started);
 					if (_batch.totalTasks == 0)
@@ -171,6 +176,7 @@ namespace cs::engine
 			ShaderCompileBatch _batch;
 			std::chrono::steady_clock::time_point _started;
 			std::uint32_t _outstanding = 0;
+			std::atomic<bool> _active{ false };
 		};
 
 		BatchTracker& Batches()
@@ -381,6 +387,11 @@ namespace cs::engine
 	void AddShaderCompileBatchObserver(ShaderCompileBatchObserver a_observer)
 	{
 		Batches().AddObserver(std::move(a_observer));
+	}
+
+	bool IsShaderCompileBatchActive() noexcept
+	{
+		return Batches().Active();
 	}
 
 	ShaderCompileBatch GetShaderCompileBatch()
