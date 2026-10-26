@@ -15,6 +15,7 @@
 #include <cassert>
 #include <cstdint>
 #include <exception>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -102,8 +103,28 @@ namespace cs::engine
 			return true;
 		}
 
+		// Callbacks run plugin GPU work that may unbind or replace cached draw bindings.
+		class ScopedForeignWork
+		{
+		public:
+			explicit ScopedForeignWork(bool a_active) noexcept :
+				_active(a_active)
+			{}
+			~ScopedForeignWork()
+			{
+				if (_active)
+					InvalidateShaderInjectionBindings();
+			}
+			ScopedForeignWork(const ScopedForeignWork&) = delete;
+			ScopedForeignWork& operator=(const ScopedForeignWork&) = delete;
+
+		private:
+			bool _active;
+		};
+
 		void Dispatch(const std::vector<PrioritizedCallback>& v)
 		{
+			const ScopedForeignWork work(!v.empty());
 			for (auto& entry : v) {
 				entry.cb();
 			}
@@ -133,6 +154,7 @@ namespace cs::engine
 		// Callbacks run inside engine frames, so failures are logged, not unwound.
 		void DispatchGuarded(const std::vector<PrioritizedCallback>& v, const char* a_where) noexcept
 		{
+			const ScopedForeignWork work(!v.empty());
 			for (auto& entry : v) {
 				try {
 					entry.cb();
@@ -251,7 +273,19 @@ namespace cs::engine
 			(a_context->*Draw)(a_args...);
 		}
 
-		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, std::uint32_t a_residualR9d) noexcept
+		// Command-buffer flushes precede records that bind their own state.
+		std::optional<DeferredDrawAnchorDecision> SelectDrawFlushDecision(std::uint32_t a_residualR9d) noexcept
+		{
+			if (!g_deferredDrawAnchorInstalled || t_drawRoute == DrawRoute::kNone || t_drawRoute == DrawRoute::kCommandBuffer)
+				return std::nullopt;
+			return SelectDeferredDrawAnchorDecision(
+				g_insideDeferredLightsImpl,
+				g_insideDeferredComposite,
+				t_drawRoute == DrawRoute::kTriShape,
+				a_residualR9d);
+		}
+
+		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, const std::optional<DeferredDrawAnchorDecision>& a_decision) noexcept
 		{
 			auto* rendererData = RE::BSGraphics::GetRendererData();
 			auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
@@ -261,16 +295,11 @@ namespace cs::engine
 					RecordUndispatchedInjectedDraw(context);
 				return;
 			}
-			if (t_drawRoute == DrawRoute::kCommandBuffer)
+			if (!a_decision)
 				return;
-			const auto decision = SelectDeferredDrawAnchorDecision(
-				g_insideDeferredLightsImpl,
-				g_insideDeferredComposite,
-				t_drawRoute == DrawRoute::kTriShape,
-				a_residualR9d);
-			if (decision.dispatchFullscreenLightCallbacks)
+			if (a_decision->dispatchFullscreenLightCallbacks)
 				Dispatch(g_preFullscreenDeferredLightDraw);
-			if (decision.dispatchInjections)
+			if (a_decision->dispatchInjections)
 				DispatchInjectionsForBoundPixelShader(context);
 		}
 
@@ -283,11 +312,13 @@ namespace cs::engine
 				std::uint32_t,
 				std::uint32_t a_residualR9d)
 			{
+				const auto decision = SelectDrawFlushDecision(a_residualR9d);
+				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, decision && decision->dispatchInjections);
 				func(a_outputStateOnly, a_compute);
 				if (g_drawProfilingInstalled)
 					render::profiling::RecordDraw();
 				if (g_deferredDrawAnchorInstalled)
-					OnDrawStateFlushed(a_outputStateOnly, a_compute, a_residualR9d);
+					OnDrawStateFlushed(a_outputStateOnly, a_compute, decision);
 			}
 			static inline REL::Relocation<decltype(&RE::BSGraphics::SetDirtyStates)> func;
 		};
@@ -297,6 +328,7 @@ namespace cs::engine
 			static void thunk(RE::BSGraphics::Renderer* a_this)
 			{
 				func(a_this);
+				InvalidateShaderInjectionBindings();
 				DispatchGuarded(g_postResetState, "Post reset state");
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -423,6 +455,7 @@ namespace cs::engine
 				for (auto& hold : g_prepassHolds) {
 					if (hold.held.empty())
 						continue;
+					const ScopedForeignWork work(true);
 					try {
 						hold.replay(hold.held);
 					} catch (const std::exception& e) {

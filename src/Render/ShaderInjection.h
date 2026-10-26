@@ -39,6 +39,7 @@ namespace RE
 	{
 		class ComputeShader;
 		class PixelShader;
+		class RendererShadowState;
 		class VertexShader;
 	}
 }
@@ -60,7 +61,7 @@ namespace cs::engine
 		kSampler,
 		kShaderResource,
 		kUnorderedAccess,
-		kRenderTarget
+		kBlendState
 	};
 
 	struct ShaderInjectionDrawMetrics
@@ -83,7 +84,35 @@ namespace cs::engine
 	void BindInjectionShaderResources(ID3D11DeviceContext*, UINT, UINT, ID3D11ShaderResourceView* const*) noexcept;
 	void BindInjectionSamplers(ID3D11DeviceContext*, UINT, UINT, ID3D11SamplerState* const*) noexcept;
 	void BindInjectionConstantBuffers(ID3D11DeviceContext*, UINT, UINT, ID3D11Buffer* const*) noexcept;
-	void CaptureShaderInjectionOutputs(ID3D11DeviceContext*) noexcept;
+	// The active draw scope restores the blend state when its draw returns.
+	void CaptureShaderInjectionBlendState(ID3D11DeviceContext*) noexcept;
+	// Plugin GPU work or engine resets may have changed bindings the draw caches trust.
+	void InvalidateShaderInjectionBindings() noexcept;
+
+	struct EngineDrawFlushState
+	{
+		const void* variant = nullptr;
+		// PS sampler slots the engine resubmits during this flush.
+		std::uint16_t resubmitted = 0;
+		std::uint16_t requested = 0;
+	};
+
+	// Brackets one engine SetDirtyStates flush and the injection dispatch after it.
+	class ScopedEngineDrawFlush
+	{
+	public:
+		// Construct before the engine flush; it decides which overrides the engine restores.
+		ScopedEngineDrawFlush(bool a_outputStateOnly, bool a_compute, bool a_dispatches) noexcept;
+		~ScopedEngineDrawFlush() noexcept;
+		ScopedEngineDrawFlush(const ScopedEngineDrawFlush&) = delete;
+		ScopedEngineDrawFlush& operator=(const ScopedEngineDrawFlush&) = delete;
+
+	private:
+		RE::BSGraphics::RendererShadowState* _state = nullptr;
+		EngineDrawFlushState _flush;
+		std::uint16_t _released = 0;
+		bool _active = false;
+	};
 
 	class ScopedShaderInjectionBindings
 	{
@@ -122,12 +151,10 @@ namespace cs::engine
 		std::uint32_t _resourceCount = 0;
 		std::uint32_t _samplerCount = 0;
 		std::uint32_t _bufferCount = 0;
-		ID3D11RenderTargetView* _targets[8]{};
-		ID3D11DepthStencilView* _depth = nullptr;
 		ID3D11BlendState* _blend = nullptr;
 		float _blendFactor[4]{};
 		std::uint32_t _sampleMask = 0;
-		bool _outputCaptured = false;
+		bool _blendCaptured = false;
 	};
 	using ScopedPixelShaderInjectionBindings = ScopedShaderInjectionBindings;
 

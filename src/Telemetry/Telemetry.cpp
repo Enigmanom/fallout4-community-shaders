@@ -162,6 +162,7 @@ namespace cs::telemetry
 				.Field("frame_binding_checks", TomlInteger(summary.draw.frameBindings.checks))
 				.Field("frame_binding_lost", TomlInteger(summary.draw.frameBindings.lost))
 				.Field("frame_binding_lost_total", TomlInteger(summary.draw.frameBindings.lostTotal))
+				.Field("frame_binding_skipped", TomlInteger(summary.draw.frameBindings.skipped))
 				.Field(
 					"compute_bridge_installed",
 					summary.computeBridge.installed)

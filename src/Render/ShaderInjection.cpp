@@ -8,6 +8,7 @@
 #include "Render/NativeShaderFamily.h"
 #include "Render/PixelShaderSwapBroker.h"
 #include "Render/RenderHooks.h"
+#include "Render/RendererContext.h"
 #include "Render/ShaderFamilyDescriptor.h"
 #include "Render/ShaderVariantCompilation.h"
 #include "Render/SharedData.h"
@@ -70,6 +71,52 @@ namespace cs::engine
 			return t_bindings ? t_bindings->GetStage() : ShaderStage::kPixel;
 		}
 
+		// Engine-facts: PS shadow state owns t0-t15/s0-s15 and b0-b2/b12/b13 only.
+		constexpr bool EngineOwnsPixelSlot(ShaderResourceType a_type, UINT a_slot) noexcept
+		{
+			switch (a_type) {
+			case ShaderResourceType::kShaderResource:
+				return a_slot < 16;
+			case ShaderResourceType::kConstantBuffer:
+				return a_slot <= 2 || a_slot == 12 || a_slot == 13;
+			default:
+				return true;
+			}
+		}
+
+		// Engine-unowned pixel slots persist, so they bind through the change cache.
+		bool UsesDrawBindingCache(ShaderResourceType a_type, UINT a_start, UINT a_count) noexcept
+		{
+			if (ActiveBindingStage() != ShaderStage::kPixel)
+				return false;
+			for (UINT slot = a_start; slot < a_start + a_count; ++slot)
+				if (EngineOwnsPixelSlot(a_type, slot))
+					return false;
+			return true;
+		}
+
+		// Restores captured slots with one call per contiguous run, releasing each capture.
+		template <class Entry>
+		std::uint32_t RestoreRuns(ID3D11DeviceContext* a_context, ShaderStage a_stage, std::span<Entry> a_entries) noexcept
+		{
+			std::array<decltype(Entry::value), D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT> values{};
+			std::uint32_t calls = 0;
+			for (std::size_t i = 0; i < a_entries.size();) {
+				std::size_t run = 0;
+				while (i + run < a_entries.size() && a_entries[i + run].slot == a_entries[i].slot + run) {
+					values[run] = a_entries[i + run].value;
+					++run;
+				}
+				SetStageBindings(a_context, a_stage, a_entries[i].slot, static_cast<UINT>(run), values.data());
+				for (std::size_t j = 0; j < run; ++j)
+					if (values[j])
+						values[j]->Release();
+				++calls;
+				i += run;
+			}
+			return calls;
+		}
+
 		void CaptureBindings(ID3D11DeviceContext* a_context, ShaderResourceType a_type, UINT a_start, UINT a_count) noexcept
 		{
 			if (!t_bindings)
@@ -78,24 +125,69 @@ namespace cs::engine
 				t_bindings->Capture(a_context, a_type, slot);
 			}
 		}
+
+		// PS samplers left bound across draws; the engine's dirty mask restores them.
+		struct SamplerOverrides
+		{
+			std::uint16_t mask = 0;
+			std::array<ID3D11SamplerState*, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> values{};
+			const void* owner = nullptr;
+		};
+
+		thread_local SamplerOverrides t_samplerOverrides;
+		thread_local EngineDrawFlushState* t_engineFlush = nullptr;
+		std::atomic_bool g_engineSamplerRestore{ true };
+
+		RE::BSGraphics::RendererShadowState* GetEngineShadowState() noexcept
+		{
+			auto* context = GetActiveContext();
+			return context ? &context->shadowState : nullptr;
+		}
+
+		void ReleaseSamplerOverrides(RE::BSGraphics::RendererShadowState* a_state) noexcept
+		{
+			if (!t_samplerOverrides.mask)
+				return;
+			if (a_state)
+				a_state->psSamplerModifiedBits |= t_samplerOverrides.mask;
+			t_samplerOverrides = {};
+		}
+
+		void BindEngineFlushSampler(EngineDrawFlushState& a_flush, ID3D11DeviceContext* a_context, UINT a_slot, ID3D11SamplerState* a_sampler) noexcept
+		{
+			auto& overrides = t_samplerOverrides;
+			const auto bit = static_cast<std::uint16_t>(1u << a_slot);
+			a_flush.requested |= bit;
+			if ((overrides.mask & bit) && overrides.values[a_slot] == a_sampler && !(a_flush.resubmitted & bit))
+				return;
+			a_context->PSSetSamplers(a_slot, 1, &a_sampler);
+			RecordShaderInjectionD3DBinds();
+			overrides.mask |= bit;
+			overrides.values[a_slot] = a_sampler;
+			overrides.owner = a_flush.variant;
+		}
 	}
 
 	void BindInjectionShaderResources(ID3D11DeviceContext* a_context, UINT a_start, UINT a_count, ID3D11ShaderResourceView* const* a_values) noexcept
 	{
+		if (UsesDrawBindingCache(ShaderResourceType::kShaderResource, a_start, a_count)) {
+			RecordShaderInjectionD3DBinds(BindDrawShaderResources(a_context, ShaderStage::kPixel, a_start, a_count, a_values));
+			return;
+		}
 		CaptureBindings(a_context, ShaderResourceType::kShaderResource, a_start, a_count);
-		if (ActiveBindingStage() == ShaderStage::kCompute)
-			a_context->CSSetShaderResources(a_start, a_count, a_values);
-		else
-			a_context->PSSetShaderResources(a_start, a_count, a_values);
+		SetStageBindings(a_context, ActiveBindingStage(), a_start, a_count, a_values);
 		RecordShaderInjectionD3DBinds();
 	}
 
 	void BindInjectionSamplers(ID3D11DeviceContext* a_context, UINT a_start, UINT a_count, ID3D11SamplerState* const* a_values) noexcept
 	{
 		for (UINT slot = a_start; slot < a_start + a_count; ++slot) {
-			if (ActiveBindingStage() == ShaderStage::kPixel && (t_samplerMask & (1u << slot)) == 0)
+			const bool pixel = ActiveBindingStage() == ShaderStage::kPixel;
+			if (pixel && (t_samplerMask & (1u << slot)) == 0)
 				continue;
-			if (t_bindings) {
+			if (pixel && t_engineFlush) {
+				BindEngineFlushSampler(*t_engineFlush, a_context, slot, a_values[slot - a_start]);
+			} else if (t_bindings) {
 				t_bindings->BindSampler(a_context, slot, a_values[slot - a_start]);
 			} else {
 				a_context->PSSetSamplers(slot, 1, &a_values[slot - a_start]);
@@ -106,17 +198,24 @@ namespace cs::engine
 
 	void BindInjectionConstantBuffers(ID3D11DeviceContext* a_context, UINT a_start, UINT a_count, ID3D11Buffer* const* a_values) noexcept
 	{
+		if (UsesDrawBindingCache(ShaderResourceType::kConstantBuffer, a_start, a_count)) {
+			RecordShaderInjectionD3DBinds(BindDrawConstantBuffers(a_context, ShaderStage::kPixel, a_start, a_count, a_values));
+			return;
+		}
 		CaptureBindings(a_context, ShaderResourceType::kConstantBuffer, a_start, a_count);
-		if (ActiveBindingStage() == ShaderStage::kCompute)
-			a_context->CSSetConstantBuffers(a_start, a_count, a_values);
-		else
-			a_context->PSSetConstantBuffers(a_start, a_count, a_values);
+		SetStageBindings(a_context, ActiveBindingStage(), a_start, a_count, a_values);
 		RecordShaderInjectionD3DBinds();
 	}
 
-	void CaptureShaderInjectionOutputs(ID3D11DeviceContext* a_context) noexcept
+	void CaptureShaderInjectionBlendState(ID3D11DeviceContext* a_context) noexcept
 	{
-		CaptureBindings(a_context, ShaderResourceType::kRenderTarget, 0, 1);
+		CaptureBindings(a_context, ShaderResourceType::kBlendState, 0, 1);
+	}
+
+	void InvalidateShaderInjectionBindings() noexcept
+	{
+		InvalidateFrameBindings();
+		ReleaseSamplerOverrides(GetEngineShadowState());
 	}
 
 	void BeginShaderInjectionFrame(std::uint32_t a_frame) noexcept
@@ -130,6 +229,7 @@ namespace cs::engine
 		}
 		t_drawMetrics = { .frame = a_frame };
 		ResetFrameBindings();
+		ReleaseSamplerOverrides(GetEngineShadowState());
 		t_drawFrameStarted = true;
 	}
 
@@ -151,50 +251,24 @@ namespace cs::engine
 			if (_stage == ShaderStage::kPixel && (!_previous || _previous->GetStage() != ShaderStage::kPixel))
 				++t_drawMetrics.scopes;
 		};
-		const auto restores = _bufferCount + _resourceCount + _samplerCount + (_outputCaptured ? 2u : 0u);
-		if (_stage == ShaderStage::kPixel) {
-			t_drawMetrics.restores += restores;
-			t_drawMetrics.d3dBinds += restores;
-		}
 		if (!_context) {
 			finish();
 			return;
 		}
 		const ScopedInjectionTimer timer;
-		if (_outputCaptured) {
-			_context->OMSetRenderTargets(8, _targets, _depth);
+		std::uint32_t calls = 0;
+		if (_blendCaptured) {
 			_context->OMSetBlendState(_blend, _blendFactor, _sampleMask);
-			for (auto* target : _targets)
-				if (target)
-					target->Release();
-			if (_depth)
-				_depth->Release();
 			if (_blend)
 				_blend->Release();
+			++calls;
 		}
-		for (const auto& buffer : std::span(_buffers).first(_bufferCount)) {
-			if (_stage == ShaderStage::kCompute)
-				_context->CSSetConstantBuffers(buffer.slot, 1, &buffer.value);
-			else
-				_context->PSSetConstantBuffers(buffer.slot, 1, &buffer.value);
-			if (buffer.value)
-				buffer.value->Release();
-		}
-		for (const auto& resource : std::span(_resources).first(_resourceCount)) {
-			if (_stage == ShaderStage::kCompute)
-				_context->CSSetShaderResources(resource.slot, 1, &resource.value);
-			else
-				_context->PSSetShaderResources(resource.slot, 1, &resource.value);
-			if (resource.value)
-				resource.value->Release();
-		}
-		for (const auto& sampler : std::span(_samplers).first(_samplerCount)) {
-			if (_stage == ShaderStage::kCompute)
-				_context->CSSetSamplers(sampler.slot, 1, &sampler.value);
-			else
-				_context->PSSetSamplers(sampler.slot, 1, &sampler.value);
-			if (sampler.value)
-				sampler.value->Release();
+		calls += RestoreRuns(_context, _stage, std::span(_buffers).first(_bufferCount));
+		calls += RestoreRuns(_context, _stage, std::span(_resources).first(_resourceCount));
+		calls += RestoreRuns(_context, _stage, std::span(_samplers).first(_samplerCount));
+		if (_stage == ShaderStage::kPixel) {
+			t_drawMetrics.restores += _bufferCount + _resourceCount + _samplerCount + (_blendCaptured ? 1u : 0u);
+			t_drawMetrics.d3dBinds += calls;
 		}
 		finish();
 	}
@@ -207,17 +281,13 @@ namespace cs::engine
 		if (!_context)
 			_context = a_context;
 		{
-			// Engine-facts: PS shadow state owns t0-t15/s0-s15 and b0-b2/b12/b13 only.
-			if (_stage == ShaderStage::kPixel &&
-				((a_type == ShaderResourceType::kShaderResource && a_slot >= 16) ||
-					(a_type == ShaderResourceType::kConstantBuffer && a_slot > 2 && a_slot != 12 && a_slot != 13)))
+			if (_stage == ShaderStage::kPixel && !EngineOwnsPixelSlot(a_type, a_slot))
 				return;
-			if (a_type == ShaderResourceType::kRenderTarget && !_outputCaptured) {
-				_context->OMGetRenderTargets(8, _targets, &_depth);
+			if (a_type == ShaderResourceType::kBlendState && !_blendCaptured) {
 				_context->OMGetBlendState(&_blend, _blendFactor, &_sampleMask);
-				_outputCaptured = true;
+				_blendCaptured = true;
 				if (_stage == ShaderStage::kPixel)
-					t_drawMetrics.captures += 2;
+					++t_drawMetrics.captures;
 			}
 			if (a_type == ShaderResourceType::kShaderResource &&
 				std::ranges::none_of(std::span(_resources).first(_resourceCount), [&](const auto& r) { return r.slot == a_slot; })) {
@@ -225,20 +295,14 @@ namespace cs::engine
 				resource = { a_slot, nullptr };
 				if (_stage == ShaderStage::kPixel)
 					++t_drawMetrics.captures;
-				if (_stage == ShaderStage::kCompute)
-					_context->CSGetShaderResources(a_slot, 1, &resource.value);
-				else
-					_context->PSGetShaderResources(a_slot, 1, &resource.value);
+				GetStageBindings(_context, _stage, a_slot, 1, &resource.value);
 			} else if (a_type == ShaderResourceType::kConstantBuffer &&
 					   std::ranges::none_of(std::span(_buffers).first(_bufferCount), [&](const auto& b) { return b.slot == a_slot; })) {
 				auto& buffer = _buffers[_bufferCount++];
 				buffer = { a_slot, nullptr };
 				if (_stage == ShaderStage::kPixel)
 					++t_drawMetrics.captures;
-				if (_stage == ShaderStage::kCompute)
-					_context->CSGetConstantBuffers(a_slot, 1, &buffer.value);
-				else
-					_context->PSGetConstantBuffers(a_slot, 1, &buffer.value);
+				GetStageBindings(_context, _stage, a_slot, 1, &buffer.value);
 			}
 		}
 	}
@@ -251,10 +315,7 @@ namespace cs::engine
 		auto* binding = found == samplers.end() ? nullptr : &*found;
 		if (!binding) {
 			ID3D11SamplerState* original = nullptr;
-			if (_stage == ShaderStage::kCompute)
-				a_context->CSGetSamplers(a_slot, 1, &original);
-			else
-				a_context->PSGetSamplers(a_slot, 1, &original);
+			GetStageBindings(a_context, _stage, a_slot, 1, &original);
 			if (original == a_sampler) {
 				if (original)
 					original->Release();
@@ -268,11 +329,8 @@ namespace cs::engine
 		}
 		if (binding->current == a_sampler)
 			return;
-		// AE SetDirtyStates (0x18247D0) skips clean slots; overrides must not outlive this draw.
-		if (_stage == ShaderStage::kCompute)
-			a_context->CSSetSamplers(a_slot, 1, &a_sampler);
-		else
-			a_context->PSSetSamplers(a_slot, 1, &a_sampler);
+		// Capture/restore path (no engine flush): the override is undone after this draw.
+		SetStageBindings(a_context, _stage, a_slot, 1, &a_sampler);
 		binding->current = a_sampler;
 		RecordShaderInjectionD3DBinds();
 	}
@@ -987,6 +1045,7 @@ namespace cs::engine
 				std::scoped_lock lock(service.nativeVariantMutex);
 				service.nativeShaderIdentities.insert_or_assign(
 					shader.get(), Service::NativeShaderIdentity{ a_key, variant });
+				service.nativeBindingGeneration.fetch_add(1, std::memory_order_release);
 			}
 			return static_cast<TShader*>(shader.detach());
 		}
@@ -2320,7 +2379,17 @@ namespace cs::engine
 
 	namespace
 	{
-		std::shared_ptr<NativeVariant> FindBoundPixelVariant(
+		// Consecutive draws mostly share a shader; identity changes bump the generation.
+		struct BoundVariantCache
+		{
+			ID3D11PixelShader* shader = nullptr;
+			std::uint64_t generation = UINT64_MAX;
+			std::shared_ptr<NativeVariant> variant;
+		};
+
+		thread_local BoundVariantCache t_boundVariant;
+
+		NativeVariant* FindBoundPixelVariant(
 			ID3D11DeviceContext* a_context) noexcept
 		{
 			auto& service = GetService();
@@ -2331,6 +2400,13 @@ namespace cs::engine
 			a_context->PSGetShader(&boundShader, nullptr, nullptr);
 			if (!boundShader)
 				return nullptr;
+			// Identity only; the context keeps the shader alive.
+			boundShader->Release();
+
+			auto& cache = t_boundVariant;
+			const auto generation = service.nativeBindingGeneration.load(std::memory_order_acquire);
+			if (cache.shader == boundShader && cache.generation == generation)
+				return cache.variant.get();
 
 			std::shared_ptr<NativeVariant> variant;
 			{
@@ -2340,17 +2416,67 @@ namespace cs::engine
 				if (identity != service.nativeShaderIdentities.end())
 					variant = identity->second.variant;
 			}
-			boundShader->Release();
-			return variant;
+			cache = { boundShader, generation, std::move(variant) };
+			return cache.variant.get();
 		}
+	}
+
+	ScopedEngineDrawFlush::ScopedEngineDrawFlush(bool a_outputStateOnly, bool a_compute, bool a_dispatches) noexcept :
+		_state(GetEngineShadowState())
+	{
+		if (!_state)
+			return;
+		using RE::BSGraphics::ShaderFlags;
+		if ((_state->stateUpdateFlags & std::to_underlying(ShaderFlags::DIRTY_RENDERTARGET)) || a_compute)
+			InvalidateFrameBindings();
+		// Output-only flushes skip the engine's slot masks.
+		if (a_outputStateOnly || !g_engineSamplerRestore.load(std::memory_order_relaxed))
+			return;
+		const ScopedInjectionTimer timer;
+		auto* variant = a_dispatches ? FindBoundPixelVariant(GetImmediateContext()) : nullptr;
+		if (t_samplerOverrides.mask && (!variant || variant != t_samplerOverrides.owner)) {
+			_released = t_samplerOverrides.mask;
+			ReleaseSamplerOverrides(_state);
+		}
+		_flush.variant = variant;
+		_flush.resubmitted = static_cast<std::uint16_t>(_state->psSamplerModifiedBits);
+		if (variant) {
+			_active = true;
+			t_engineFlush = &_flush;
+		}
+	}
+
+	ScopedEngineDrawFlush::~ScopedEngineDrawFlush() noexcept
+	{
+		if (_active)
+			t_engineFlush = nullptr;
+		if (!_state)
+			return;
+		if (_released && (_state->psSamplerModifiedBits & _released)) {
+			// The flushed shadow state is not the one dirtied; fall back to capture and restore.
+			g_engineSamplerRestore.store(false, std::memory_order_relaxed);
+			L->error("Engine sampler restore disabled: SetDirtyStates did not consume the dirtied PS sampler slots.");
+		}
+		if (!_active)
+			return;
+		const ScopedInjectionTimer timer;
+		auto& overrides = t_samplerOverrides;
+		// The engine resubmitted these slots, replacing overrides this draw did not request.
+		overrides.mask &= static_cast<std::uint16_t>(~(_flush.resubmitted & ~_flush.requested));
+		if (const auto stale = static_cast<std::uint16_t>(overrides.mask & ~_flush.requested)) {
+			_state->psSamplerModifiedBits |= stale;
+			overrides.mask &= static_cast<std::uint16_t>(~stale);
+		}
+		if (!overrides.mask)
+			overrides = {};
 	}
 
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept
 	{
 		const ScopedInjectionTimer timer;
-		if (const auto variant = FindBoundPixelVariant(a_context)) {
-			const ActiveVariantScope scope(variant.get());
+		if (auto* variant = FindBoundPixelVariant(a_context)) {
+			const ActiveVariantScope scope(variant);
 			DispatchShaderInjections(variant->target, a_context, variant->samplers.load(std::memory_order_relaxed));
 		}
 	}
