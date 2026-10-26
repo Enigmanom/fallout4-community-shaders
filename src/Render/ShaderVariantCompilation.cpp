@@ -187,9 +187,6 @@ namespace cs::engine
 			std::string profile;
 			ShaderStage stage = ShaderStage::kPixel;
 			std::vector<std::pair<std::string, std::string>> defines;
-			std::uint32_t familyId = 0xFFFFFFFFU;
-			std::uint32_t descriptor = 0;
-			std::string owner;
 
 			bool operator==(const CompilationKey&) const = default;
 		};
@@ -203,9 +200,6 @@ namespace cs::engine
 				value = value * 131U + std::hash<std::string>{}(a_key.entryPoint);
 				value = value * 131U + std::hash<std::string>{}(a_key.profile);
 				value = value * 131U + static_cast<std::size_t>(a_key.stage);
-				value = value * 131U + a_key.familyId;
-				value = value * 131U + a_key.descriptor;
-				value = value * 131U + std::hash<std::string>{}(a_key.owner);
 				for (const auto& [name, defineValue] : a_key.defines) {
 					value = value * 131U + std::hash<std::string>{}(name);
 					value = value * 131U + std::hash<std::string>{}(defineValue);
@@ -261,10 +255,7 @@ namespace cs::engine
 						.entryPoint = a_request.entryPoint,
 						.profile = a_request.profile,
 						.stage = a_request.stage,
-						.defines = a_request.defines,
-						.familyId = a_request.familyId,
-						.descriptor = a_request.descriptor,
-						.owner = a_request.owner
+						.defines = a_request.defines
 					};
 					if (const auto existing = _entries.find(key);
 						existing != _entries.end()) {

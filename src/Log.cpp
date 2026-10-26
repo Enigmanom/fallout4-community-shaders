@@ -195,16 +195,6 @@ namespace cs::log
 	void ApplyConfigFromToml(const toml::table& a_logging)
 	{
 		auto* logger = Get("cs.log");
-		for (const auto& [key, value] : a_logging) {
-			(void)value;
-			const bool known = key.str() == "channels" || std::apply([&](const auto&... fields) {
-				return ((key.str() == fields.key) || ...);
-			},
-															  settings::core::kLogging.fields);
-			if (!known)
-				logger->warn("Unknown logging key '{}'; ignoring", key.str());
-		}
-
 		const settings::core::Logging defaults;
 		auto& config = Config();
 		{
@@ -226,24 +216,20 @@ namespace cs::log
 			SetGlobalLevel(*LevelFromString(defaults.level));
 		}
 
-		if (const auto* channelsNode = a_logging.get("channels")) {
-			if (const auto* channels = channelsNode->as_table()) {
-				for (const auto& [key, value] : *channels) {
-					const auto levelText = value.value<std::string>();
-					if (!levelText) {
-						logger->warn("logging.channels.{} must be a string", key.str());
-						continue;
-					}
-					const auto level = LevelFromString(*levelText);
-					if (!level) {
-						logger->warn("Invalid level '{}' for logging channel {}", *levelText, key.str());
-						continue;
-					}
-					const std::string channel(key.str());
-					SetLevel(channel.c_str(), *level);
+		if (const auto* channels = a_logging["channels"].as_table()) {
+			for (const auto& [key, value] : *channels) {
+				const auto levelText = value.value<std::string>();
+				if (!levelText) {
+					logger->warn("logging.channels.{} must be a string", key.str());
+					continue;
 				}
-			} else {
-				logger->warn("logging.channels must be a table");
+				const auto level = LevelFromString(*levelText);
+				if (!level) {
+					logger->warn("Invalid level '{}' for logging channel {}", *levelText, key.str());
+					continue;
+				}
+				const std::string channel(key.str());
+				SetLevel(channel.c_str(), *level);
 			}
 		}
 

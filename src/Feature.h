@@ -168,7 +168,7 @@ namespace cs
 
 		// Swap all staged state before finalization.
 		virtual void CommitStagedSwap() noexcept {}
-		virtual void CommitStagedFinalize() {}
+		virtual bool CommitStagedFinalize() { return true; }
 
 		// Empty output opts out of saving.
 		virtual void ExportToPreset(toml::table&) {}

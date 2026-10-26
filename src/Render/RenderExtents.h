@@ -11,7 +11,7 @@ namespace cs::render
 	{
 		if (!std::isfinite(a_ratio) || a_ratio <= 0.0f)
 			return 0;
-		return std::min(a_extent, static_cast<std::uint32_t>(static_cast<double>(a_extent) * a_ratio));
+		return std::min(a_extent, static_cast<std::uint32_t>(static_cast<float>(a_extent) * a_ratio));
 	}
 
 	struct ActiveExtentSnapshot

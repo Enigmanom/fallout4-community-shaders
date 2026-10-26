@@ -289,7 +289,8 @@ namespace cs::util
 				createResult = CreateShaderChild(*device, kind, outcome.bytecode, shader);
 			}
 
-			DX::ThrowIfFailed(createResult);
+			if (FAILED(createResult) || !shader)
+				return fail(std::format("Device rejected shader: HRESULT {:#x}", static_cast<unsigned>(createResult)));
 			L->info(
 				"Compile '{}' ok: {} bytes, source={}",
 				narrow,
@@ -312,7 +313,8 @@ namespace cs::util
 			kind,
 			std::span(bytecode, shaderBlob->GetBufferSize()),
 			shader);
-		DX::ThrowIfFailed(result);
+		if (FAILED(result) || !shader)
+			return fail(std::format("Device rejected shader: HRESULT {:#x}", static_cast<unsigned>(result)));
 		return shader;
 	}
 }

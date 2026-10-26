@@ -473,7 +473,11 @@ namespace cs
 			}
 
 			try {
-				entry.feature->CommitStagedFinalize();
+				if (!entry.feature->CommitStagedFinalize()) {
+					finalizeErrors.emplace_back(
+						"feature '" + entry.key + "' finalize failed to save settings");
+					L->error("{}", finalizeErrors.back());
+				}
 			} catch (const std::exception& ex) {
 				featureManager.QuarantineRuntimeCallback(
 					*entry.feature,
@@ -517,7 +521,13 @@ namespace cs
 		activeIdentity = a_meta.identity;
 		activeName = a_meta.name;
 		pendingComboIdentity = a_meta.identity;
-		SaveCoreConfig();
+		if (!SaveCoreConfig()) {
+			a_err = "live preset state was swapped, but active preset identity could not be saved";
+			L->error("{}", a_err);
+			Menu::ShowToast("Applied '" + a_meta.name + "' but active preset could not be saved",
+				5.0, DMUI_STATUS_SEVERITY_ERROR, a_meta.name);
+			return false;
+		}
 
 		L->info("Applied preset: {} ({}, {} feature(s))", a_meta.name,
 			a_meta.builtin ? "builtin" : "user", staged.size());
@@ -606,16 +616,13 @@ namespace cs
 
 		std::error_code ec;
 		std::filesystem::create_directories(a_path.parent_path(), ec);
-
-		// Reject files created after validation.
-		if (!a_allowOverwrite && std::filesystem::exists(a_path)) {
-			std::ostringstream oss;
-			oss << "preset file appeared between validation and write at " << a_path.string();
-			a_err = oss.str();
+		if (ec) {
+			a_err = "failed to create preset directory: " + ec.message();
 			return false;
 		}
 
-		std::ofstream out(a_path);
+		std::ofstream out(a_path, std::ios::binary |
+									  (a_allowOverwrite ? std::ios::trunc : std::ios::noreplace));
 		if (!out) {
 			std::ostringstream oss;
 			oss << "failed to open " << a_path.string() << " for write";
@@ -623,6 +630,7 @@ namespace cs
 			return false;
 		}
 		out << table;
+		out.close();
 		if (!out) {
 			std::ostringstream oss;
 			oss << "write failed for " << a_path.string();

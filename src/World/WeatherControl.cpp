@@ -49,8 +49,14 @@ namespace cs::engine
 		// Claims the override slot so nothing lerps away from the lock.
 		void ReapplyLock(RE::Sky* a_sky, RE::TESWeather* a_weather)
 		{
-			if (a_sky && a_weather)
+			if (!a_sky || !a_weather)
+				return;
+			if (a_sky->currentWeather == a_weather && !a_sky->lastWeather) {
+				a_sky->overrideWeather = a_weather;
+				a_sky->lastWeatherUpdate = a_sky->currentGameHour;
+			} else {
 				ForceWeatherOriginal(a_sky, a_weather, true);
+			}
 		}
 
 		void SetWeather_Hook::thunk(RE::Sky* a_sky, RE::TESWeather* a_weather, bool a_override, bool a_accelerate)

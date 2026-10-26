@@ -40,7 +40,7 @@ namespace cs::features
 			const PresetApplyContext& a_context,
 			std::string& a_error) override;
 		void CommitStagedSwap() noexcept override;
-		void CommitStagedFinalize() override;
+		bool CommitStagedFinalize() override;
 		void ExportToPreset(toml::table& a_out) override;
 
 		Settings settings;

@@ -132,7 +132,6 @@ namespace cs::engine
 
 			D3D11_BUFFER_DESC desc{};
 			a_buffer->GetDesc(&desc);
-			RecordDescription(desc);
 			if ((desc.BindFlags & D3D11_BIND_CONSTANT_BUFFER) == 0 || desc.ByteWidth < kMinimumByteWidth) {
 				CS_LOG_ONCE(
 					L,
@@ -145,6 +144,7 @@ namespace cs::engine
 				return false;
 			}
 
+			RecordDescription(desc);
 			const auto previous = g_identity.exchange(a_buffer, std::memory_order_relaxed);
 			const auto previousSource =
 				g_identitySource.exchange(a_source, std::memory_order_relaxed);

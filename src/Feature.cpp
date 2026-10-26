@@ -17,7 +17,7 @@
 #include <format>
 #include <string>
 #include <string_view>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 namespace
@@ -204,14 +204,10 @@ namespace cs
 
 	bool FeatureManager::PrepareMenuCallback(Feature& a_feature, std::string_view a_phase) noexcept
 	{
-		const auto& state = a_feature.GetState();
-		if (!state.installed) {
-			return false;
-		}
 		if (a_feature.IsHealthy()) {
 			return PrepareRuntimeCallback(a_feature, a_phase);
 		}
-		return state.runtimeState == FeatureRuntimeState::kInactive;
+		return a_feature.GetState().runtimeState == FeatureRuntimeState::kInactive;
 	}
 
 	void FeatureManager::QuarantineRuntimeCallback(
@@ -334,6 +330,8 @@ namespace cs
 			a_error = reloaded.error;
 			return false;
 		}
+		for (const auto& warning : reloaded.warnings)
+			L->warn("{}", warning);
 		std::vector<settings::PreparedLiveSettings> prepared;
 		for (auto* feature : _loadedFeatures) {
 			if (!feature->IsHealthy() || !feature->GetLiveSettingsAccess().prepare)
@@ -445,42 +443,6 @@ namespace cs
 
 		const auto configRoot = feature_config::GetRoot();
 		const auto* features = configRoot["features"].as_table();
-		std::unordered_set<std::string> registeredKeys;
-		registeredKeys.reserve(_registeredFeatures.size());
-		for (auto* feature : _registeredFeatures) {
-			registeredKeys.insert(feature->GetConfigKey());
-		}
-		if (features) {
-			for (const auto& [key, node] : *features) {
-				if (!registeredKeys.contains(std::string(key.str()))) {
-					L->warn("Ignoring unknown unified configuration feature key '{}'", key.str());
-				}
-			}
-		}
-
-		std::vector<std::string> missingKeys;
-		for (auto* feature : _registeredFeatures) {
-			const auto key = feature->GetConfigKey();
-			const auto* featureNode = features ? features->get(key) : nullptr;
-			const bool installed = featureNode && featureNode->is_table();
-			if (!installed) {
-				missingKeys.push_back(key);
-			}
-			feature->SetState({ .installed = installed,
-				.desiredActive = false,
-				.runtimeState = installed ? FeatureRuntimeState::kPending : FeatureRuntimeState::kInactive,
-				.detail = installed ? std::string{} : "Unified feature configuration is missing" });
-		}
-		if (!missingKeys.empty()) {
-			std::string names;
-			for (const auto& key : missingKeys) {
-				if (!names.empty()) {
-					names += ", ";
-				}
-				names += key;
-			}
-			L->warn("Registered features absent from unified configuration: {}", names);
-		}
 
 		const auto failConfiguration = [](Feature* a_feature, std::string a_detail) {
 			if (a_detail.empty()) {
@@ -491,10 +453,6 @@ namespace cs
 		};
 
 		for (auto* feature : _registeredFeatures) {
-			if (!feature->GetState().installed) {
-				continue;
-			}
-
 			const auto key = feature->GetConfigKey();
 			const auto* featureTable = features->get(key)->as_table();
 			const auto activation = feature_config::ParseActivation(*featureTable);
@@ -518,8 +476,7 @@ namespace cs
 
 				const bool deactivatedForEnb = cs::env::IsENBLoaded();
 				const bool desiredActive = activation.valid && activation.load && !deactivatedForEnb;
-				feature->SetState({ .installed = true,
-					.desiredActive = desiredActive,
+				feature->SetState({ .desiredActive = desiredActive,
 					.runtimeState = desiredActive ? FeatureRuntimeState::kPending : FeatureRuntimeState::kInactive,
 					.detail = deactivatedForEnb ? "ENB is loaded; this feature is inactive." : std::string{} });
 			} catch (const std::exception& e) {
@@ -545,11 +502,7 @@ namespace cs
 				continue;
 			}
 			if (state.runtimeState == FeatureRuntimeState::kInactive) {
-				if (state.installed) {
-					L->info("Feature {} inactive per TOML configuration; skipping", feature->GetName());
-				} else {
-					L->info("Feature {} not installed (no TOML configuration); skipping", feature->GetName());
-				}
+				L->info("Feature {} inactive per TOML configuration; skipping", feature->GetName());
 				continue;
 			}
 			const bool wasActive = state.runtimeState == FeatureRuntimeState::kActive;
@@ -592,18 +545,16 @@ namespace cs
 			try {
 				if (state.detail.empty()) {
 					L->info(
-						"Feature state: {} state={} installed={} desired={} enabled={}",
+						"Feature state: {} state={} desired={} enabled={}",
 						feature->GetName(),
 						FeatureRuntimeStateName(state.runtimeState),
-						state.installed,
 						state.desiredActive,
 						feature->IsEnabled());
 				} else {
 					L->info(
-						"Feature state: {} state={} installed={} desired={} enabled={} detail={}",
+						"Feature state: {} state={} desired={} enabled={} detail={}",
 						feature->GetName(),
 						FeatureRuntimeStateName(state.runtimeState),
-						state.installed,
 						state.desiredActive,
 						feature->IsEnabled(),
 						std::string_view(state.detail).substr(0, 256));

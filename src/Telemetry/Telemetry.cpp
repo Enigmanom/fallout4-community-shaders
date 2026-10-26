@@ -559,31 +559,35 @@ namespace cs::telemetry
 
 		static void DumpAll();
 
-		inline constexpr char kFrameBufferComponent[] = "frame_buffer";
-		inline constexpr char kShaderInjectionComponent[] = "shader_injection";
-		inline constexpr char kSkyReflectionCubeComponent[] = "sky_reflection_cube";
+		inline constexpr std::string_view kFrameBufferComponent = "frame_buffer";
+		inline constexpr std::string_view kShaderInjectionComponent = "shader_injection";
+		inline constexpr std::string_view kSkyReflectionCubeComponent = "sky_reflection_cube";
 
-		// One instantiation per component keeps each failure's log-once state separate.
-		template <const char* Component>
-		void EmitComponent(spdlog::logger* a_logger, std::uint64_t a_frame, void (*a_collect)(Sink&))
+		void EmitComponent(
+			spdlog::logger* a_logger,
+			std::uint64_t a_frame,
+			std::string_view a_component,
+			void (*a_collect)(Sink&))
 		{
 			try {
 				Sink sink;
 				a_collect(sink);
-				a_logger->info("frame={} component={} {}", a_frame, Component, sink.ToLine());
+				a_logger->info("frame={} component={} {}", a_frame, a_component, sink.ToLine());
 			} catch (const std::exception& e) {
-				CS_LOG_ONCE(
+				CS_LOG_ONCE_BY_KEY(
 					a_logger,
 					spdlog::level::warn,
+					a_component,
 					"Telemetry collection failed for {}: {}",
-					Component,
+					a_component,
 					e.what());
 			} catch (...) {
-				CS_LOG_ONCE(
+				CS_LOG_ONCE_BY_KEY(
 					a_logger,
 					spdlog::level::warn,
+					a_component,
 					"Telemetry collection failed for {}: non-standard exception",
-					Component);
+					a_component);
 			}
 		}
 
@@ -616,9 +620,9 @@ namespace cs::telemetry
 			}
 
 			auto* logger = cs::log::Get("cs.telemetry");
-			EmitComponent<kFrameBufferComponent>(logger, frame, CollectFrameBuffer);
-			EmitComponent<kShaderInjectionComponent>(logger, frame, CollectShaderInjection);
-			EmitComponent<kSkyReflectionCubeComponent>(logger, frame, CollectSkyReflectionCube);
+			EmitComponent(logger, frame, kFrameBufferComponent, CollectFrameBuffer);
+			EmitComponent(logger, frame, kShaderInjectionComponent, CollectShaderInjection);
+			EmitComponent(logger, frame, kSkyReflectionCubeComponent, CollectSkyReflectionCube);
 			for (const auto* feature : FeatureManager::Get().GetAll()) {
 				try {
 					if (!feature->ProducesTelemetry() && !feature->SupportsEnableToggle())
@@ -632,11 +636,20 @@ namespace cs::telemetry
 					else
 						logger->info("frame={} feature={} {}", frame, feature->GetName(), fields);
 				} catch (const std::exception& e) {
-					CS_LOG_ONCE(logger, spdlog::level::warn,
-						"Telemetry collection failed for {}: {}", feature->GetName(), e.what());
+					CS_LOG_ONCE_BY_KEY(
+						logger,
+						spdlog::level::warn,
+						feature,
+						"Telemetry collection failed for {}: {}",
+						feature->GetName(),
+						e.what());
 				} catch (...) {
-					CS_LOG_ONCE(logger, spdlog::level::warn,
-						"Telemetry collection failed for {}: non-standard exception", feature->GetName());
+					CS_LOG_ONCE_BY_KEY(
+						logger,
+						spdlog::level::warn,
+						feature,
+						"Telemetry collection failed for {}: non-standard exception",
+						feature->GetName());
 				}
 			}
 		}
@@ -673,7 +686,7 @@ namespace cs::telemetry
 						const auto& state = feature->GetState();
 						featureTable.insert_or_assign("loaded", feature->IsLoaded());
 						featureTable.insert_or_assign("active", feature->IsActive());
-						featureTable.insert_or_assign("installed", state.installed);
+						featureTable.insert_or_assign("installed", feature->IsInstalled());
 						featureTable.insert_or_assign("desired_active", state.desiredActive);
 						featureTable.insert_or_assign(
 							"state", std::string(FeatureRuntimeStateName(state.runtimeState)));

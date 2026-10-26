@@ -144,14 +144,15 @@ namespace cs::features
 		}
 	}
 
-	void Upscaling::CommitStagedFinalize()
+	bool Upscaling::CommitStagedFinalize()
 	{
 		if (!_stagedSettings) {
-			return;
+			return true;
 		}
 		_stagedSettings.reset();
-		SaveSettings();
+		const bool saved = SaveSettings();
 		render::TemporalPipeline::Get().SubmitLiveConfiguration();
+		return saved;
 	}
 
 	void Upscaling::ExportToPreset(toml::table& a_out)

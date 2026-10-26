@@ -15,7 +15,6 @@
 #include <mutex>
 #include <string_view>
 #include <thread>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -148,20 +147,18 @@ namespace cs::engine
 				std::uint64_t a_generation)
 			{
 				std::scoped_lock lock(_mutex);
-				auto& context = _contexts[a_generation];
-				if (!context) {
-					context = std::make_shared<
+				if (!_context || _generation != a_generation) {
+					_context = std::make_shared<
 						shader_cache::RevalidationContext>();
+					_generation = a_generation;
 				}
-				return context;
+				return _context;
 			}
 
 		private:
 			std::mutex _mutex;
-			std::unordered_map<
-				std::uint64_t,
-				std::shared_ptr<shader_cache::RevalidationContext>>
-				_contexts;
+			std::uint64_t _generation = 0;
+			std::shared_ptr<shader_cache::RevalidationContext> _context;
 		};
 
 		ShaderVariantCompilationOutput CompileShaderVariant(

@@ -94,6 +94,16 @@ namespace cs::render
 
 		float2 resolutionScale = { 1.0f, 1.0f };
 		temporal::RenderSizeState _renderSize;
+		struct ResourceConfiguration
+		{
+			UpscaleMethod method = UpscaleMethod::kTAA;
+			temporal::SuperResolutionSizeRequest size;
+			temporal::RenderExtent render;
+
+			bool operator==(const ResourceConfiguration&) const noexcept = default;
+		};
+		std::optional<ResourceConfiguration> _resourceConfiguration;
+		ResourceConfiguration GetResourceConfiguration(UpscaleMethod a_method) const noexcept;
 
 		bool IsUpscalingActive() const;
 		bool IsFrameGenerationDx12PathActive() const noexcept;
