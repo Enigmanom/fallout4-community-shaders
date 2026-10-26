@@ -67,7 +67,8 @@ namespace cs::engine
 	{
 		std::uint32_t frame = 0;
 		std::uint64_t scopes = 0;
-		std::uint64_t scopeNanoseconds = 0;
+		// Injection work only (lookup, binds, restores), never the engine draw.
+		std::uint64_t injectionNanoseconds = 0;
 		std::uint64_t captures = 0;
 		std::uint64_t restores = 0;
 		std::uint64_t d3dBinds = 0;
@@ -127,7 +128,6 @@ namespace cs::engine
 		float _blendFactor[4]{};
 		std::uint32_t _sampleMask = 0;
 		bool _outputCaptured = false;
-		std::chrono::steady_clock::time_point _started;
 	};
 	using ScopedPixelShaderInjectionBindings = ScopedShaderInjectionBindings;
 

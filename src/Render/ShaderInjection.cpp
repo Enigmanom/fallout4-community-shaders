@@ -47,6 +47,24 @@ namespace cs::engine
 		std::mutex g_drawMetricsMutex;
 		ShaderInjectionDrawMetrics g_completedDrawMetrics;
 
+		class ScopedInjectionTimer
+		{
+		public:
+			ScopedInjectionTimer() noexcept :
+				_started(std::chrono::steady_clock::now())
+			{}
+			~ScopedInjectionTimer()
+			{
+				t_drawMetrics.injectionNanoseconds += static_cast<std::uint64_t>(
+					std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - _started).count());
+			}
+			ScopedInjectionTimer(const ScopedInjectionTimer&) = delete;
+			ScopedInjectionTimer& operator=(const ScopedInjectionTimer&) = delete;
+
+		private:
+			std::chrono::steady_clock::time_point _started;
+		};
+
 		ShaderStage ActiveBindingStage() noexcept
 		{
 			return t_bindings ? t_bindings->GetStage() : ShaderStage::kPixel;
@@ -123,23 +141,15 @@ namespace cs::engine
 
 	ScopedShaderInjectionBindings::ScopedShaderInjectionBindings(ShaderStage a_stage) noexcept :
 		_stage(a_stage),
-		_previous(std::exchange(t_bindings, this)),
-		_started(std::chrono::steady_clock::now())
+		_previous(std::exchange(t_bindings, this))
 	{}
 
 	ScopedShaderInjectionBindings::~ScopedShaderInjectionBindings() noexcept
 	{
 		const auto finish = [this] {
 			t_bindings = _previous;
-			if (_stage == ShaderStage::kPixel) {
-				if (!_previous || _previous->GetStage() != ShaderStage::kPixel) {
-					++t_drawMetrics.scopes;
-					t_drawMetrics.scopeNanoseconds += static_cast<std::uint64_t>(
-						std::chrono::duration_cast<std::chrono::nanoseconds>(
-							std::chrono::steady_clock::now() - _started)
-							.count());
-				}
-			}
+			if (_stage == ShaderStage::kPixel && (!_previous || _previous->GetStage() != ShaderStage::kPixel))
+				++t_drawMetrics.scopes;
 		};
 		const auto restores = _bufferCount + _resourceCount + _samplerCount + (_outputCaptured ? 2u : 0u);
 		if (_stage == ShaderStage::kPixel) {
@@ -150,6 +160,7 @@ namespace cs::engine
 			finish();
 			return;
 		}
+		const ScopedInjectionTimer timer;
 		if (_outputCaptured) {
 			_context->OMSetRenderTargets(8, _targets, _depth);
 			_context->OMSetBlendState(_blend, _blendFactor, _sampleMask);
@@ -2337,6 +2348,7 @@ namespace cs::engine
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept
 	{
+		const ScopedInjectionTimer timer;
 		if (const auto variant = FindBoundPixelVariant(a_context)) {
 			const ActiveVariantScope scope(variant.get());
 			DispatchShaderInjections(variant->target, a_context, variant->samplers.load(std::memory_order_relaxed));
@@ -2346,6 +2358,7 @@ namespace cs::engine
 	void RecordUndispatchedInjectedDraw(
 		ID3D11DeviceContext* a_context) noexcept
 	{
+		const ScopedInjectionTimer timer;
 		if (FindBoundPixelVariant(a_context))
 			++t_drawMetrics.undispatchedDraws;
 	}

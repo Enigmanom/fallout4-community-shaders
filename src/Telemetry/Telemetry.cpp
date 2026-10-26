@@ -154,7 +154,7 @@ namespace cs::telemetry
 				.Field("dispatches", TomlInteger(summary.dispatches))
 				.Field("draw_frame", static_cast<std::int64_t>(summary.draw.frame))
 				.Field("draw_scopes", TomlInteger(summary.draw.scopes))
-				.Field("draw_scope_cpu_us", static_cast<double>(summary.draw.scopeNanoseconds) / 1000.0)
+				.Field("draw_injection_cpu_us", static_cast<double>(summary.draw.injectionNanoseconds) / 1000.0)
 				.Field("draw_captures", TomlInteger(summary.draw.captures))
 				.Field("draw_restores", TomlInteger(summary.draw.restores))
 				.Field("draw_d3d_binds", TomlInteger(summary.draw.d3dBinds))
