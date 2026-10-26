@@ -1,5 +1,7 @@
 #include "Render/FrameBindings.h"
 
+#include <array>
+#include <bitset>
 #include <d3d11.h>
 
 namespace cs::engine
@@ -29,19 +31,13 @@ namespace cs::engine
 		struct Bindings
 		{
 			std::array<T*, Count> expected{};
-			std::bitset<Count> tracked;
 			// Still bound as recorded since the last invalidation.
 			std::bitset<Count> trusted;
-			// Bound once per pass, so any change before the next pass bind is a loss.
-			std::bitset<Count> persistent;
-
-			void Record(UINT a_start, UINT a_count, T* const* a_values, bool a_persistent) noexcept
+			void Record(UINT a_start, UINT a_count, T* const* a_values) noexcept
 			{
 				for (UINT i = 0; i < a_count; ++i) {
 					expected[a_start + i] = a_values[i];
-					tracked.set(a_start + i);
 					trusted.set(a_start + i);
-					persistent.set(a_start + i, a_persistent);
 				}
 			}
 
@@ -59,31 +55,11 @@ namespace cs::engine
 					while (i + run < a_count && !(trusted.test(slot + run) && expected[slot + run] == a_values[i + run]))
 						++run;
 					SetStageBindings(a_context, a_stage, slot, run, a_values + i);
-					Record(slot, run, a_values + i, false);
+					Record(slot, run, a_values + i);
 					++calls;
 					i += run;
 				}
 				return calls;
-			}
-
-			void Verify(ID3D11DeviceContext* a_context, ShaderStage a_stage, std::bitset<Count>& a_lost, FrameBindingMetrics& a_metrics) noexcept
-			{
-				for (UINT slot = 0; slot < Count; ++slot) {
-					if (!tracked.test(slot))
-						continue;
-					T* actual = nullptr;
-					GetStageBindings(a_context, a_stage, slot, 1, &actual);
-					++a_metrics.checks;
-					// Untrusted draw bindings may change legitimately; they rebind on next use.
-					if (actual != expected[slot] && (trusted.test(slot) || persistent.test(slot))) {
-						++a_metrics.lost;
-						++a_metrics.lostTotal;
-						a_lost.set(slot);
-						trusted.reset(slot);
-					}
-					if (actual)
-						actual->Release();
-				}
 			}
 		};
 
@@ -91,7 +67,6 @@ namespace cs::engine
 		{
 			Bindings<ID3D11ShaderResourceView, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT> resources;
 			Bindings<ID3D11Buffer, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> buffers;
-			std::bitset<static_cast<std::size_t>(ShaderInjectionTarget::kCount)> sampled;
 		};
 
 		thread_local std::array<StageBindings, 3> t_bindings;
@@ -138,7 +113,7 @@ namespace cs::engine
 	void ResetFrameBindings() noexcept
 	{
 		t_bindings = {};
-		t_metrics = { .lostTotal = t_metrics.lostTotal };
+		t_metrics = {};
 		++t_epoch;
 	}
 
@@ -159,7 +134,7 @@ namespace cs::engine
 	{
 		if (auto* stage = Stage(a_stage)) {
 			SetStageBindings(a_context, a_stage, a_start, a_count, a_views);
-			stage->resources.Record(a_start, a_count, a_views, true);
+			stage->resources.Record(a_start, a_count, a_views);
 		}
 	}
 
@@ -167,7 +142,7 @@ namespace cs::engine
 	{
 		if (auto* stage = Stage(a_stage)) {
 			SetStageBindings(a_context, a_stage, a_start, a_count, a_buffers);
-			stage->buffers.Record(a_start, a_count, a_buffers, true);
+			stage->buffers.Record(a_start, a_count, a_buffers);
 		}
 	}
 
@@ -181,17 +156,5 @@ namespace cs::engine
 	{
 		auto* stage = Stage(a_stage);
 		return stage ? stage->buffers.Bind(a_context, a_stage, a_start, a_count, a_buffers, t_metrics) : 0;
-	}
-
-	void VerifyFrameBindings(ID3D11DeviceContext* a_context, ShaderStage a_stage, ShaderInjectionTarget a_target) noexcept
-	{
-		auto* stage = Stage(a_stage);
-		const auto target = static_cast<std::size_t>(a_target);
-		if (!stage || stage->sampled.test(target))
-			return;
-		stage->sampled.set(target);
-		const auto index = static_cast<std::size_t>(a_stage);
-		stage->resources.Verify(a_context, a_stage, t_metrics.resources[index], t_metrics);
-		stage->buffers.Verify(a_context, a_stage, t_metrics.buffers[index], t_metrics);
 	}
 }

@@ -66,7 +66,6 @@ namespace cs::engine
 		HookPoint g_postDeferredLightsImpl{ "PostDeferredLightsImpl", {}, EnsureDeferredLightsImplInstalled };
 		HookPoint g_preDeferredComposite{ "PreDeferredComposite", {}, EnsureDeferredCompositeInstalled };
 		HookPoint g_postDeferredComposite{ "PostDeferredComposite", {}, EnsureDeferredCompositeInstalled };
-		HookPoint g_preFullscreenDeferredLightDraw{ "PreFullscreenDeferredLightDraw", {}, EnsureDeferredDrawAnchorInstalled };
 		HookPoint g_postForwardSky{ "PostForwardSky", {}, EnsureForwardSkyInstalled };
 		HookPoint g_prePrecipitationOcclusion{ "PrePrecipitationOcclusion", {}, EnsurePrecipitationOcclusionInstalled };
 		HookPoint g_postPrecipitationOcclusion{ "PostPrecipitationOcclusion", {}, EnsurePrecipitationOcclusionInstalled };
@@ -117,7 +116,6 @@ namespace cs::engine
 		bool g_waterUpdateInstalled = false;
 		bool g_resetStateInstalled = false;
 		bool g_insideDeferredLightsImpl = false;
-		bool g_insideDeferredComposite = false;
 
 		// Registration closes when the first render hook runs.
 		const DWORD g_registrationThreadId = ::GetCurrentThreadId();
@@ -324,53 +322,20 @@ namespace cs::engine
 			(a_context->*Draw)(a_args...);
 		}
 
-		bool ClassifyDeferredDraw(std::uint32_t a_residualR9d) noexcept
-		{
-			return g_insideDeferredLightsImpl && !g_insideDeferredComposite &&
-			       t_drawRoute == DrawRoute::kTriShape && a_residualR9d == 2;
-		}
-
-		// Command-buffer flushes precede records that bind their own state.
-		std::optional<bool> SelectDrawFlushDecision(std::uint32_t a_residualR9d) noexcept
-		{
-			if (!g_deferredDrawAnchorInstalled || t_drawRoute == DrawRoute::kNone || t_drawRoute == DrawRoute::kCommandBuffer)
-				return std::nullopt;
-			return ClassifyDeferredDraw(a_residualR9d);
-		}
-
-		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, const std::optional<bool>& a_fullscreenLight) noexcept
-		{
-			auto* rendererData = RE::BSGraphics::GetRendererData();
-			auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
-			if (t_drawRoute == DrawRoute::kNone) {
-				// Flush is output-only and RunComputeShader is compute; draws are neither.
-				if (!a_outputStateOnly && !a_compute)
-					RecordUndispatchedInjectedDraw(context);
-				return;
-			}
-			if (!a_fullscreenLight)
-				return;
-			if (*a_fullscreenLight)
-				Dispatch(g_preFullscreenDeferredLightDraw, "Fullscreen deferred light draw pre");
-			DispatchInjectionsForBoundPixelShader(context);
-		}
-
-		// The fourth argument is residual r9d state, not a call parameter.
 		struct SetDirtyStates_Hook
 		{
-			static void thunk(
-				bool a_outputStateOnly,
-				bool a_compute,
-				std::uint32_t,
-				std::uint32_t a_residualR9d)
+			static void thunk(bool a_outputStateOnly, bool a_compute)
 			{
-				const auto fullscreenLight = SelectDrawFlushDecision(a_residualR9d);
-				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, fullscreenLight.has_value());
+				const bool dispatches = g_deferredDrawAnchorInstalled && t_drawRoute != DrawRoute::kNone && t_drawRoute != DrawRoute::kCommandBuffer;
+				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, dispatches);
 				func(a_outputStateOnly, a_compute);
 				if (g_drawProfilingInstalled && !a_outputStateOnly && !a_compute)
 					render::profiling::RecordDraw();
-				if (g_deferredDrawAnchorInstalled)
-					OnDrawStateFlushed(a_outputStateOnly, a_compute, fullscreenLight);
+				if (dispatches) {
+					auto* rendererData = RE::BSGraphics::GetRendererData();
+					auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
+					DispatchInjectionsForBoundPixelShader(context);
+				}
 			}
 			static inline REL::Relocation<decltype(&RE::BSGraphics::SetDirtyStates)> func;
 		};
@@ -392,10 +357,7 @@ namespace cs::engine
 			{
 				MarkRegistrationClosed();
 				Dispatch(g_preDeferredComposite, "Deferred composite pre");
-				{
-					ScopedRenderPhase phase(g_insideDeferredComposite);
-					func();
-				}
+				func();
 				Dispatch(g_postDeferredComposite, "Deferred composite post");
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -840,8 +802,7 @@ namespace cs::engine
 			if (g_deferredDrawAnchorInstalled) {
 				return;
 			}
-			if (!EnsureDeferredLightsImplInstalled() || !EnsureDeferredCompositeInstalled() ||
-				!InstallDrawRoutes() || !EnsureDrawFlushInstalled()) {
+			if (!InstallDrawRoutes() || !EnsureDrawFlushInstalled()) {
 				L->error("Deferred draw anchor unavailable");
 				return;
 			}
@@ -980,13 +941,5 @@ namespace cs::engine
 	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority, HookEffect effect)
 	{
 		return Register(g_postPrecipitationOcclusion, std::move(callback), priority, effect);
-	}
-
-	bool RegisterPreFullscreenDeferredLightDraw(
-		RenderHookCallback callback,
-		HookPriority priority,
-		HookEffect effect)
-	{
-		return Register(g_preFullscreenDeferredLightDraw, std::move(callback), priority, effect);
 	}
 }

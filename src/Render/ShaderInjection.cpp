@@ -49,24 +49,6 @@ namespace cs::engine
 		std::mutex g_drawMetricsMutex;
 		ShaderInjectionDrawMetrics g_completedDrawMetrics;
 
-		class ScopedInjectionTimer
-		{
-		public:
-			ScopedInjectionTimer() noexcept :
-				_started(std::chrono::steady_clock::now())
-			{}
-			~ScopedInjectionTimer()
-			{
-				t_drawMetrics.injectionNanoseconds += static_cast<std::uint64_t>(
-					std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - _started).count());
-			}
-			ScopedInjectionTimer(const ScopedInjectionTimer&) = delete;
-			ScopedInjectionTimer& operator=(const ScopedInjectionTimer&) = delete;
-
-		private:
-			std::chrono::steady_clock::time_point _started;
-		};
-
 		ShaderStage ActiveBindingStage() noexcept
 		{
 			return t_bindings ? t_bindings->GetStage() : ShaderStage::kPixel;
@@ -285,7 +267,6 @@ namespace cs::engine
 			finish();
 			return;
 		}
-		const ScopedInjectionTimer timer;
 		std::uint32_t calls = 0;
 		if (_blendCaptured) {
 			_context->OMSetBlendState(_blend, _blendFactor, _sampleMask);
@@ -1156,9 +1137,6 @@ namespace cs::engine
 			ShaderStage a_stage,
 			ID3D11DeviceContext* a_context) noexcept
 		{
-			VerifyFrameBindings(a_context, a_stage, a_target.id);
-			if (a_stage == ShaderStage::kPixel)
-				VerifyFrameBindings(a_context, ShaderStage::kVertex, a_target.id);
 			auto& runtime = GetService().runtime[ToIndex(a_target.id)];
 			for (const auto& bind : a_target.binds) {
 				if ((bind.stages & ShaderStageBit(a_stage)) == 0)
@@ -1691,17 +1669,8 @@ namespace cs::engine
 
 	bool ComputeDispatchBridgeInstalled() noexcept
 	{
-		const auto tail =
-			g_computeDispatchBridgeTail.load(
-				std::memory_order_acquire);
-		if (!tail || !g_computeDispatchContext.load(
-						 std::memory_order_acquire)) {
-			return false;
-		}
-		return std::memcmp(
-				   reinterpret_cast<const void*>(tail),
-				   g_computeDispatchBridgePatch.data(),
-				   g_computeDispatchBridgePatch.size()) == 0;
+		return g_computeDispatchBridgeTail.load(std::memory_order_acquire) != 0 &&
+		       g_computeDispatchContext.load(std::memory_order_acquire) != nullptr;
 	}
 
 	ComputeDispatchBridgeStatus GetComputeDispatchBridgeStatus() noexcept
@@ -2412,7 +2381,6 @@ namespace cs::engine
 		// Output-only flushes skip the engine's slot masks.
 		if (a_outputStateOnly || !g_engineSamplerRestore.load(std::memory_order_relaxed))
 			return;
-		const ScopedInjectionTimer timer;
 		auto* variant = a_dispatches ? FindBoundPixelVariant(GetImmediateContext()) : nullptr;
 		// Keep overrides this variant last requested; the engine restores the rest.
 		auto& overrides = t_samplerOverrides;
@@ -2452,19 +2420,10 @@ namespace cs::engine
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept
 	{
-		const ScopedInjectionTimer timer;
 		if (auto* variant = t_engineFlush.variant ? t_engineFlush.variant : FindBoundPixelVariant(a_context)) {
 			const ActiveVariantScope scope(variant);
 			DispatchShaderInjections(variant->target, a_context, variant->samplers.load(std::memory_order_relaxed));
 		}
-	}
-
-	void RecordUndispatchedInjectedDraw(
-		ID3D11DeviceContext* a_context) noexcept
-	{
-		const ScopedInjectionTimer timer;
-		if (FindBoundPixelVariant(a_context))
-			++t_drawMetrics.undispatchedDraws;
 	}
 
 	bool ActiveShaderInjectionVariantHasDefine(

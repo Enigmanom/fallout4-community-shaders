@@ -169,11 +169,7 @@ namespace cs::engine
 					return func(a_property, a_geometry, a_renderMode, a_accumulator);
 
 				auto& stats = GetOccluderStats();
-				auto& timings = GetCaptureTimings();
-				const auto begin = CaptureClock::now();
 				const auto reject = RejectOccluder(*a_property, *a_geometry, capture->occluders);
-				const auto predicateEnd = CaptureClock::now();
-				timings.hookPredicate.fetch_add((predicateEnd - begin).count(), std::memory_order_relaxed);
 				if (reject) {
 					stats.rejected[static_cast<std::size_t>(*reject)].fetch_add(1, std::memory_order_relaxed);
 					return nullptr;
@@ -181,8 +177,6 @@ namespace cs::engine
 				stats.accepted.fetch_add(1, std::memory_order_relaxed);
 
 				auto* passes = func(a_property, a_geometry, a_renderMode, a_accumulator);
-				const auto stockEnd = CaptureClock::now();
-				timings.hookStock.fetch_add((stockEnd - predicateEnd).count(), std::memory_order_relaxed);
 				if (passes) {
 					stats.delegated.fetch_add(1, std::memory_order_relaxed);
 					return passes;
@@ -190,7 +184,6 @@ namespace cs::engine
 
 				bool created = false;
 				passes = BuildOcclusionPasses(*a_property, *a_geometry, *a_accumulator, created);
-				timings.hookOwn.fetch_add((CaptureClock::now() - stockEnd).count(), std::memory_order_relaxed);
 				if (!passes) {
 					stats.stockOnly.fetch_add(1, std::memory_order_relaxed);
 					return nullptr;

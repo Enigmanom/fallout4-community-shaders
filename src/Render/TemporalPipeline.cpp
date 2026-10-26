@@ -953,7 +953,6 @@ namespace cs::render
 			eligible = _impl->rendererEligible;
 		}
 		_impl->renderer.ApplyConfiguration(renderSettings, eligible);
-		cs::engine::RefreshFrameBufferContextHooks();
 		if (LatencyActive()) {
 			ReportLatencyResult(
 				_impl->latencyProvider->Configure(ToLatencyOptions(renderSettings)));

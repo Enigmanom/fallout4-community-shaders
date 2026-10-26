@@ -17,9 +17,7 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <exception>
-#include <format>
 #include <limits>
 #include <sstream>
 #include <system_error>
@@ -102,37 +100,11 @@ namespace cs::telemetry
 			return static_cast<std::int64_t>(a_value > max ? max : a_value);
 		}
 
-		std::string FormatHex64(std::uint64_t a_value)
-		{
-			char buffer[16]{};
-			const auto result =
-				std::to_chars(std::begin(buffer), std::end(buffer), a_value, 16);
-			std::string output = "0x";
-			if (result.ec == std::errc{}) {
-				output.append(buffer, result.ptr);
-			}
-			return output;
-		}
-
 		void CollectShaderInjection(Sink& a_sink)
 		{
 			cs::render::profiling::CollectPassTimings(a_sink);
 			const auto summary =
 				cs::engine::GetShaderInjectionSummary();
-			std::string lostSlots;
-			constexpr std::string_view stages[]{ "vs", "ps", "cs" };
-			const auto appendSlots = [&](const auto& masks, char kind) {
-				for (std::size_t stage = 0; stage < masks.size(); ++stage)
-					for (std::size_t slot = 0; slot < masks[stage].size(); ++slot)
-						if (masks[stage].test(slot)) {
-							if (!lostSlots.empty())
-								lostSlots += ',';
-							lostSlots += std::format("{}_{}{}", stages[stage], kind, slot);
-						}
-			};
-			appendSlots(summary.draw.frameBindings.resources, 't');
-			appendSlots(summary.draw.frameBindings.buffers, 'b');
-			a_sink.Field("frame_binding_lost_slots", lostSlots.empty() ? std::string_view("none") : std::string_view(lostSlots));
 			a_sink
 				.Field(
 					"published",
@@ -151,14 +123,9 @@ namespace cs::telemetry
 				.Field("dispatches", TomlInteger(summary.dispatches))
 				.Field("draw_frame", static_cast<std::int64_t>(summary.draw.frame))
 				.Field("draw_scopes", TomlInteger(summary.draw.scopes))
-				.Field("draw_injection_cpu_us", static_cast<double>(summary.draw.injectionNanoseconds) / 1000.0)
 				.Field("draw_captures", TomlInteger(summary.draw.captures))
 				.Field("draw_restores", TomlInteger(summary.draw.restores))
 				.Field("draw_d3d_binds", TomlInteger(summary.draw.d3dBinds))
-				.Field("draw_undispatched", TomlInteger(summary.draw.undispatchedDraws))
-				.Field("frame_binding_checks", TomlInteger(summary.draw.frameBindings.checks))
-				.Field("frame_binding_lost", TomlInteger(summary.draw.frameBindings.lost))
-				.Field("frame_binding_lost_total", TomlInteger(summary.draw.frameBindings.lostTotal))
 				.Field("frame_binding_skipped", TomlInteger(summary.draw.frameBindings.skipped))
 				.Field(
 					"compute_bridge_installed",
@@ -296,132 +263,6 @@ namespace cs::telemetry
 
 		void CollectFrameBuffer(Sink& a_sink)
 		{
-			const auto status = cs::engine::GetFrameBufferStatus();
-			const auto& published = cs::engine::GetFrameBuffer();
-			const auto& latest = cs::engine::GetLatestFrameBuffer();
-			const auto publishedOrigin =
-				cs::engine::CameraWorldOrigin(published.data);
-			const auto fullscreenLightOrigin =
-				cs::engine::CameraWorldOrigin(status.fullscreenLight.data);
-			a_sink
-				.Field("hook_installed", status.hookInstalled)
-				.Field("hooked_context_is_current", status.hookedContextIsCurrent)
-				.Field("identified", status.identified)
-				.Field("identity_source", std::string_view(status.identitySource))
-				.Field("context_matches_slot12", status.contextMatchesSlot12)
-				.Field("byte_width", static_cast<std::int64_t>(status.byteWidth))
-				.Field("usage", static_cast<std::int64_t>(status.usage))
-				.Field("cpu_access_flags", static_cast<std::int64_t>(status.cpuAccessFlags))
-				.Field("bind_flags", static_cast<std::int64_t>(status.bindFlags))
-				.Field("snapshots", TomlInteger(status.snapshots))
-				.Field("camera_comparisons", TomlInteger(status.cameraComparisons))
-				.Field("camera_mismatches", TomlInteger(status.cameraMismatches))
-				.Field("camera_maximum_relative_difference", static_cast<double>(status.cameraMaximumRelativeDifference))
-				.Field("map_calls", TomlInteger(status.mapCalls))
-				.Field("unmap_calls", TomlInteger(status.unmapCalls))
-				.Field("matching_maps", TomlInteger(status.matchingMaps))
-				.Field(
-					"matching_map_successes",
-					TomlInteger(status.matchingMapSuccesses))
-				.Field(
-					"matching_map_data_pointers",
-					TomlInteger(status.matchingMapDataPointers))
-				.Field("matching_unmaps", TomlInteger(status.matchingUnmaps))
-				.Field("context_hook_refreshes", TomlInteger(status.contextHookRefreshes))
-				.Field("map_hook_current", status.mapHookCurrent)
-				.Field("unmap_hook_current", status.unmapHookCurrent)
-				.Field("maps_last_frame", static_cast<std::int64_t>(status.mapsLastFrame))
-				.Field("maps_max_per_frame", static_cast<std::int64_t>(status.maxMapsPerFrame))
-				.Field("latest_valid", status.latestSnapshotValid)
-				.Field("latest_sequence", TomlInteger(status.latestSequence))
-				.Field("latest_frame", static_cast<std::int64_t>(status.latestFrameCount))
-				.Field(
-					"latest_is_perspective",
-					cs::engine::IsPerspectiveProjection(latest.data.UnjitteredWorldToClip[3]))
-				.Field("latest_camera_pos_adjust", FormatFloat4(latest.data.PosAdjust))
-				.Field("latest_view_to_world_row0", FormatFloat4(latest.data.ViewToWorld[0]))
-				.Field("latest_view_to_world_row1", FormatFloat4(latest.data.ViewToWorld[1]))
-				.Field("latest_view_to_world_row2", FormatFloat4(latest.data.ViewToWorld[2]))
-				.Field("published_valid", status.publishedSnapshotValid)
-				.Field("published_this_frame", status.publishedThisFrame)
-				.Field("published_sequence", TomlInteger(status.publishedSequence))
-				.Field(
-					"published_frame",
-					static_cast<std::int64_t>(status.publishedFrameCount))
-				.Field(
-					"publish_source",
-					std::string_view(
-						cs::engine::FrameBufferPublishSourceName(status.publishSource)))
-				.Field(
-					"last_reject_reason",
-					std::string_view(
-						cs::engine::FrameBufferRejectReasonName(status.lastRejectReason)))
-				.Field(
-					"fullscreen_light_anchors",
-					static_cast<std::int64_t>(status.fullscreenLightAnchorsThisFrame))
-				.Field(
-					"publications",
-					static_cast<std::int64_t>(status.publicationsThisFrame))
-				.Field(
-					"rejections",
-					static_cast<std::int64_t>(status.rejectionsThisFrame))
-				.Field(
-					"distinct_cameras",
-					static_cast<std::int64_t>(status.distinctCamerasThisFrame))
-				.Field(
-					"minimum_origin_magnitude",
-					static_cast<double>(status.minimumOriginMagnitude))
-				.Field(
-					"published_camera_hash",
-					FormatHex64(status.publishedCameraHash))
-				.Field("completed_frames", TomlInteger(status.completedFrames))
-				.Field("publication_frames", TomlInteger(status.publicationFrames))
-				.Field("no_publication_frames", TomlInteger(status.noPublicationFrames))
-				.Field(
-					"near_zero_origin_rejections",
-					TomlInteger(status.nearZeroOriginRejections))
-				.Field(
-					"published_is_perspective",
-					cs::engine::IsPerspectiveProjection(
-						published.data.UnjitteredWorldToClip[3]))
-				.Field(
-					"published_camera_origin",
-					FormatVector3(
-						publishedOrigin.x,
-						publishedOrigin.y,
-						publishedOrigin.z))
-				.Field(
-					"published_camera_pos_adjust",
-					FormatFloat4(published.data.PosAdjust))
-				.Field(
-					"published_view_to_world_row0",
-					FormatFloat4(published.data.ViewToWorld[0]))
-				.Field(
-					"published_view_to_world_row1",
-					FormatFloat4(published.data.ViewToWorld[1]))
-				.Field(
-					"published_view_to_world_row2",
-					FormatFloat4(published.data.ViewToWorld[2]))
-				.Field("fullscreen_light_valid", status.fullscreenLight.valid)
-				.Field(
-					"fullscreen_light_sequence",
-					TomlInteger(status.fullscreenLight.sequence))
-				.Field(
-					"fullscreen_light_origin",
-					FormatVector3(
-						fullscreenLightOrigin.x,
-						fullscreenLightOrigin.y,
-						fullscreenLightOrigin.z))
-				.Field(
-					"fullscreen_light_row0",
-					FormatFloat4(status.fullscreenLight.data.ViewToWorld[0]))
-				.Field(
-					"fullscreen_light_row1",
-					FormatFloat4(status.fullscreenLight.data.ViewToWorld[1]))
-				.Field(
-					"fullscreen_light_row2",
-					FormatFloat4(status.fullscreenLight.data.ViewToWorld[2]));
-
 			const auto camera = cs::engine::GetWorldCameraRecord();
 			a_sink.Field("camera_record_valid", camera.has_value());
 			if (!camera) {
@@ -462,21 +303,6 @@ namespace cs::telemetry
 				.Field("skipped_no_camera", TomlInteger(status.skippedNoCamera))
 				.Field("skipped_no_targets", TomlInteger(status.skippedNoTargets))
 				.Field("skipped_no_world", TomlInteger(status.skippedNoWorld));
-		}
-
-		void CollectFrameBufferRegisters(Sink& a_sink)
-		{
-			const auto& snapshot = cs::engine::GetFrameBuffer();
-			for (std::size_t index = 0; index < cs::engine::kFrameBufferRegisters; ++index) {
-				char key[16]{};
-				const auto written = std::snprintf(key, sizeof(key), "b12_%02zu", index);
-				if (written <= 0) {
-					continue;
-				}
-				a_sink.Field(
-					std::string_view(key, static_cast<std::size_t>(written)),
-					FormatFloat4(cs::engine::FrameBufferRegister(snapshot.data, index)));
-			}
 		}
 	}
 
@@ -669,7 +495,6 @@ namespace cs::telemetry
 
 				Sink frameBuffer;
 				CollectFrameBuffer(frameBuffer);
-				CollectFrameBufferRegisters(frameBuffer);
 				root.insert_or_assign(kFrameBufferComponent, frameBuffer.AsTable());
 
 				Sink skyReflectionCube;

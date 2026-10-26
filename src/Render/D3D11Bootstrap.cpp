@@ -10,7 +10,6 @@
 #include "Log.h"
 #include "Menu/Menu.h"
 #include "Render/Annotation.h"
-#include "Render/FrameBuffer.h"
 #include "Render/FrameProfiler.h"
 #include "Render/ShaderCompileGate.h"
 #include "Render/ShaderInjection.h"
@@ -147,10 +146,6 @@ namespace cs::d3d11
 			});
 			engine::InstallShaderCompileSummaryLog();
 			util::ShaderCompilationBatch shaderCompilationBatch;
-			// The engine b12 snapshot must be live before any feature reads a camera.
-			InvokeOwner("FrameBuffer snapshot hooks", [&] {
-				engine::OnFrameBufferD3D11Ready(*a_immediateContext);
-			});
 			InvokeOwner("RunComputeShader dispatch bridge", [&] {
 				engine::EnsureComputeDispatchBridgeInstalled(
 					*a_immediateContext);

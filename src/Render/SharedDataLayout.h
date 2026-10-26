@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FeatureBuffer.h"
-#include "Render/FrameBufferMath.h"
+#include "Render/FrameBuffer.h"
 #include "Render/SharedFeatureData.h"
 
 #include <array>

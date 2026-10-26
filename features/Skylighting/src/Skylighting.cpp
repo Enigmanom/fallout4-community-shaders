@@ -599,17 +599,10 @@ namespace cs::features
 		const auto own = [&](Own a_reason) { return count(stats.ownBuilt[static_cast<std::size_t>(a_reason)]); };
 		const auto ownTotal = own(Own::kLandscape) + own(Own::kNotCasting) + own(Own::kAlphaBlended) + own(Own::kOther);
 
-		// Per-capture window milliseconds; the hook parts run inside the capture.
 		const auto& timings = cs::engine::GetCaptureTimings();
-		const std::array<cs::engine::CaptureClock::rep, 4> ticks{
-			timings.capture.load(std::memory_order_relaxed), timings.hookPredicate.load(std::memory_order_relaxed),
-			timings.hookStock.load(std::memory_order_relaxed), timings.hookOwn.load(std::memory_order_relaxed)
-		};
-		std::array<float, 4> stageMs{};
-		for (std::size_t i = 0; i < stageMs.size(); ++i) {
-			stageMs[i] = _windowCaptures ? static_cast<float>(cs::engine::TicksToMs(ticks[i] - _timingSnapshot[i]) / _windowCaptures) : 0.0f;
-			_counters.stageMs[i].store(stageMs[i], std::memory_order_relaxed);
-		}
+		const auto ticks = timings.capture.load(std::memory_order_relaxed);
+		const auto captureMs = _windowCaptures ? static_cast<float>(cs::engine::TicksToMs(ticks - _timingSnapshot) / _windowCaptures) : 0.0f;
+		_counters.captureMs.store(captureMs, std::memory_order_relaxed);
 		_timingSnapshot = ticks;
 
 		const auto cascadeSkipped = [&](CascadeSkip a_reason) { return count(_cascadeCounters.skipped[static_cast<std::size_t>(a_reason)]); };
@@ -633,7 +626,7 @@ namespace cs::features
 			"L={:.0f} sh4pi=({:.3f},{:.3f},{:.3f},{:.3f}) quadrant={} "
 			"accepted={} delegated={} own_built={} own_new={} own_landscape={} own_not_casting={} own_alpha_blended={} own_other={} stock_only={} "
 			"rej_skinned={} rej_flags={} rej_radius={} rej_below_grid={} rej_bsx={} "
-			"cpu_ms_avg={:.3f} cpu_ms_max={:.3f} ms_capture={:.3f} ms_hook_predicate={:.3f} ms_hook_stock={:.3f} ms_hook_own={:.3f} stock_ds8_restored={} "
+			"cpu_ms_avg={:.3f} cpu_ms_max={:.3f} ms_capture={:.3f} stock_ds8_restored={} "
 			"mx_ext_x={:.3f} mx_ext_y={:.3f} mx_depth={:.3f} "
 			"sun_copies={} sun_copy_skipped_unavailable={} sun_copy_skipped_not_full_sky={} sun_copy_skipped_no_light={} sun_copy_skipped_unsupported_count={} sun_copy_skipped_no_target={} sun_copy_skipped_invalid={} sun_copy_skipped_copy_target={} sun_copy_skipped_disabled={} "
 			"cascade_count={} split_end=({:.1f},{:.1f},{:.1f}) "
@@ -645,7 +638,7 @@ namespace cs::features
 			count(stats.accepted), count(stats.delegated), ownTotal, count(stats.ownNew),
 			own(Own::kLandscape), own(Own::kNotCasting), own(Own::kAlphaBlended), own(Own::kOther), count(stats.stockOnly),
 			rejected(Reject::kSkinned), rejected(Reject::kFlags), rejected(Reject::kRadius), rejected(Reject::kBelowGrid), rejected(Reject::kBsx),
-			cpuMsAverage, _windowCpuMsMax, stageMs[0], stageMs[1], stageMs[2], stageMs[3], _counters.stockTargetRestored.load(std::memory_order_relaxed) ? 1 : 0,
+			cpuMsAverage, _windowCpuMsMax, captureMs, _counters.stockTargetRestored.load(std::memory_order_relaxed) ? 1 : 0,
 			extentX, extentY, depthRange,
 			count(_cascadeCounters.copies), cascadeSkipped(CascadeSkip::kUnavailable), cascadeSkipped(CascadeSkip::kNotFullSky), statusSkipped(cs::engine::SunCascadeStatus::kNoLight),
 			statusSkipped(cs::engine::SunCascadeStatus::kUnsupportedCount), statusSkipped(cs::engine::SunCascadeStatus::kNoTarget), statusSkipped(cs::engine::SunCascadeStatus::kInvalid), cascadeSkipped(CascadeSkip::kCopyTarget), cascadeSkipped(CascadeSkip::kDisabled),
@@ -676,10 +669,7 @@ namespace cs::features
 			.Field("capture_cpu_ms_avg", static_cast<double>(_counters.cpuMsAverage.load(std::memory_order_relaxed)))
 			.Field("capture_cpu_ms_max", static_cast<double>(_counters.cpuMsMax.load(std::memory_order_relaxed)))
 			.Field("stock_ds8_restored", _counters.stockTargetRestored.load(std::memory_order_relaxed))
-			.Field("ms_capture", static_cast<double>(_counters.stageMs[0].load(std::memory_order_relaxed)))
-			.Field("ms_hook_predicate", static_cast<double>(_counters.stageMs[1].load(std::memory_order_relaxed)))
-			.Field("ms_hook_stock", static_cast<double>(_counters.stageMs[2].load(std::memory_order_relaxed)))
-			.Field("ms_hook_own", static_cast<double>(_counters.stageMs[3].load(std::memory_order_relaxed)))
+			.Field("ms_capture", static_cast<double>(_counters.captureMs.load(std::memory_order_relaxed)))
 			.Field("occluders_accepted", count(stats.accepted))
 			.Field("occluders_delegated", count(stats.delegated))
 			.Field("occluders_own_new", count(stats.ownNew))
