@@ -135,9 +135,6 @@ namespace cs::telemetry
 			a_sink.Field("frame_binding_lost_slots", lostSlots.empty() ? std::string_view("none") : std::string_view(lostSlots));
 			a_sink
 				.Field(
-					"requested",
-					static_cast<std::int64_t>(summary.requested))
-				.Field(
 					"published",
 					static_cast<std::int64_t>(
 						summary.published))
@@ -196,7 +193,7 @@ namespace cs::telemetry
 					cs::engine::GetShaderInjectionTargetSnapshot(
 						static_cast<cs::engine::ShaderInjectionTarget>(
 							index));
-				if (!target.requested || target.name.empty()) {
+				if (!target.published || target.name.empty()) {
 					continue;
 				}
 				a_sink

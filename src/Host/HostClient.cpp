@@ -1,14 +1,12 @@
 #include "Host/HostClient.h"
 
 #include "Feature.h"
-#include "Host/HostClientOptions.h"
 #include "Log.h"
 #include "Menu/Menu.h"
 #include "Menu/SettingsEdit.h"
 #include "Plugin.h"
 #include "Settings/FeatureConfig.h"
 #include "Telemetry/Telemetry.h"
-#include "Utils/Hotkey.h"
 
 #include "PerformanceOverlay.h"
 #include "RenderDoc.h"
@@ -27,6 +25,10 @@ namespace cs::host
 {
 	namespace
 	{
+		constexpr dmui::ClientOptions kClientOptions{
+			.capabilities = DMUI_CLIENT_CAPABILITY_RENDERER_REPLACEMENT
+		};
+
 		auto* L = cs::log::Get("cs.host");
 
 		FeaturePageInput DescribeFeature(Feature& a_feature)
@@ -58,6 +60,23 @@ namespace cs::host
 			if (edit.Discrete(dmui::ui::Checkbox("Enabled", &enabled)))
 				a_feature.SetEnabled(enabled);
 		}
+	}
+
+	HostClient::FrameDemandAction HostClient::FrameDemandTracker::Next(bool a_wanted) const noexcept
+	{
+		if (a_wanted == _requested)
+			return FrameDemandAction::kNone;
+		return a_wanted ? FrameDemandAction::kRequest : FrameDemandAction::kRelease;
+	}
+
+	void HostClient::FrameDemandTracker::Complete(FrameDemandAction a_action, bool a_succeeded) noexcept
+	{
+		if (!a_succeeded)
+			return;
+		if (a_action == FrameDemandAction::kRequest)
+			_requested = true;
+		else if (a_action == FrameDemandAction::kRelease)
+			_requested = false;
 	}
 
 	HostClient::HostClient() :
@@ -316,11 +335,10 @@ namespace cs::host
 				renderDoc->SuggestedMultiCaptureHotkey());
 		}
 
-		const auto dump = log::GetDumpHotkey().ToString();
 		_dumpHotkey = _client.AddHotkeyAction(
 			"dearmodding.cs.logging.dump",
 			"Dump Community Shaders Log",
-			dump.c_str(),
+			log::GetDumpHotkey().c_str(),
 			[this](bool pressed) {
 				if (pressed &&
 					_registrationComplete.load(std::memory_order_acquire))

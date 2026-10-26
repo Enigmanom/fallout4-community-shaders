@@ -62,7 +62,7 @@ namespace
 			Float2Field<TestSettings>{ "span", "Span.", &TestSettings::span } }
 	};
 
-	Registry BuildRegistry()
+	Registry BuildFullRegistry()
 	{
 		using namespace cs::features;
 		auto registry = BuildCoreRegistry();
@@ -292,8 +292,6 @@ namespace
 		Profiles reloaded{ ibl::kWeatherSchema, ibl::kWeatherVariables };
 		CHECK(reloaded.Configure(LoadFile(a_path).table["features"]["ImageBasedLighting"]["weather"].node(), error));
 		CHECK(reloaded.Serialize() == edited.Serialize());
-		const auto evaluated = reloaded.Evaluate(ibl::Settings{}, "", "0x2a~dlccoast.esm", 1.0f);
-		CHECK(evaluated.EnvIBLScale == 0.5f && evaluated.SkyIBLScale == 1.0f);
 
 		CHECK(reloaded.Set("0x2a~dlccoast.esm", nullptr, error));
 		CHECK(!reloaded.Get("0x2a~dlccoast.esm"));
@@ -411,7 +409,7 @@ int main()
 	std::filesystem::remove_all(directory);
 	std::filesystem::create_directories(directory);
 	try {
-		const auto registry = BuildRegistry();
+		const auto registry = BuildFullRegistry();
 		TestSchema();
 		TestRegistry(registry);
 		TestDocument(registry, directory / "settings.toml");

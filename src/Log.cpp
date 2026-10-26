@@ -3,7 +3,6 @@
 #include "Settings/FeatureConfig.h"
 #include "Settings/SettingsRegistry.h"
 #include "Telemetry/Telemetry.h"
-#include "Utils/Hotkey.h"
 
 #include <algorithm>
 #include <array>
@@ -25,7 +24,7 @@ namespace cs::log
 			std::atomic<spdlog::level::level_enum> globalLevel{ *LevelFromString(settings::core::Logging{}.level) };
 			std::mutex mutex;
 			std::unordered_map<std::string, spdlog::level::level_enum> channelLevels;
-			cs::input::Hotkey dumpHotkey = cs::input::Hotkey::Parse(settings::core::Logging{}.dumpHotkey);
+			std::string dumpHotkey = settings::core::Logging{}.dumpHotkey;
 		};
 
 		ConfigState& Config()
@@ -200,7 +199,6 @@ namespace cs::log
 		{
 			std::scoped_lock lock(config.mutex);
 			config.channelLevels.clear();
-			config.dumpHotkey = cs::input::Hotkey::Parse(defaults.dumpHotkey);
 		}
 
 		settings::core::Logging logging;
@@ -236,14 +234,8 @@ namespace cs::log
 		cs::telemetry::pump::SetEnabled(logging.telemetry);
 		cs::telemetry::pump::SetIntervalSeconds(logging.telemetryIntervalSeconds);
 
-		bool validHotkey = false;
-		auto hotkey = cs::input::Hotkey::Parse(logging.dumpHotkey, &validHotkey);
-		if (validHotkey) {
-			std::scoped_lock lock(config.mutex);
-			config.dumpHotkey = hotkey;
-		} else {
-			logger->warn("Invalid logging.dump_hotkey '{}'; using {}", logging.dumpHotkey, defaults.dumpHotkey);
-		}
+		std::scoped_lock lock(config.mutex);
+		config.dumpHotkey = logging.dumpHotkey;
 	}
 
 	toml::table ConfigAsToml()
@@ -256,7 +248,7 @@ namespace cs::log
 			overrides.reserve(config.channelLevels.size());
 			for (const auto& entry : config.channelLevels)
 				overrides.push_back(entry);
-			hotkey = config.dumpHotkey.ToString();
+			hotkey = config.dumpHotkey;
 		}
 		std::sort(overrides.begin(), overrides.end(),
 			[](const auto& a_lhs, const auto& a_rhs) { return a_lhs.first < a_rhs.first; });
@@ -284,7 +276,7 @@ namespace cs::log
 		return true;
 	}
 
-	cs::input::Hotkey GetDumpHotkey()
+	std::string GetDumpHotkey()
 	{
 		auto& config = Config();
 		std::scoped_lock lock(config.mutex);

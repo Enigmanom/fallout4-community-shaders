@@ -22,57 +22,57 @@ namespace cs::engine
 			}
 			return true;
 		}
+	}
 
-		std::optional<ShaderVariantCompilationDescriptor>
-		BuildEffectiveShaderCompileRequestImpl(
-			const ShaderInjectionTargetMetadata& a_target,
-			ShaderStage a_stage,
-			const ShaderVariantCompilationDescriptor& a_family,
-			std::span<const ShaderReplacementRegistration> a_contributions,
-			GameRuntime a_runtime,
-			std::string* a_error)
-		{
-			ShaderVariantCompilationDescriptor request{
-				.sourcePath = a_family.sourcePath,
-				.entryPoint = a_family.entryPoint,
-				.profile = a_family.profile
-			};
-			request.defines.emplace("FRAMEBUFFER_REGISTER", "b4");
-			const auto stage = ShaderStageBit(a_stage);
-			bool substrateActive = false;
-			for (const auto& contribution : a_contributions) {
-				if (contribution.targetId != a_target.id || (contribution.stages & stage) == 0 ||
-					!contribution.feature || !contribution.feature->IsLoaded() ||
-					!contribution.feature->HasShaderDefine(a_target.id)) {
-					continue;
-				}
-				substrateActive = true;
-				if (!MergeDefines(
-						request.defines,
-						{ { std::string(contribution.feature->GetShaderDefineName()), "1" } },
-						a_error)) {
+	std::optional<ShaderVariantCompilationDescriptor>
+	BuildEffectiveShaderCompileRequest(
+		const ShaderInjectionTargetMetadata& a_target,
+		ShaderStage a_stage,
+		const ShaderVariantCompilationDescriptor& a_family,
+		std::span<const ShaderReplacementRegistration> a_contributions,
+		GameRuntime a_runtime,
+		std::string* a_error)
+	{
+		ShaderVariantCompilationDescriptor request{
+			.sourcePath = a_family.sourcePath,
+			.entryPoint = a_family.entryPoint,
+			.profile = a_family.profile
+		};
+		request.defines.emplace("FRAMEBUFFER_REGISTER", "b4");
+		const auto stage = ShaderStageBit(a_stage);
+		bool substrateActive = false;
+		for (const auto& contribution : a_contributions) {
+			if (contribution.targetId != a_target.id || (contribution.stages & stage) == 0 ||
+				!contribution.feature || !contribution.feature->IsLoaded() ||
+				!contribution.feature->HasShaderDefine(a_target.id)) {
+				continue;
+			}
+			substrateActive = true;
+			if (!MergeDefines(
+					request.defines,
+					{ { std::string(contribution.feature->GetShaderDefineName()), "1" } },
+					a_error)) {
+				return std::nullopt;
+			}
+			for (const auto& [name, value] : contribution.feature->GetShaderDefineOptions(a_target.id)) {
+				if (!MergeDefines(request.defines, { { std::string(name), std::string(value) } }, a_error))
 					return std::nullopt;
-				}
-				for (const auto& [name, value] : contribution.feature->GetShaderDefineOptions(a_target.id)) {
-					if (!MergeDefines(request.defines, { { std::string(name), std::string(value) } }, a_error))
-						return std::nullopt;
-				}
 			}
-			if (substrateActive && !MergeDefines(
-									   request.defines,
-									   { { shader_injection_defines::kSubstrate, "1" } },
-									   a_error)) {
-				return std::nullopt;
-			}
-			if (a_runtime == GameRuntime::kOG &&
-				!MergeDefines(request.defines, { { shader_injection_defines::kRuntimeOG, "1" } }, a_error))
-				return std::nullopt;
-			if (!MergeDefines(request.defines, a_family.defines, a_error))
-				return std::nullopt;
-			if (a_error)
-				a_error->clear();
-			return request;
 		}
+		if (substrateActive && !MergeDefines(
+								   request.defines,
+								   { { shader_injection_defines::kSubstrate, "1" } },
+								   a_error)) {
+			return std::nullopt;
+		}
+		if (a_runtime == GameRuntime::kOG &&
+			!MergeDefines(request.defines, { { shader_injection_defines::kRuntimeOG, "1" } }, a_error))
+			return std::nullopt;
+		if (!MergeDefines(request.defines, a_family.defines, a_error))
+			return std::nullopt;
+		if (a_error)
+			a_error->clear();
+		return request;
 	}
 
 	std::string DescribeShaderInjectionDefines(
@@ -89,21 +89,4 @@ namespace cs::engine
 		return names.empty() ? std::string("none") : names;
 	}
 
-	std::optional<ShaderVariantCompilationDescriptor>
-	BuildEffectiveShaderCompileRequest(
-		const ShaderInjectionTargetMetadata& a_target,
-		ShaderStage a_stage,
-		const ShaderVariantCompilationDescriptor& a_family,
-		std::span<const ShaderReplacementRegistration> a_contributions,
-		GameRuntime a_runtime,
-		std::string* a_error)
-	{
-		return BuildEffectiveShaderCompileRequestImpl(
-			a_target,
-			a_stage,
-			a_family,
-			a_contributions,
-			a_runtime,
-			a_error);
-	}
 }

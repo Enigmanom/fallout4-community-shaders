@@ -11,6 +11,27 @@
 
 namespace cs::host
 {
+	ShaderCompilePresentation ShaderCompileOverlayModel::Update(
+		const engine::ShaderCompileBatch& a_batch,
+		Clock::time_point a_now) noexcept
+	{
+		if (a_batch.active) {
+			_revealed = _revealed || engine::BatchHoldsLoads(a_batch);
+			if (_revealed) {
+				_readyUntil.reset();
+				return { ShaderCompilePhase::kCompiling, a_batch };
+			}
+		} else if (_revealed) {
+			_revealed = false;
+			_readyUntil = a_now + std::chrono::milliseconds{ 4000 };
+			_finished = a_batch;
+		}
+		if (_readyUntil && a_now < *_readyUntil)
+			return { ShaderCompilePhase::kReady, _finished };
+		_readyUntil.reset();
+		return {};
+	}
+
 	bool ShaderCompileOverlay::Observe() noexcept
 	{
 		const auto batch = engine::GetShaderCompileBatch();

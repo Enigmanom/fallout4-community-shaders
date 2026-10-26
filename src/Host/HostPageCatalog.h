@@ -67,7 +67,5 @@ namespace cs::host
 	inline constexpr std::string_view kOverlayPageId = "overlay";
 	inline constexpr std::string_view kShaderCompileOverlayPageId = "shader-compile-overlay";
 
-	std::string MakeAsciiId(std::string_view a_text);
-
 	HostPageCatalog BuildPageCatalog(const std::vector<FeaturePageInput>& a_features);
 }

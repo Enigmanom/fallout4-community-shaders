@@ -1,3 +1,4 @@
+#include "CSSha1.h"
 #include "FeatureShaderDeclarations.h"
 #include "Log.h"
 #include "ParallelFor.h"
@@ -6,7 +7,6 @@
 #include "Render/StockShaderTable.h"
 #include "ShaderABIChecks.h"
 #include "ShaderTestCache.h"
-#include "Utils/CSSha1.h"
 #include "Utils/CSSha256.h"
 
 #include <algorithm>

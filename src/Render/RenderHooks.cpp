@@ -1,7 +1,6 @@
 #include "Render/RenderHooks.h"
 
 #include "Log.h"
-#include "Render/DeferredDrawAnchor.h"
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
 #include "Render/FrameProfiler.h"
@@ -292,19 +291,21 @@ namespace cs::engine
 			(a_context->*Draw)(a_args...);
 		}
 
+		bool ClassifyDeferredDraw(std::uint32_t a_residualR9d) noexcept
+		{
+			return g_insideDeferredLightsImpl && !g_insideDeferredComposite &&
+			       t_drawRoute == DrawRoute::kTriShape && a_residualR9d == 2;
+		}
+
 		// Command-buffer flushes precede records that bind their own state.
-		std::optional<DeferredDrawAnchorDecision> SelectDrawFlushDecision(std::uint32_t a_residualR9d) noexcept
+		std::optional<bool> SelectDrawFlushDecision(std::uint32_t a_residualR9d) noexcept
 		{
 			if (!g_deferredDrawAnchorInstalled || t_drawRoute == DrawRoute::kNone || t_drawRoute == DrawRoute::kCommandBuffer)
 				return std::nullopt;
-			return SelectDeferredDrawAnchorDecision(
-				g_insideDeferredLightsImpl,
-				g_insideDeferredComposite,
-				t_drawRoute == DrawRoute::kTriShape,
-				a_residualR9d);
+			return ClassifyDeferredDraw(a_residualR9d);
 		}
 
-		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, const std::optional<DeferredDrawAnchorDecision>& a_decision) noexcept
+		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, const std::optional<bool>& a_fullscreenLight) noexcept
 		{
 			auto* rendererData = RE::BSGraphics::GetRendererData();
 			auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
@@ -314,12 +315,11 @@ namespace cs::engine
 					RecordUndispatchedInjectedDraw(context);
 				return;
 			}
-			if (!a_decision)
+			if (!a_fullscreenLight)
 				return;
-			if (a_decision->dispatchFullscreenLightCallbacks)
+			if (*a_fullscreenLight)
 				Dispatch(g_preFullscreenDeferredLightDraw, "Fullscreen deferred light draw pre");
-			if (a_decision->dispatchInjections)
-				DispatchInjectionsForBoundPixelShader(context);
+			DispatchInjectionsForBoundPixelShader(context);
 		}
 
 		// The fourth argument is residual r9d state, not a call parameter.
@@ -331,13 +331,13 @@ namespace cs::engine
 				std::uint32_t,
 				std::uint32_t a_residualR9d)
 			{
-				const auto decision = SelectDrawFlushDecision(a_residualR9d);
-				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, decision && decision->dispatchInjections);
+				const auto fullscreenLight = SelectDrawFlushDecision(a_residualR9d);
+				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, fullscreenLight.has_value());
 				func(a_outputStateOnly, a_compute);
 				if (g_drawProfilingInstalled && !a_outputStateOnly && !a_compute)
 					render::profiling::RecordDraw();
 				if (g_deferredDrawAnchorInstalled)
-					OnDrawStateFlushed(a_outputStateOnly, a_compute, decision);
+					OnDrawStateFlushed(a_outputStateOnly, a_compute, fullscreenLight);
 			}
 			static inline REL::Relocation<decltype(&RE::BSGraphics::SetDirtyStates)> func;
 		};

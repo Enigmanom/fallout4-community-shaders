@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Host/HostPageCatalog.h"
-#include "Host/HostRuntimeModel.h"
 #include "Host/ShaderCompileOverlay.h"
 
 #include <DearModdingUI/Client.h>
@@ -50,6 +49,24 @@ namespace cs::host
 
 	private:
 		HostClient();
+
+		enum class FrameDemandAction : std::uint8_t
+		{
+			kNone,
+			kRequest,
+			kRelease
+		};
+
+		class FrameDemandTracker
+		{
+		public:
+			[[nodiscard]] FrameDemandAction Next(bool a_wanted) const noexcept;
+			void Complete(FrameDemandAction a_action, bool a_succeeded) noexcept;
+			[[nodiscard]] bool Requested() const noexcept { return _requested; }
+
+		private:
+			bool _requested{};
+		};
 
 		struct Page
 		{

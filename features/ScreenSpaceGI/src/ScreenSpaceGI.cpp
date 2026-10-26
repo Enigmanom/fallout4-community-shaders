@@ -13,13 +13,13 @@
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
+#include "RE/D/DrawWorld.h"
 #include "Render/Annotation.h"
 #include "Render/CanonicalDepth.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "Render/ShaderInjection.h"
-#include "Render/ShaderVariantRuntimeResolver.h"
 #include "Render/SharedData.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
@@ -395,7 +395,7 @@ namespace cs::features
 			return;
 		const auto camera = cs::engine::GetWorldCameraRecord();
 		_cameraReady = camera.has_value();
-		const bool tiled = cs::engine::QueryTiledLightingEnabled();
+		const bool tiled = RE::DrawWorld::QTiledLighting();
 		auto* manager = cs::engine::GetRenderTargetManager();
 		auto* depth = cs::render::GetCanonicalSceneDepthSRV();
 		auto* normals = cs::engine::GetRenderTargetSRV(RT::kGBufferNormal);

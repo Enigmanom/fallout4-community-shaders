@@ -6,7 +6,6 @@
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
 #include "Render/NativeShaderFamily.h"
-#include "Render/PixelShaderSwapBroker.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "Render/ShaderFamilyDescriptor.h"
@@ -14,6 +13,7 @@
 #include "Render/SharedData.h"
 #include "Render/StockShaderVariants.h"
 #include "Settings/FeatureConfig.h"
+#include "Utils/ShaderInclude.h"
 
 #include <algorithm>
 #include <array>
@@ -387,7 +387,6 @@ namespace cs::engine
 		constexpr ShaderStageMask kValidShaderStages =
 			ShaderStageBit(ShaderStage::kVertex) | ShaderStageBit(ShaderStage::kPixel) | ShaderStageBit(ShaderStage::kCompute);
 
-		constexpr auto kDefaultShaderRoot = L"Data\\Shaders";
 		auto* L = cs::log::Get("cs.render.shaderinjection");
 
 		enum class Lifecycle : std::uint8_t
@@ -399,7 +398,6 @@ namespace cs::engine
 
 		struct TargetRuntimeState
 		{
-			std::atomic<bool> requested{ false };
 			std::atomic<std::size_t> contributors{ 0 };
 			std::atomic<std::uint64_t> computeBindCalls{ 0 };
 			std::atomic<std::uint64_t> matches{ 0 };
@@ -407,7 +405,6 @@ namespace cs::engine
 			std::atomic<std::uint64_t> passthroughCompileFail{ 0 };
 			std::atomic<std::uint64_t> passthroughNotReady{ 0 };
 			std::atomic<std::uint64_t> dispatches{ 0 };
-			DeveloperShaderOverride developerOverride = DeveloperShaderOverride::kAuto;
 			ShaderInjectionDefines defines;
 			std::string publicationError;
 		};
@@ -439,7 +436,6 @@ namespace cs::engine
 			std::shared_ptr<ShaderVariantCompilationCache>
 				compilationCache;
 			winrt::com_ptr<ID3D11Device> device;
-			std::wstring developerSourceRoot;
 			GameRuntime runtime = GameRuntime::kAE;
 			std::vector<PublishedTarget> targets;
 		};
@@ -536,23 +532,17 @@ namespace cs::engine
 			std::mutex mutex;
 			Lifecycle lifecycle = Lifecycle::kCollecting;
 			std::atomic_bool enabled = true;
-			bool developerForceOffEnabled = false;
-			std::wstring developerSourceRoot;
 			GameRuntime gameRuntime = GameRuntime::kAE;
 			std::array<std::atomic_bool,
 				static_cast<std::size_t>(ShaderInjectionTarget::kCount)>
 				baselineOwnership{};
-			std::array<DeveloperShaderOverride,
-				static_cast<std::size_t>(ShaderInjectionTarget::kCount)>
-				developerOverrides{};
 			std::vector<ShaderReplacementRegistration> registrations;
 			std::array<TargetRuntimeState,
 				static_cast<std::size_t>(ShaderInjectionTarget::kCount)>
 				runtime;
 			std::atomic<std::shared_ptr<const PublishedPlan>> published;
 			std::mutex nativeVariantMutex;
-			std::map<std::pair<std::filesystem::path, std::string>, bool>
-				shaderSourceAvailability;
+			std::unordered_map<std::string, bool> shaderSourceAvailability;
 			std::unordered_map<NativeVariantKey, std::shared_ptr<NativeVariant>,
 				NativeVariantKeyHash>
 				nativeVariants;
@@ -776,10 +766,7 @@ namespace cs::engine
 		}
 
 		std::vector<FrozenTarget> FreezeTargets(
-			const std::vector<ShaderReplacementRegistration>& a_registrations,
-			bool a_developerForceOffEnabled,
-			const std::array<DeveloperShaderOverride,
-				static_cast<std::size_t>(ShaderInjectionTarget::kCount)>& a_developerOverrides)
+			const std::vector<ShaderReplacementRegistration>& a_registrations)
 		{
 			std::vector<FrozenTarget> frozen;
 			frozen.reserve(kTargets.size());
@@ -788,9 +775,6 @@ namespace cs::engine
 				FrozenTarget target;
 				target.metadata = &metadata;
 				const auto targetIndex = ToIndex(metadata.id);
-				auto developerOverride = a_developerOverrides[targetIndex];
-				if (developerOverride == DeveloperShaderOverride::kForceOff && !a_developerForceOffEnabled)
-					developerOverride = DeveloperShaderOverride::kAuto;
 
 				for (std::size_t registrationIndex = 0;
 					registrationIndex < a_registrations.size();
@@ -812,9 +796,6 @@ namespace cs::engine
 					}
 				}
 
-				const bool requested =
-					developerOverride != DeveloperShaderOverride::kForceOff;
-
 				for (const auto& contribution : target.contributions) {
 					const bool stageMatched =
 						(contribution.stages & SupportedStages(metadata.id)) != 0;
@@ -827,24 +808,12 @@ namespace cs::engine
 				}
 
 				auto& runtime = GetService().runtime[targetIndex];
-				runtime.requested.store(requested, std::memory_order_relaxed);
 				runtime.contributors.store(target.contributors, std::memory_order_relaxed);
-				runtime.developerOverride = developerOverride;
 				runtime.defines = target.defines;
 
-				if (requested)
-					frozen.push_back(std::move(target));
+				frozen.push_back(std::move(target));
 			}
 			return frozen;
-		}
-
-		std::filesystem::path ResolveShaderRoot(
-			DeveloperShaderOverride a_developerOverride,
-			const std::wstring& a_developerSourceRoot)
-		{
-			const bool useDeveloperRoot =
-				a_developerOverride == DeveloperShaderOverride::kForceOn && !a_developerSourceRoot.empty();
-			return useDeveloperRoot ? a_developerSourceRoot : kDefaultShaderRoot;
 		}
 
 		const PublishedTarget* FindPublishedTarget(
@@ -864,9 +833,6 @@ namespace cs::engine
 			const NativeVariantKey& a_key)
 		{
 			auto& service = GetService();
-			const auto shaderRoot = ResolveShaderRoot(
-				service.runtime[ToIndex(a_key.target)].developerOverride,
-				a_plan.developerSourceRoot);
 			const auto descriptor = DescribeNativeVariant(a_key);
 			std::shared_ptr<NativeVariant> candidate;
 			{
@@ -876,9 +842,9 @@ namespace cs::engine
 					return entry->second;
 				const std::string sourceName(ResolveShaderSourceName(descriptor));
 				const auto [source, inserted] = service.shaderSourceAvailability.try_emplace(
-					std::make_pair(shaderRoot, sourceName), false);
+					sourceName, false);
 				if (inserted)
-					source->second = IsShaderSourceAvailable(shaderRoot, sourceName);
+					source->second = IsShaderSourceAvailable(util::kDefaultShaderRoot, sourceName);
 				if (!source->second)
 					return nullptr;
 				candidate = std::make_shared<NativeVariant>();
@@ -941,7 +907,7 @@ namespace cs::engine
 
 			ShaderVariantCompilationRequest request;
 			request.device = a_plan.device;
-			request.sourcePath = shaderRoot / effective->sourcePath;
+			request.sourcePath = std::filesystem::path(util::kDefaultShaderRoot) / effective->sourcePath;
 			request.entryPoint = effective->entryPoint;
 			request.profile = effective->profile;
 			request.stage = descriptor.stage;
@@ -1526,50 +1492,6 @@ namespace cs::engine
 		return true;
 	}
 
-	bool SetDeveloperShaderForceOffEnabled(bool a_enabled)
-	{
-		auto& service = GetService();
-		std::scoped_lock lock(service.mutex);
-		if (service.lifecycle != Lifecycle::kCollecting) {
-			LogLateMutation("Developer override state");
-			return false;
-		}
-		service.developerForceOffEnabled = a_enabled;
-		return true;
-	}
-
-	bool SetDeveloperShaderOverride(
-		ShaderInjectionTarget a_target,
-		DeveloperShaderOverride a_override)
-	{
-		if (!IsValidTarget(a_target))
-			return false;
-
-		auto& service = GetService();
-		std::scoped_lock lock(service.mutex);
-		if (service.lifecycle != Lifecycle::kCollecting) {
-			LogLateMutation("Developer target override");
-			return false;
-		}
-		service.developerOverrides[ToIndex(a_target)] = a_override;
-		return true;
-	}
-
-	bool SetDeveloperShaderSourceRoot(std::wstring a_sourceRoot)
-	{
-		auto& service = GetService();
-		std::scoped_lock lock(service.mutex);
-		if (service.lifecycle != Lifecycle::kCollecting) {
-			LogLateMutation("Developer shader source root");
-			return false;
-		}
-		service.developerSourceRoot = std::move(a_sourceRoot);
-		std::scoped_lock variantLock(service.nativeVariantMutex);
-		service.shaderSourceAvailability.clear();
-		service.nativeBindingGeneration.fetch_add(1, std::memory_order_release);
-		return true;
-	}
-
 	bool SetShaderInjectionEnabled(bool a_enabled)
 	{
 		auto& service = GetService();
@@ -1809,11 +1731,6 @@ namespace cs::engine
 	{
 		auto& service = GetService();
 		std::vector<ShaderReplacementRegistration> registrations;
-		std::array<DeveloperShaderOverride,
-			static_cast<std::size_t>(ShaderInjectionTarget::kCount)>
-			developerOverrides{};
-		std::wstring developerSourceRoot;
-		bool developerForceOffEnabled = false;
 		GameRuntime gameRuntime = GameRuntime::kAE;
 
 		{
@@ -1821,9 +1738,6 @@ namespace cs::engine
 			if (service.lifecycle != Lifecycle::kCollecting)
 				return;
 			service.lifecycle = Lifecycle::kFrozen;
-			developerForceOffEnabled = service.developerForceOffEnabled;
-			developerOverrides = service.developerOverrides;
-			developerSourceRoot = service.developerSourceRoot;
 			gameRuntime = service.gameRuntime;
 			registrations = service.registrations;
 		}
@@ -1832,13 +1746,9 @@ namespace cs::engine
 		plan->compilationCache =
 			CreateCachingShaderVariantCompilationCache();
 		plan->device.copy_from(a_device);
-		plan->developerSourceRoot = developerSourceRoot;
 		plan->runtime = gameRuntime;
 		std::size_t publishedTargets = 0;
-		auto frozenTargets = FreezeTargets(
-			registrations,
-			developerForceOffEnabled,
-			developerOverrides);
+		auto frozenTargets = FreezeTargets(registrations);
 
 		if (!a_device) {
 			L->error("Shader injection freeze failed: no D3D11 device.");
@@ -1889,8 +1799,7 @@ namespace cs::engine
 		}
 		const auto summary = GetShaderInjectionSummary();
 		L->info(
-			"Shader injection freeze: targets requested={} published={}; native variants compile asynchronously from observed descriptors.",
-			summary.requested,
+			"Shader injection freeze: targets published={}; native variants compile asynchronously from observed descriptors.",
 			summary.published);
 	}
 
@@ -2385,28 +2294,71 @@ namespace cs::engine
 		}
 	}
 
-	void ObserveNativeShaderBytecode(
-		ShaderStage a_stage,
-		const void* a_bytecode,
-		std::size_t a_bytecodeLength,
-		ID3D11DeviceChild* a_shader) noexcept
+	namespace
 	{
-		if (a_stage != ShaderStage::kPixel || !a_bytecode || a_bytecodeLength == 0 || !a_shader) {
-			return;
+		thread_local unsigned g_observationBypassDepth = 0;
+		std::mutex g_creationHookMutex;
+
+		void ObserveNativePixelShaderBytecode(
+			const void* a_bytecode,
+			std::size_t a_bytecodeLength,
+			ID3D11DeviceChild* a_shader) noexcept
+		{
+			if (!a_bytecode || a_bytecodeLength == 0 || !a_shader) {
+				return;
+			}
+			winrt::com_ptr<ID3D11ShaderReflection> reflection;
+			if (FAILED(D3DReflect(
+					a_bytecode,
+					a_bytecodeLength,
+					IID_PPV_ARGS(reflection.put())))) {
+				return;
+			}
+			Service::NativeShaderMetadata metadata;
+			metadata.forceEarlyDepthStencil =
+				(reflection->GetRequiresFlags() & D3D_SHADER_REQUIRES_EARLY_DEPTH_STENCIL) != 0;
+			auto& service = GetService();
+			std::scoped_lock lock(service.nativeVariantMutex);
+			service.nativeShaderMetadata.insert_or_assign(a_shader, metadata);
 		}
-		winrt::com_ptr<ID3D11ShaderReflection> reflection;
-		if (FAILED(D3DReflect(
-				a_bytecode,
-				a_bytecodeLength,
-				IID_PPV_ARGS(reflection.put())))) {
+
+		struct CreatePixelShaderHook
+		{
+			static HRESULT STDMETHODCALLTYPE thunk(
+				ID3D11Device* a_this,
+				const void* a_bytecode,
+				SIZE_T a_bytecodeLength,
+				ID3D11ClassLinkage* a_linkage,
+				ID3D11PixelShader** a_out)
+			{
+				const auto result = func(
+					a_this, a_bytecode, a_bytecodeLength, a_linkage, a_out);
+				if (SUCCEEDED(result) && a_out && *a_out && g_observationBypassDepth == 0)
+					ObserveNativePixelShaderBytecode(a_bytecode, a_bytecodeLength, *a_out);
+				return result;
+			}
+
+			static inline decltype(&thunk) func = nullptr;
+		};
+	}
+
+	void InstallNativeShaderCreationHooks(ID3D11Device* a_device)
+	{
+		if (!a_device)
 			return;
-		}
-		Service::NativeShaderMetadata metadata;
-		metadata.forceEarlyDepthStencil =
-			(reflection->GetRequiresFlags() & D3D_SHADER_REQUIRES_EARLY_DEPTH_STENCIL) != 0;
-		auto& service = GetService();
-		std::scoped_lock lock(service.nativeVariantMutex);
-		service.nativeShaderMetadata.insert_or_assign(a_shader, metadata);
+		std::scoped_lock lock(g_creationHookMutex);
+		if (!CreatePixelShaderHook::func)
+			stl::detour_vfunc<15, CreatePixelShaderHook>(a_device);
+	}
+
+	ScopedNativeShaderObservationBypass::ScopedNativeShaderObservationBypass() noexcept
+	{
+		++g_observationBypassDepth;
+	}
+
+	ScopedNativeShaderObservationBypass::~ScopedNativeShaderObservationBypass() noexcept
+	{
+		--g_observationBypassDepth;
 	}
 
 	namespace
@@ -2575,11 +2527,8 @@ namespace cs::engine
 			snapshot.id = a_target;
 			snapshot.enabled = ShaderEnabled(a_target);
 			snapshot.name = metadata.name;
-			snapshot.requested =
-				runtime.requested.load(std::memory_order_relaxed);
 			snapshot.published =
 				plan && FindPublishedTarget(*plan, a_target);
-			snapshot.developerOverride = runtime.developerOverride;
 			snapshot.contributors =
 				runtime.contributors.load(std::memory_order_relaxed);
 			snapshot.defines = runtime.defines;
@@ -2619,8 +2568,6 @@ namespace cs::engine
 		{
 			SwapCountersGuard counterGuard(service);
 			for (const auto& runtime : service.runtime) {
-				if (runtime.requested.load(std::memory_order_relaxed))
-					++summary.requested;
 				summary.matches += runtime.matches.load(std::memory_order_relaxed);
 				summary.substitutions += runtime.substitutions.load(std::memory_order_relaxed);
 				summary.passthroughCompileFail +=

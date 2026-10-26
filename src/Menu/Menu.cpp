@@ -131,6 +131,41 @@ namespace
 
 namespace cs
 {
+	void Menu::StartupLoadSnapshot::Capture(const toml::table& a_root)
+	{
+		_loads.clear();
+		if (const auto* features = a_root["features"].as_table()) {
+			for (const auto& [key, node] : *features) {
+				if (const auto* feature = node.as_table())
+					_loads.emplace(std::string(key.str()), (*feature)["load"].value_or(false));
+			}
+		}
+	}
+
+	bool Menu::StartupLoadSnapshot::RequiresRestart(
+		std::string_view a_key, bool a_requested) const
+	{
+		const auto found = _loads.find(std::string(a_key));
+		const bool atStartup = found != _loads.end() && found->second;
+		return a_requested != atStartup;
+	}
+
+	bool Menu::ShouldImportImage(
+		bool a_hasHandle,
+		ImageImportFailure a_previousFailure,
+		bool a_sourceChanged,
+		bool a_querySucceeded,
+		bool a_imageReady,
+		bool a_retryDue) noexcept
+	{
+		return a_sourceChanged ||
+		       (a_hasHandle && (!a_querySucceeded || !a_imageReady)) ||
+		       (!a_hasHandle &&
+				   (a_previousFailure == ImageImportFailure::kNone ||
+					   (a_previousFailure == ImageImportFailure::kTransient &&
+						   a_retryDue)));
+	}
+
 	Menu::Menu()
 	{
 		// The client must outlive the menu's owned dialog session.
@@ -335,7 +370,7 @@ namespace cs
 				cached.loggedFailure.reset();
 			}
 		}
-		if (host::ShouldImportImage(
+		if (ShouldImportImage(
 				static_cast<bool>(cached.image.Handle()),
 				cached.importFailure,
 				sourceChanged,
@@ -357,8 +392,8 @@ namespace cs
 				cached.importFailure =
 					result == DMUI_RESULT_UNSUPPORTED_RESOURCE ||
 							result == DMUI_RESULT_INVALID_ARGUMENT ?
-						host::ImageImportFailure::kPermanent :
-						host::ImageImportFailure::kTransient;
+						ImageImportFailure::kPermanent :
+						ImageImportFailure::kTransient;
 				cached.retryAfterFrame = _hostFrameSerial + kImageRetryFrames;
 				if (!cached.loggedFailure || *cached.loggedFailure != result) {
 					D3D11_SHADER_RESOURCE_VIEW_DESC descriptor{};
@@ -388,7 +423,7 @@ namespace cs
 			cached.generation = _debugImageGeneration;
 			cached.image = std::move(*imported);
 		}
-		if (cached.importFailure != host::ImageImportFailure::kNone) {
+		if (cached.importFailure != ImageImportFailure::kNone) {
 			dmui::ui::TextDisabled(
 				"Preview unavailable. See FO4CommunityShaders.log.");
 			return;

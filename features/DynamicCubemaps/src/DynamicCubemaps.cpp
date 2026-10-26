@@ -20,6 +20,7 @@
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
+#include "RE/D/DrawWorld.h"
 #include "Render/Annotation.h"
 #include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
@@ -28,7 +29,6 @@
 #include "Render/RendererContext.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderStage.h"
-#include "Render/ShaderVariantRuntimeResolver.h"
 #include "Render/SharedData.h"
 #include "Render/SkyReflectionCube.h"
 #include "Settings/SettingsPersistence.h"
@@ -944,7 +944,7 @@ namespace cs::features
 		UpdateBuffer(context, _prepareBuffer.get(), &preparation, sizeof(preparation));
 
 		auto& stream = Stream(a_reflections);
-		const bool tiledLighting = cs::engine::QueryTiledLightingEnabled();
+		const bool tiledLighting = RE::DrawWorld::QTiledLighting();
 		std::array<ID3D11ShaderResourceView*, 6> srvs{
 			depthSRV,
 			colorSRV,

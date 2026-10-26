@@ -12,7 +12,6 @@
 #include "Render/Annotation.h"
 #include "Render/FrameBuffer.h"
 #include "Render/FrameProfiler.h"
-#include "Render/PixelShaderSwapBroker.h"
 #include "Render/ShaderCompileGate.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
@@ -157,8 +156,8 @@ namespace cs::d3d11
 					*a_immediateContext);
 			});
 			// Register injections before the registry freezes.
-			InvokeOwner("PixelShaderSwapBroker D3D11 readiness", [&] {
-				engine::SetPixelShaderSwapBrokerDevice(*a_device);
+			InvokeOwner("Native shader creation hooks", [&] {
+				engine::InstallNativeShaderCreationHooks(*a_device);
 			});
 			InvokeOwner("Temporal pipeline D3D11 readiness", [&] {
 				render::TemporalPipeline::Get().OnD3D11Ready(a_adapter, *a_device);

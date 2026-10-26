@@ -83,6 +83,31 @@ namespace cs::host
 			return kCustomCategorySortKey;
 		}
 
+		std::string MakeAsciiId(std::string_view a_text)
+		{
+			std::string id;
+			id.reserve(a_text.size());
+			for (const char character : a_text) {
+				const auto value = static_cast<unsigned char>(character);
+				char mapped = '-';
+				if (value >= 'a' && value <= 'z')
+					mapped = character;
+				else if (value >= 'A' && value <= 'Z')
+					mapped = static_cast<char>(value - 'A' + 'a');
+				else if (value >= '0' && value <= '9')
+					mapped = character;
+				else if (character == '.' || character == '_' || character == '-')
+					mapped = character;
+
+				if (mapped == '-' && (id.empty() || id.back() == '-'))
+					continue;
+				id.push_back(mapped);
+			}
+			while (!id.empty() && id.back() == '-')
+				id.pop_back();
+			return id.empty() ? std::string("page") : id;
+		}
+
 		std::string MakeUniqueCategoryId(
 			std::string_view a_displayName,
 			std::unordered_set<std::string>& a_usedIds)
@@ -107,31 +132,6 @@ namespace cs::host
 				}
 			}
 		}
-	}
-
-	std::string MakeAsciiId(std::string_view a_text)
-	{
-		std::string id;
-		id.reserve(a_text.size());
-		for (const char character : a_text) {
-			const auto value = static_cast<unsigned char>(character);
-			char mapped = '-';
-			if (value >= 'a' && value <= 'z')
-				mapped = character;
-			else if (value >= 'A' && value <= 'Z')
-				mapped = static_cast<char>(value - 'A' + 'a');
-			else if (value >= '0' && value <= '9')
-				mapped = character;
-			else if (character == '.' || character == '_' || character == '-')
-				mapped = character;
-
-			if (mapped == '-' && (id.empty() || id.back() == '-'))
-				continue;
-			id.push_back(mapped);
-		}
-		while (!id.empty() && id.back() == '-')
-			id.pop_back();
-		return id.empty() ? std::string("page") : id;
 	}
 
 	HostPageCatalog BuildPageCatalog(const std::vector<FeaturePageInput>& a_features)

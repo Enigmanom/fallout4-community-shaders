@@ -7,7 +7,6 @@
 #include "Render/Annotation.h"
 #include "Render/CanonicalDepth.h"
 #include "Render/Engine.h"
-#include "Render/PixelShaderSwapBroker.h"
 #include "Render/RenderHooks.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedDataLayout.h"

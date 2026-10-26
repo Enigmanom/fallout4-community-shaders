@@ -3,7 +3,7 @@
 
 #include "Log.h"
 #include "Render/Annotation.h"
-#include "Render/PixelShaderSwapBroker.h"
+#include "Render/ShaderInjection.h"
 #include "Utils/ShaderCache/ShaderCache.h"
 #include "Utils/ShaderSamplerBindings.h"
 #include "Utils/WinApi.h"
@@ -81,7 +81,7 @@ namespace cs::engine
 			const char* createStage = "Unknown";
 			static_assert(static_cast<std::uint8_t>(ShaderStage::kCount) == 3);
 			{
-				ScopedPixelShaderBrokerBypass bypassBroker;
+				ScopedNativeShaderObservationBypass bypassObservation;
 				switch (a_stage) {
 				case ShaderStage::kVertex:
 					{

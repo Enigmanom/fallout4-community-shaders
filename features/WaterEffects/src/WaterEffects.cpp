@@ -438,7 +438,6 @@ namespace cs::features
 			.Field(
 				"injection_operational",
 				_injectionsOperational.load(std::memory_order_relaxed))
-			.Field("injection_requested", lightSnapshot.requested)
 			.Field("injection_published", lightSnapshot.published)
 			.Field(
 				"injection_publication_error",
