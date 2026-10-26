@@ -86,14 +86,14 @@ namespace cs::engine
 	void BindInjectionConstantBuffers(ID3D11DeviceContext*, UINT, UINT, ID3D11Buffer* const*) noexcept;
 	// The active draw scope restores the blend state when its draw returns.
 	void CaptureShaderInjectionBlendState(ID3D11DeviceContext*) noexcept;
-	// Plugin GPU work or engine resets may have changed bindings the draw caches trust.
+	// Plugin GPU work or engine resets may change bindings the caches trust.
 	void InvalidateShaderInjectionBindings() noexcept;
 
-	// Brackets one engine SetDirtyStates flush and the injection dispatch after it.
+	// Brackets one engine SetDirtyStates flush and the injection after it.
 	class ScopedEngineDrawFlush
 	{
 	public:
-		// Construct before the engine flush; it decides which overrides the engine restores.
+		// Construct before the flush; it picks the overrides the engine restores.
 		ScopedEngineDrawFlush(bool a_outputStateOnly, bool a_compute, bool a_dispatches) noexcept;
 		~ScopedEngineDrawFlush() noexcept;
 		ScopedEngineDrawFlush(const ScopedEngineDrawFlush&) = delete;

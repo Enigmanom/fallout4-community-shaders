@@ -103,7 +103,7 @@ namespace cs::engine
 			return true;
 		}
 
-		// Callbacks run plugin GPU work that may unbind or replace cached draw bindings.
+		// Callbacks run plugin GPU work that may replace cached draw bindings.
 		class ScopedForeignWork
 		{
 		public:

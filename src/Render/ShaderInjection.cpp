@@ -96,7 +96,7 @@ namespace cs::engine
 			return true;
 		}
 
-		// Restores captured slots with one call per contiguous run, releasing each capture.
+		// One restore call per contiguous slot run; releases each capture.
 		template <class Entry>
 		std::uint32_t RestoreRuns(ID3D11DeviceContext* a_context, ShaderStage a_stage, std::span<Entry> a_entries) noexcept
 		{
@@ -2411,7 +2411,7 @@ namespace cs::engine
 
 	namespace
 	{
-		// Consecutive draws mostly share a shader; identity changes bump the generation.
+		// Consecutive draws mostly share a shader; identity changes bump generation.
 		struct BoundVariantCache
 		{
 			ID3D11PixelShader* shader = nullptr;
@@ -2468,7 +2468,7 @@ namespace cs::engine
 			return;
 		const ScopedInjectionTimer timer;
 		auto* variant = a_dispatches ? FindBoundPixelVariant(GetImmediateContext()) : nullptr;
-		// Keep only overrides this variant re-requested last time; the engine restores the rest now.
+		// Keep overrides this variant last requested; the engine restores the rest.
 		auto& overrides = t_samplerOverrides;
 		if (const auto release = static_cast<std::uint16_t>(overrides.mask & ~(variant ? variant->samplerRequests : 0))) {
 			_released = release;
@@ -2487,7 +2487,7 @@ namespace cs::engine
 		if (!_state)
 			return;
 		if (_released && (_state->psSamplerModifiedBits & _released)) {
-			// The flushed shadow state is not the one dirtied; fall back to capture and restore.
+			// The flush used another shadow state; fall back to capture and restore.
 			g_engineSamplerRestore.store(false, std::memory_order_relaxed);
 			L->error("Engine sampler restore disabled: SetDirtyStates did not consume the dirtied PS sampler slots.");
 		}
@@ -2495,7 +2495,7 @@ namespace cs::engine
 			return;
 		flush.variant->samplerRequests = flush.requested;
 		auto& overrides = t_samplerOverrides;
-		// The engine resubmitted these slots, replacing overrides this draw did not request.
+		// The engine resubmitted these slots over overrides this draw left unused.
 		overrides.mask &= static_cast<std::uint16_t>(~(flush.resubmitted & ~flush.requested));
 		if (const auto stale = static_cast<std::uint16_t>(overrides.mask & ~flush.requested)) {
 			_state->psSamplerModifiedBits |= stale;

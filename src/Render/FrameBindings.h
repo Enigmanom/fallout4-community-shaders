@@ -32,9 +32,9 @@ namespace cs::engine
 	void GetStageBindings(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11SamplerState**) noexcept;
 
 	void ResetFrameBindings() noexcept;
-	// Output or foreign GPU work may have unbound views; rebind on the next request.
+	// Outputs or plugin GPU work may have unbound views; rebind on next use.
 	void InvalidateFrameBindings() noexcept;
-	// Advances on every reset or invalidation; outputs bound before it may be gone.
+	// Advances on reset or invalidation; earlier outputs may be gone.
 	std::uint64_t GetFrameBindingEpoch() noexcept;
 	FrameBindingMetrics GetFrameBindingMetrics() noexcept;
 	void BindFrameShaderResources(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11ShaderResourceView* const*) noexcept;
@@ -42,6 +42,6 @@ namespace cs::engine
 	// Binds only slots whose trusted binding differs; returns the D3D calls made.
 	std::uint32_t BindDrawShaderResources(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11ShaderResourceView* const*) noexcept;
 	std::uint32_t BindDrawConstantBuffers(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11Buffer* const*) noexcept;
-	// Once per frame per target: read back tracked slots and distrust any lost binding.
+	// Once per frame per target: read back tracked slots, distrust losses.
 	void VerifyFrameBindings(ID3D11DeviceContext*, ShaderStage, ShaderInjectionTarget) noexcept;
 }
