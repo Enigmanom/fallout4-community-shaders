@@ -379,6 +379,11 @@ namespace cs::features
 		(void)EnsureResources();
 	}
 
+	cs::ScreenSpaceShadowsFeatureData ScreenSpaceShadows::GetCommonBufferData() const
+	{
+		return { .Enabled = IsEnabled() ? 1u : 0u };
+	}
+
 	bool ScreenSpaceShadows::IsShadowMaskReady()
 	{
 		if (!_started.load(std::memory_order_acquire))

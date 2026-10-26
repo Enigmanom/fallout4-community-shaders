@@ -354,6 +354,11 @@ namespace cs::features
 		return _preview[CascadeMip(a_cascade)].GetDebugTexture("Shadow map preview not populated.");
 	}
 
+	cs::VolumetricShadowsFeatureData VolumetricShadows::GetCommonBufferData() const
+	{
+		return { .Enabled = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u };
+	}
+
 	void VolumetricShadows::DrawSettings()
 	{
 		Menu::Get().DrawDebugViewSelector(*this);

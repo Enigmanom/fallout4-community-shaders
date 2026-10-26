@@ -66,12 +66,15 @@ namespace Skylighting
 	// Upstream's composite takes the raw cosine lobe: no fade, no vertex AO.
 	float GetCompositeDiffuse(float3 positionMS, float3 normalWS)
 	{
+		// FO4: Skylighting toggles live; disabled probes are unoccluded.
+		[branch] if (FO4SharedData::EnabledSkylighting == 0) return 1.0;
 		return EvaluateDiffuse(SampleProbes(positionMS, normalWS), normalWS);
 	}
 
 	// FO4: ambient is a linear addend and gamma is the identity, so scale it.
 	float3 GetAmbientScale(float3 viewPosition, float3 normalView, float3 albedo, float vertexAO)
 	{
+		[branch] if (FO4SharedData::EnabledSkylighting == 0) return 1.0;
 		float3 positionMS = FrameBuffer::ViewToWorld(viewPosition);
 		float3 normalWS = normalize(FrameBuffer::ViewToWorld(normalView, false));
 		return MultiBounceAO(albedo, GetDiffuseVisibility(positionMS, normalWS, vertexAO));
@@ -79,6 +82,7 @@ namespace Skylighting
 
 	float3 GetAmbientScale(float2 pixelPosition, float3 viewPosition, float3 normalView)
 	{
+		[branch] if (FO4SharedData::EnabledSkylighting == 0) return 1.0;
 		int3 texel = int3(int2(pixelPosition), 0);
 		return GetAmbientScale(viewPosition, normalView, AlbedoTexture.Load(texel).xyz, 1.0 - VertexAOTexture.Load(texel).w);
 	}
@@ -95,8 +99,7 @@ namespace Skylighting
 	SpecularVisibility GetSpecularVisibility(float3 viewPosition, float3 normalView, float glossiness)
 	{
 		// FO4: the interior branch samples EnvTexture and never reads visibility.
-		if (SharedData::InInterior)
-			return FO4_SPECULAR_UNOCCLUDED;
+		[branch] if (SharedData::InInterior || FO4SharedData::EnabledSkylighting == 0) return FO4_SPECULAR_UNOCCLUDED;
 		float3 positionMS = FrameBuffer::ViewToWorld(viewPosition);
 		float3 normalWS = normalize(FrameBuffer::ViewToWorld(normalView, false));
 		float3 V = -normalize(positionMS);
@@ -119,6 +122,7 @@ namespace Skylighting
 	// FO4: passes without the ambient term sample probes only for visibility.
 	void SampleShadowVisibility(float3 viewPosition, float3 normalView)
 	{
+		[branch] if (FO4SharedData::EnabledSkylighting == 0) return;
 		float3 positionMS = FrameBuffer::ViewToWorld(viewPosition);
 		float3 normalWS = normalize(FrameBuffer::ViewToWorld(normalView, false));
 		SampleProbes(positionMS, normalWS);

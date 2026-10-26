@@ -7,6 +7,7 @@
 - Dynamic Cubemaps: `material_reflections` now defaults to 0.25.
 - Skylighting: fixed a bright patch around the player with 3 shadow cascades (`iDirShadowSplits=3`, the High/Ultra default).
 - Volumetric Shadows: new feature ported from Skyrim CS; softens the sun's soft, rim and back lighting and shadows the sun on water.
+- LOD Blending: disabling the feature no longer normalizes landscape vertex colors.
 
 ## 0.4.1
 

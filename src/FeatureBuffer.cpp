@@ -5,11 +5,13 @@
 #include "ImageBasedLighting.h"
 #include "LODBlending.h"
 #include "ScreenSpaceGI.h"
+#include "ScreenSpaceShadows.h"
 #include "Skylighting.h"
 #include "TerrainBlending.h"
 #include "TerrainShadows.h"
 #include "TerrainVariation.h"
 #include "UnifiedWater.h"
+#include "VolumetricShadows.h"
 #include "WaterEffects.h"
 
 namespace cs
@@ -60,7 +62,13 @@ namespace cs
 					features::ExtendedMaterials::GetSingleton()),
 			.terrainBlendingSettings =
 				CollectFeatureData<TerrainBlendingFeatureData>(
-					features::TerrainBlending::GetSingleton())
+					features::TerrainBlending::GetSingleton()),
+			.screenSpaceShadowsSettings =
+				CollectFeatureData<ScreenSpaceShadowsFeatureData>(
+					features::ScreenSpaceShadows::GetSingleton()),
+			.volumetricShadowsSettings =
+				CollectFeatureData<VolumetricShadowsFeatureData>(
+					features::VolumetricShadows::GetSingleton())
 		};
 	}
 }

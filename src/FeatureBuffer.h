@@ -7,7 +7,6 @@
 namespace cs
 {
 	// Feature contributors retain host contracts; the substrate packs shared and FO4-only fields.
-	using LODBlendingFeatureData = render::LODBlendingSettings;
 	using TerrainBlendingFeatureData = render::TerrainBlendingSettings;
 	using ExtendedMaterialsFeatureData = render::CPMSettings;
 
@@ -31,12 +30,26 @@ namespace cs
 	};
 	static_assert(sizeof(DynamicCubemapsFeatureData) == 16);
 
-	struct alignas(16) WaterEffectsFeatureData
+	// Live gate for features whose shaders have no upstream runtime flag.
+	struct alignas(16) EnabledFeatureData
 	{
-		std::uint32_t EnabledParallax = 0;
+		std::uint32_t Enabled = 0;
 		std::uint32_t pad0[3]{};
 	};
-	static_assert(sizeof(WaterEffectsFeatureData) == 16);
+	static_assert(sizeof(EnabledFeatureData) == 16);
+	using WaterEffectsFeatureData = EnabledFeatureData;
+	using ScreenSpaceGIFeatureData = EnabledFeatureData;
+	using UnifiedWaterFeatureData = EnabledFeatureData;
+	using ScreenSpaceShadowsFeatureData = EnabledFeatureData;
+	using VolumetricShadowsFeatureData = EnabledFeatureData;
+
+	struct alignas(16) LODBlendingFeatureData
+	{
+		render::LODBlendingSettings shared;
+		std::uint32_t Enabled = 0;
+		std::uint32_t pad0[3]{};
+	};
+	static_assert(sizeof(LODBlendingFeatureData) == 48);
 
 	struct alignas(16) TerrainVariationFeatureData
 	{
@@ -54,20 +67,6 @@ namespace cs
 	};
 	static_assert(sizeof(SkylightingFeatureData) == 160);
 
-	struct alignas(16) ScreenSpaceGIFeatureData
-	{
-		std::uint32_t Enabled = 0;
-		std::uint32_t pad0[3]{};
-	};
-	static_assert(sizeof(ScreenSpaceGIFeatureData) == 16);
-
-	struct alignas(16) UnifiedWaterFeatureData
-	{
-		std::uint32_t Enabled = 0;
-		std::uint32_t pad0[3]{};
-	};
-	static_assert(sizeof(UnifiedWaterFeatureData) == 16);
-
 	struct alignas(16) FeatureDataCB
 	{
 		TerrainShadowsFeatureData terrainShadowsSettings;
@@ -81,8 +80,10 @@ namespace cs
 		UnifiedWaterFeatureData unifiedWaterSettings;
 		ExtendedMaterialsFeatureData extendedMaterialsSettings;
 		TerrainBlendingFeatureData terrainBlendingSettings;
+		ScreenSpaceShadowsFeatureData screenSpaceShadowsSettings;
+		VolumetricShadowsFeatureData volumetricShadowsSettings;
 	};
-	static_assert(sizeof(FeatureDataCB) == 432);
+	static_assert(sizeof(FeatureDataCB) == 480);
 	static_assert(sizeof(FeatureDataCB) % 16 == 0);
 	static_assert(offsetof(FeatureDataCB, terrainShadowsSettings) == 0);
 	static_assert(offsetof(TerrainShadowsFeatureData, EnableTerrainShadow) == 0);
@@ -92,13 +93,15 @@ namespace cs
 	static_assert(offsetof(TerrainShadowsFeatureData, ZBlur) == 32);
 	static_assert(offsetof(FeatureDataCB, dynamicCubemapsSettings) == 48);
 	static_assert(offsetof(FeatureDataCB, lodBlendingSettings) == 64);
-	static_assert(offsetof(FeatureDataCB, waterEffectsSettings) == 96);
-	static_assert(offsetof(FeatureDataCB, terrainVariationSettings) == 112);
-	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 144);
-	static_assert(offsetof(FeatureDataCB, iblSettings) == 320);
-	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 368);
-	static_assert(offsetof(FeatureDataCB, extendedMaterialsSettings) == 384);
-	static_assert(offsetof(FeatureDataCB, terrainBlendingSettings) == 416);
+	static_assert(offsetof(FeatureDataCB, waterEffectsSettings) == 112);
+	static_assert(offsetof(FeatureDataCB, terrainVariationSettings) == 128);
+	static_assert(offsetof(FeatureDataCB, skylightingSettings) == 160);
+	static_assert(offsetof(FeatureDataCB, iblSettings) == 336);
+	static_assert(offsetof(FeatureDataCB, unifiedWaterSettings) == 384);
+	static_assert(offsetof(FeatureDataCB, extendedMaterialsSettings) == 400);
+	static_assert(offsetof(FeatureDataCB, terrainBlendingSettings) == 432);
+	static_assert(offsetof(FeatureDataCB, screenSpaceShadowsSettings) == 448);
+	static_assert(offsetof(FeatureDataCB, volumetricShadowsSettings) == 464);
 	static_assert(offsetof(DynamicCubemapsFeatureData, Enabled) == 0);
 	static_assert(offsetof(DynamicCubemapsFeatureData, EnabledSSR) == 4);
 

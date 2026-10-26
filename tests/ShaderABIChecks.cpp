@@ -212,10 +212,11 @@ namespace
 			ABI(FO4SharedDataCB, EnabledSSR),
 			ABI(FO4SharedDataCB, DeltaTime), ABI(FO4SharedDataCB, DebugParams),
 			ABI(FO4SharedDataCB, EnabledDynamicCubemaps), ABI(FO4SharedDataCB, DynamicMaterialReflections),
-			ABI(FO4SharedDataCB, EnabledWaterParallax), ABI(FO4SharedDataCB, EnabledTerrainVariation),
+			ABI(FO4SharedDataCB, EnabledWaterEffects), ABI(FO4SharedDataCB, EnabledTerrainVariation),
 			ABI(FO4SharedDataCB, EnabledSkylighting), ABI(FO4SharedDataCB, EnabledScreenSpaceGI),
-			ABI(FO4SharedDataCB, EnabledUnifiedWater), ABI(FO4SharedDataCB, pad0),
-			ABI(FO4SharedDataCB, DirectionalAmbient)
+			ABI(FO4SharedDataCB, EnabledUnifiedWater), ABI(FO4SharedDataCB, EnabledScreenSpaceShadows),
+			ABI(FO4SharedDataCB, DirectionalAmbient), ABI(FO4SharedDataCB, EnabledVolumetricShadows),
+			ABI(FO4SharedDataCB, EnabledLODBlending), ABI(FO4SharedDataCB, pad0)
 		};
 		struct Buffer
 		{

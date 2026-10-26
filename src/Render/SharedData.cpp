@@ -175,7 +175,7 @@ namespace cs::render
 			fo4.EnabledSSR = a_features.dynamicCubemapsSettings.EnabledSSR;
 			fo4.EnabledDynamicCubemaps = a_features.dynamicCubemapsSettings.Enabled;
 			fo4.DynamicMaterialReflections = a_features.dynamicCubemapsSettings.MaterialReflections;
-			fo4.EnabledWaterParallax = a_features.waterEffectsSettings.EnabledParallax;
+			fo4.EnabledWaterEffects = a_features.waterEffectsSettings.Enabled;
 			fo4.EnabledUnifiedWater = a_features.unifiedWaterSettings.Enabled;
 			auto& terrain = a_data.feature.terraOccSettings;
 			terrain.EnableTerrainShadow = a_features.terrainShadowsSettings.EnableTerrainShadow;
@@ -183,7 +183,7 @@ namespace cs::render
 			std::ranges::copy(a_features.terrainShadowsSettings.ZRange, terrain.ZRange);
 			std::ranges::copy(a_features.terrainShadowsSettings.Offset, terrain.Offset);
 			terrain.ZBlur = a_features.terrainShadowsSettings.ZBlur;
-			a_data.feature.lodBlendingSettings = a_features.lodBlendingSettings;
+			a_data.feature.lodBlendingSettings = a_features.lodBlendingSettings.shared;
 			a_data.feature.terrainVariationSettings = a_features.terrainVariationSettings.shared;
 			a_data.feature.skylightingSettings = a_features.skylightingSettings.shared;
 			a_data.feature.iblSettings = a_features.iblSettings;
@@ -192,6 +192,9 @@ namespace cs::render
 			fo4.EnabledTerrainVariation = a_features.terrainVariationSettings.Enabled;
 			fo4.EnabledSkylighting = a_features.skylightingSettings.Enabled;
 			fo4.EnabledScreenSpaceGI = a_features.screenSpaceGISettings.Enabled;
+			fo4.EnabledScreenSpaceShadows = a_features.screenSpaceShadowsSettings.Enabled;
+			fo4.EnabledVolumetricShadows = a_features.volumetricShadowsSettings.Enabled;
+			fo4.EnabledLODBlending = a_features.lodBlendingSettings.Enabled;
 		}
 
 		constexpr std::array<std::size_t, kSubstrateBufferCount> kBufferSizes{

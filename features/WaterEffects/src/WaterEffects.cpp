@@ -397,7 +397,7 @@ namespace cs::features
 	cs::WaterEffectsFeatureData WaterEffects::GetCommonBufferData() const
 	{
 		cs::WaterEffectsFeatureData data{};
-		data.EnabledParallax = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u;
+		data.Enabled = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u;
 		return data;
 	}
 

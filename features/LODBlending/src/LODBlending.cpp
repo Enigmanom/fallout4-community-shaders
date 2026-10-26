@@ -103,11 +103,12 @@ namespace cs::features
 		if (!_injectionsOperational.load(std::memory_order_acquire))
 			return {};
 		cs::LODBlendingFeatureData data{};
-		data.LODTerrainBrightness = _settings.LODTerrainBrightness;
-		data.LODObjectBrightness = _settings.LODObjectBrightness;
-		data.LODTerrainGamma = _settings.LODTerrainGamma;
-		data.LODObjectGamma = _settings.LODObjectGamma;
-		data.DisableTerrainVertexColors = _settings.DisableTerrainVertexColors ? 1u : 0u;
+		data.Enabled = IsEnabled() ? 1u : 0u;
+		data.shared.LODTerrainBrightness = _settings.LODTerrainBrightness;
+		data.shared.LODObjectBrightness = _settings.LODObjectBrightness;
+		data.shared.LODTerrainGamma = _settings.LODTerrainGamma;
+		data.shared.LODObjectGamma = _settings.LODObjectGamma;
+		data.shared.DisableTerrainVertexColors = _settings.DisableTerrainVertexColors ? 1u : 0u;
 		return data;
 	}
 
