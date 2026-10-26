@@ -14,15 +14,15 @@ namespace cs::host
 {
 	bool ShaderCompileOverlay::Observe() noexcept
 	{
-		_presentation = _model.Update(
-			engine::GetShaderCompileBatch(),
-			ShaderCompileOverlayModel::Clock::now());
+		const auto batch = engine::GetShaderCompileBatch();
+		_blocksPlay = ShaderCompileOverlayModel::BlocksPlay(batch);
+		_presentation = _model.Update(batch, ShaderCompileOverlayModel::Clock::now());
 		return _presentation.phase != ShaderCompilePhase::kHidden;
 	}
 
 	bool ShaderCompileOverlay::WantsInputFocus() const noexcept
 	{
-		if (_presentation.phase != ShaderCompilePhase::kCompiling || !engine::ShaderCompileBlocksPlay())
+		if (!_blocksPlay || !engine::ShaderCompileBlocksPlay())
 			return false;
 		// Only the menu gates play; loads that bypass it proceed with stock shaders.
 		const auto* ui = RE::UI::GetSingleton();
@@ -67,7 +67,7 @@ namespace cs::host
 		constexpr float kMinWidth = 640.0f;
 		constexpr float kMargin = 20.0f;
 
-		// Rebuilt every frame, so a resolution change re-centers via the changed offset.
+		// Rebuilt each frame, so a resolution change re-centers via the offset.
 		const auto* state = engine::GetGraphicsState();
 		const float display = state ? static_cast<float>(state->screenWidth) : 0.0f;
 		const float width = display > 0.0f ?

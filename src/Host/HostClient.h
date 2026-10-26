@@ -58,7 +58,6 @@ namespace cs::host
 			DMUI_PageHandle handle{ DMUI_INVALID_PAGE_HANDLE };
 		};
 
-		// One managed overlay page and its frame-demand bookkeeping.
 		struct OverlayChannel
 		{
 			Page* page{};

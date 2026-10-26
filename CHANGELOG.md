@@ -2,7 +2,7 @@
 
 ## 0.5.0
 
-- Shaders now finish compiling before you can leave the main menu, with a live progress window; enable `background_compilation` in `[shader_cache]` to play while they compile.
+- With DearModdingUI, shaders finish compiling before you can leave the main menu, with a progress window; set `background_compilation` in `[shader_cache]` to play while they compile. All shader variants now precompile at startup instead of as the game first draws them.
 - Community Shaders now disables itself with a message when the standalone Dynamic Cubemaps F4 mod is installed; it patches the same draw call.
 - Dynamic Cubemaps: `material_reflections` now defaults to 0.25.
 - Skylighting: fixed a bright patch around the player with 3 shadow cascades (`iDirShadowSplits=3`, the High/Ultra default).

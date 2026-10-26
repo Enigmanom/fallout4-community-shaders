@@ -31,12 +31,22 @@ namespace
 		CHECK(model.Update(Batch(false, 800ms), t0 + 900ms).phase == ShaderCompilePhase::kHidden);
 	}
 
-	void TestSlowWarmCacheNeverShows()
+	// A blocked main menu without a visible window would look like a hang.
+	void TestBlockingBatchIsVisible()
 	{
 		ShaderCompileOverlayModel model;
 		const auto t0 = ShaderCompileOverlayModel::Clock::time_point{};
-		CHECK(model.Update(AllCacheHits(true, 3000ms), t0).phase == ShaderCompilePhase::kHidden);
-		CHECK(model.Update(AllCacheHits(false, 3000ms), t0 + 10ms).phase == ShaderCompilePhase::kHidden);
+		const auto slowWarm = AllCacheHits(true, 3000ms);
+		CHECK(ShaderCompileOverlayModel::BlocksPlay(slowWarm));
+		CHECK(model.Update(slowWarm, t0).phase == ShaderCompilePhase::kCompiling);
+	}
+
+	void TestBlocksPlayKeysOnBatchState()
+	{
+		using Model = ShaderCompileOverlayModel;
+		CHECK(!Model::BlocksPlay(Batch(true, 200ms)));
+		CHECK(Model::BlocksPlay(Batch(true, Model::kRevealDelay)));
+		CHECK(!Model::BlocksPlay(Batch(false, 3000ms)));
 	}
 
 	void TestColdCacheShowsThenLingers()
@@ -60,7 +70,8 @@ namespace
 int main()
 {
 	TestWarmCacheNeverShows();
-	TestSlowWarmCacheNeverShows();
+	TestBlockingBatchIsVisible();
+	TestBlocksPlayKeysOnBatchState();
 	TestColdCacheShowsThenLingers();
 	return cs::tests::failures ? 1 : 0;
 }

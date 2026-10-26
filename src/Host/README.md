@@ -80,12 +80,11 @@ the schema defaults. Notifications carry a title (feature or preset name, else C
 The Performance Overlay frame graphs are host annotated plots with 30/60/120 FPS reference lines
 in theme colors.
 
-The Shader Compilation Overlay shows only once a batch has compiled for over a second, then a
-brief "Shaders ready" summary, so a warm cache never flashes it. It is centered at the top of the
-screen, sized from the game's screen width. While the main menu is open and
-`shader_cache.background_compilation` is off, it holds overlay input focus so the menu cannot start
-a game; focus is re-requested each frame and released when the batch ends. Loads that bypass the
-menu (console `load`, autoload mods) proceed with stock shaders. Quitting stops pending compiles.
+The Shader Compilation Overlay shows once a batch has compiled for over a second, then a brief
+"Shaders ready" summary, so a warm cache never flashes it. While the main menu is open and
+`shader_cache.background_compilation` is off it holds overlay input focus so the menu cannot start a
+game; loads that bypass the menu (console `load`, autoload mods) proceed with stock shaders.
+Quitting stops pending compiles.
 
 Performance Overlay offset and size are author defaults. DearModdingUI persists the user's
 arrangement in its `imgui.ini`; Reset Layout discards it and reapplies the defaults.

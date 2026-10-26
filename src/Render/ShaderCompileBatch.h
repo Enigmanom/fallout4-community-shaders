@@ -11,7 +11,6 @@ namespace cs::engine
 		std::uint32_t completedTasks = 0;
 		std::uint32_t failedTasks = 0;
 		std::uint32_t totalTasks = 0;
-		// Completed tasks served from the on-disk cache.
 		std::uint32_t cacheHits = 0;
 		std::chrono::milliseconds duration{};
 		bool active = false;

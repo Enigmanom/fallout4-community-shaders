@@ -6,7 +6,6 @@
 #include "Menu/Menu.h"
 #include "Menu/SettingsEdit.h"
 #include "Plugin.h"
-#include "Render/ShaderCompileGate.h"
 #include "Settings/FeatureConfig.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/Hotkey.h"
@@ -852,7 +851,6 @@ namespace cs::host
 			_shaderCompileOverlay,
 			"shader compilation overlay",
 			_shaderCompile.WantsInputFocus());
-		engine::StopShaderCompileOnQuit();
 	}
 
 	void HostClient::SyncOverlayFocus(
