@@ -52,9 +52,15 @@ namespace cs::render::frame_annotations
 			kLive
 		};
 
+		// Per-draw names cost CPU, so build them only for a consumer.
+		[[nodiscard]] bool AnnotateDraws() noexcept
+		{
+			return Enabled() && annotation::EventsConsumed();
+		}
+
 		[[nodiscard]] bool Open(Gate a_gate) noexcept
 		{
-			return a_gate == Gate::kAlways || Enabled();
+			return a_gate == Gate::kAlways || AnnotateDraws();
 		}
 
 		// The name is a string_view or a generator, run only when the gate is open.
@@ -111,7 +117,7 @@ namespace cs::render::frame_annotations
 
 			static void thunk(RE::BSShader* a_self, RE::BSRenderPass* a_pass)
 			{
-				if (Enabled() && a_pass) {
+				if (AnnotateDraws() && a_pass) {
 					t_geometry.Begin(
 						std::format("[{}:{:X}] ({:X}) {}",
 							ShaderLabel(a_self),
@@ -474,7 +480,7 @@ namespace cs::render::frame_annotations
 		if (!g_installed)
 			return;
 		t_bound = { a_shader, a_pixelShaderId };
-		if (Enabled())
+		if (AnnotateDraws())
 			annotation::SetMarker(std::format("Draw: {}::{:x}", ShaderLabel(a_shader), a_pixelShaderId));
 	}
 }

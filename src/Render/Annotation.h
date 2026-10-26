@@ -12,6 +12,8 @@ namespace cs::render::annotation
 	using BeginPassCallback = bool (*)(std::string_view);
 	using EndPassCallback = void (*)();
 	void SetProfilerCallbacks(BeginPassCallback a_begin, EndPassCallback a_end) noexcept;
+	// A capture tool attached at device creation receives the events.
+	[[nodiscard]] bool EventsConsumed() noexcept;
 
 	class ScopedEvent
 	{
