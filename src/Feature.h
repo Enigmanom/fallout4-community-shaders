@@ -21,6 +21,12 @@
 
 struct IDXGIAdapter;
 struct ID3D11Device;
+namespace cs::render
+{
+	struct SharedFeatureDataCB;
+	struct FO4SharedDataCB;
+}
+
 namespace cs
 {
 	namespace settings
@@ -72,6 +78,7 @@ namespace cs
 		// Runs on the UI event thread; queue render-thread work instead of doing it.
 		virtual void OnLoadingMenuClosed() {}
 		virtual void Prepass() {}
+		virtual void WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB&) {}
 		virtual void OnRuntimeQuarantined(std::string_view, std::string_view) noexcept {}
 		// Fires after IsEnabled() flips; resources stay alive while disabled.
 		virtual void OnEnabledChanged(bool) noexcept {}
@@ -271,6 +278,8 @@ namespace cs
 
 		// Runs after the injection freeze so features can reject a partial delivery path.
 		void ValidateShaderInjectionsAll();
+
+		void WriteSharedDataAll(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4);
 
 		auto GetAll() const noexcept
 		{

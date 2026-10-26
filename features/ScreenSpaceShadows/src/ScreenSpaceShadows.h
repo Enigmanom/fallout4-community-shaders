@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Feature.h"
-#include "FeatureBuffer.h"
 #include "FeatureCategories.h"
 #include "ScreenSpaceShadowsResources.h"
 #include "ScreenSpaceShadowsSettings.h"
@@ -33,7 +32,7 @@ namespace cs::features
 		void DrawSettings() override;
 		void RestoreDefaultSettings() override;
 		bool IsShadowMaskReady();
-		cs::ScreenSpaceShadowsFeatureData GetCommonBufferData() const;
+		void WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4) override;
 
 		bool ProducesTelemetry() const override { return true; }
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;

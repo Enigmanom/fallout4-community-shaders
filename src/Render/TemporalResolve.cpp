@@ -252,14 +252,13 @@ namespace cs::render
 				providerResult =
 					render::TemporalPipeline::Get().EvaluateSuperResolution(
 						render::temporal::SuperResolutionMethod::kDLSS, request);
-			} else if (upscaleMethod == UpscaleMethod::kFSR ||
+			} else if (upscaleMethod == UpscaleMethod::kFSR3 ||
 					   upscaleMethod == UpscaleMethod::kFSR4) {
 				cs::render::annotation::ScopedEvent providerScope(
 					upscaleMethod == UpscaleMethod::kFSR4 ? "Upscaling/FSR4" : "Upscaling/FSR3");
 				providerResult =
 					render::TemporalPipeline::Get().EvaluateSuperResolution(
-						upscaleMethod == UpscaleMethod::kFSR4 ? render::temporal::SuperResolutionMethod::kFSR4 : render::temporal::SuperResolutionMethod::kFSR3,
-						request);
+						upscaleMethod, request);
 			}
 			upscaled = providerResult.CanPublishOutput();
 			providerSkipped =
@@ -396,7 +395,7 @@ namespace cs::render
 
 		const auto method = GetUpscaleMethod();
 		bool published = false;
-		if (method == UpscaleMethod::kFSR ||
+		if (method == UpscaleMethod::kFSR3 ||
 			method == UpscaleMethod::kFSR4) {
 			published = PublishUpscalingOutput(
 				context, frameBuffer.get(),

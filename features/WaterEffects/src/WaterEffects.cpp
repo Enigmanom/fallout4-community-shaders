@@ -1,4 +1,5 @@
 #include "WaterEffects.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <DirectXTex.h>
@@ -394,11 +395,9 @@ namespace cs::features
 		_binds.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	cs::WaterEffectsFeatureData WaterEffects::GetCommonBufferData() const
+	void WaterEffects::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		cs::WaterEffectsFeatureData data{};
-		data.Enabled = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u;
-		return data;
+		a_fo4.EnabledWaterEffects = _injectionsOperational.load(std::memory_order_acquire) ? 1u : 0u;
 	}
 
 	FullscreenDebugData WaterEffects::GetFullscreenDebugData() const noexcept

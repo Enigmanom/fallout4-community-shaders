@@ -4,6 +4,7 @@
 #include "Log.h"
 #include "Render/Annotation.h"
 #include "Render/ShaderInjection.h"
+#include "Utils/CSUtil.h"
 #include "Utils/ShaderCache/ShaderCache.h"
 #include "Utils/ShaderSamplerBindings.h"
 #include "Utils/WinApi.h"
@@ -12,6 +13,7 @@
 #include <atomic>
 #include <bit>
 #include <cstdio>
+#include <format>
 #include <mutex>
 #include <string_view>
 #include <thread>
@@ -24,19 +26,6 @@ namespace cs::engine
 	{
 		auto* L = cs::log::Get("cs.render.shadercache");
 
-		constexpr std::string_view StageName(ShaderStage a_stage) noexcept
-		{
-			switch (a_stage) {
-			case ShaderStage::kVertex:
-				return "vertex";
-			case ShaderStage::kPixel:
-				return "pixel";
-			case ShaderStage::kCompute:
-				return "compute";
-			}
-			std::unreachable();
-		}
-
 		void LogCompilationFailure(
 			const ShaderVariantCompilationRequest& a_request,
 			std::string_view a_error)
@@ -45,85 +34,13 @@ namespace cs::engine
 				"Injected shader compile failed: owner='{}' family={} stage={} descriptor={:#010x} source='{}' entry='{}' profile='{}' defines='{}': {}",
 				a_request.owner.empty() ? "<unknown>" : a_request.owner,
 				a_request.familyId,
-				StageName(a_request.stage),
+				ShaderStageName(a_request.stage),
 				a_request.descriptor,
 				a_request.sourcePath.string(),
 				a_request.entryPoint,
 				a_request.profile,
 				DescribeShaderInjectionDefines(a_request.defines),
 				a_error.empty() ? "shader compilation failed" : a_error);
-		}
-
-		bool CreateShaderChild(
-			ID3D11Device& a_device,
-			ShaderStage a_stage,
-			const void* a_bytecode,
-			std::size_t a_bytecodeLength,
-			winrt::com_ptr<ID3D11DeviceChild>& a_shader,
-			std::string& a_error)
-		{
-			a_shader = nullptr;
-			HRESULT createResult = E_FAIL;
-			const char* createStage = "Unknown";
-			static_assert(static_cast<std::uint8_t>(ShaderStage::kCount) == 3);
-			{
-				ScopedNativeShaderObservationBypass bypassObservation;
-				switch (a_stage) {
-				case ShaderStage::kVertex:
-					{
-						createStage = "Vertex";
-						winrt::com_ptr<ID3D11VertexShader> vertexShader;
-						createResult = a_device.CreateVertexShader(
-							a_bytecode,
-							a_bytecodeLength,
-							nullptr,
-							vertexShader.put());
-						if (vertexShader)
-							a_shader.attach(vertexShader.detach());
-						break;
-					}
-				case ShaderStage::kPixel:
-					{
-						createStage = "Pixel";
-						winrt::com_ptr<ID3D11PixelShader> pixelShader;
-						createResult = a_device.CreatePixelShader(
-							a_bytecode,
-							a_bytecodeLength,
-							nullptr,
-							pixelShader.put());
-						if (pixelShader)
-							a_shader.attach(pixelShader.detach());
-						break;
-					}
-				case ShaderStage::kCompute:
-					{
-						createStage = "Compute";
-						winrt::com_ptr<ID3D11ComputeShader> computeShader;
-						createResult = a_device.CreateComputeShader(
-							a_bytecode,
-							a_bytecodeLength,
-							nullptr,
-							computeShader.put());
-						if (computeShader)
-							a_shader.attach(computeShader.detach());
-						break;
-					}
-				}
-			}
-
-			if (FAILED(createResult) || !a_shader) {
-				a_shader = nullptr;
-				char buffer[64]{};
-				std::snprintf(
-					buffer,
-					sizeof(buffer),
-					"Create%sShader hr=0x%08x",
-					createStage,
-					static_cast<unsigned>(createResult));
-				a_error = buffer;
-				return false;
-			}
-			return true;
 		}
 
 		class GenerationRevalidationContexts
@@ -175,42 +92,40 @@ namespace cs::engine
 				L->warn("Shader cache unavailable: {}", outcome.cacheNote);
 			}
 
-			winrt::com_ptr<ID3D11DeviceChild> shader;
-			std::string createError;
-			bool created = CreateShaderChild(
+			ID3D11DeviceChild* child = nullptr;
+			auto createResult = util::CreateShaderChild(
 				*a_request.device,
 				a_request.stage,
-				outcome.bytecode.data(),
-				outcome.bytecode.size(),
-				shader,
-				createError);
+				outcome.bytecode,
+				child);
 
-			if (!created && outcome.origin == shader_cache::CompileOrigin::kCacheHit) {
+			if (FAILED(createResult) && outcome.origin == shader_cache::CompileOrigin::kCacheHit) {
 				outcome = shader_cache::LoadOrCompileShader(
 					recipe,
 					options,
 					shader_cache::CacheMode::kRecompile);
 				if (!outcome.succeeded) {
 					result.error = outcome.error.empty() ?
-					                   createError :
+					                   "shader recompilation failed" :
 					                   std::move(outcome.error);
 					LogCompilationFailure(a_request, result.error);
 					return result;
 				}
-				created = CreateShaderChild(
+				createResult = util::CreateShaderChild(
 					*a_request.device,
 					a_request.stage,
-					outcome.bytecode.data(),
-					outcome.bytecode.size(),
-					shader,
-					createError);
+					outcome.bytecode,
+					child);
 			}
 
-			if (!created) {
-				result.error = std::move(createError);
+			if (FAILED(createResult)) {
+				result.error = std::format("Create {} shader hr=0x{:08x}",
+					ShaderStageName(a_request.stage), static_cast<unsigned>(createResult));
 				LogCompilationFailure(a_request, result.error);
 				return result;
 			}
+			winrt::com_ptr<ID3D11DeviceChild> shader;
+			shader.attach(child);
 			const std::string shaderName =
 				"Render/Injected/" + a_request.sourcePath.stem().string() + (a_request.stage == ShaderStage::kVertex ? ".VS" : a_request.stage == ShaderStage::kCompute ? ".CS" :
 																																										  ".PS");

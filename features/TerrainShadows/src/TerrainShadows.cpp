@@ -1,4 +1,5 @@
 #include "TerrainShadows.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <DirectXTex.h>
@@ -925,7 +926,7 @@ namespace cs::features
 			return;
 		}
 
-		if (!cs::telemetry::pump::Enabled() || !IsEnabled() || !_injectionsOperational.load(std::memory_order_acquire) || !_mapLoaded.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire) || !_heightTexture || !_heightTexture->srv || !_shadowTexture || !_shadowTexture->srv) {
+		if (!cs::telemetry::pump::Enabled() || !IsShadowFieldReady() || !_heightTexture || !_heightTexture->srv) {
 			return;
 		}
 		const auto interval = std::chrono::seconds(
@@ -948,13 +949,7 @@ namespace cs::features
 		std::memcpy(cbMapped.pData, &cbData, sizeof(cbData));
 		a_context->Unmap(_shadowStatsCB.get(), 0);
 		cs::render::SharedFeatureDataCB feature{};
-		const auto terrain = ts::BuildFeatureBlock(_loadedMetadata, true,
-			_heightTexture->desc.Width, _heightTexture->desc.Height, _plan.lightDeltaZ);
-		feature.terraOccSettings.EnableTerrainShadow = terrain.enableTerrainShadow;
-		std::ranges::copy(terrain.scale, feature.terraOccSettings.Scale);
-		std::ranges::copy(terrain.zRange, feature.terraOccSettings.ZRange);
-		std::ranges::copy(terrain.offset, feature.terraOccSettings.Offset);
-		feature.terraOccSettings.ZBlur = terrain.zBlur;
+		feature.terraOccSettings = BuildActiveFeatureBlock();
 		if (FAILED(a_context->Map(_shadowStatsFeatureCB.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &cbMapped)))
 			return;
 		std::memcpy(cbMapped.pData, &feature, sizeof(feature));
@@ -1069,31 +1064,32 @@ namespace cs::features
 			.texture = heightmap ? _heightTexture->srv.get() : nullptr };
 	}
 
-	cs::TerrainShadowsFeatureData TerrainShadows::GetCommonBufferData() const
+	bool TerrainShadows::IsShadowFieldReady() const noexcept
 	{
-		if (!_injectionsOperational.load(std::memory_order_acquire) || !IsEnabled() || !_mapLoaded.load(std::memory_order_acquire) || !_shadowResourcesReady.load(std::memory_order_acquire) || !_shadowPopulated.load(std::memory_order_acquire)) {
-			return {};
-		}
+		return IsEnabled() &&
+		       _injectionsOperational.load(std::memory_order_acquire) &&
+		       _mapLoaded.load(std::memory_order_acquire) &&
+		       _shadowResourcesReady.load(std::memory_order_acquire) &&
+		       _shadowPopulated.load(std::memory_order_acquire) &&
+		       _heightTexture && _shadowTexture && _shadowTexture->srv;
+	}
 
-		const auto block = ts::BuildFeatureBlock(_loadedMetadata, true,
-			_heightTexture->desc.Width, _heightTexture->desc.Height, _plan.lightDeltaZ);
-		cs::TerrainShadowsFeatureData data{};
-		data.EnableTerrainShadow = block.enableTerrainShadow;
-		data.Scale[0] = block.scale[0];
-		data.Scale[1] = block.scale[1];
-		data.Scale[2] = block.scale[2];
-		data.ZRange[0] = block.zRange[0];
-		data.ZRange[1] = block.zRange[1];
-		data.Offset[0] = block.offset[0];
-		data.Offset[1] = block.offset[1];
-		data.ZBlur = block.zBlur;
-		return data;
+	render::TerraOccSettings TerrainShadows::BuildActiveFeatureBlock() const noexcept
+	{
+		return ts::BuildFeatureBlock(
+			_loadedMetadata, true, _heightTexture->desc.Width, _heightTexture->desc.Height, _plan.lightDeltaZ);
+	}
+
+	void TerrainShadows::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB&)
+	{
+		if (IsShadowFieldReady())
+			a_feature.terraOccSettings = BuildActiveFeatureBlock();
 	}
 
 	ID3D11ShaderResourceView* TerrainShadows::GetShadowHeightSRV() const
 	{
 		// FO4: volumetric scattering consumes the same validated terrain field as materials.
-		return GetCommonBufferData().EnableTerrainShadow && _shadowTexture ? _shadowTexture->srv.get() : nullptr;
+		return IsShadowFieldReady() ? _shadowTexture->srv.get() : nullptr;
 	}
 
 	void TerrainShadows::PublishStatus(

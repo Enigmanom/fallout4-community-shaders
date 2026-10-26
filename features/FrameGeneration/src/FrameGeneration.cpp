@@ -28,17 +28,8 @@ namespace cs::features
 
 		std::string_view MethodName(std::uint32_t a_method) noexcept
 		{
-			switch (static_cast<FrameGeneration::Method>(a_method)) {
-			case FrameGeneration::Method::kOff:
-				return "Off";
-			case FrameGeneration::Method::kFSR3:
-				return "FSR 3";
-			case FrameGeneration::Method::kDLSSG:
-				return "DLSS";
-			case FrameGeneration::Method::kFSR4:
-				return "FSR 4";
-			}
-			return "Unknown";
+			return render::temporal::presentation::Name(
+				static_cast<FrameGeneration::Method>(a_method));
 		}
 
 		struct RetirementCounterField
@@ -423,7 +414,7 @@ namespace cs::features
 					[](const Feature& a_feature) {
 						return static_cast<const FrameGeneration&>(
 							a_feature)
-			                .GetDebugTexture(DebugView::kHudless);
+			                .GetDebugTexture(render::FrameGenerationDebugResource::kHudless);
 					} },
 			FeatureDebugView{ .id = "final_color",
 				.label = "Final color",
@@ -432,7 +423,7 @@ namespace cs::features
 					[](const Feature& a_feature) {
 						return static_cast<const FrameGeneration&>(
 							a_feature)
-			                .GetDebugTexture(DebugView::kFinal);
+			                .GetDebugTexture(render::FrameGenerationDebugResource::kFinal);
 					} },
 			FeatureDebugView{ .id = "conditioned_depth",
 				.label = "FG-conditioned depth",
@@ -441,14 +432,14 @@ namespace cs::features
 					[](const Feature& a_feature) {
 						return static_cast<const FrameGeneration&>(
 							a_feature)
-			                .GetDebugTexture(DebugView::kDepth);
+			                .GetDebugTexture(render::FrameGenerationDebugResource::kDepth);
 					} },
 			FeatureDebugView{ .id = "conditioned_motion",
 				.label = "FG-conditioned motion",
 				.kind = FeatureDebugViewKind::kTexturePreview,
 				.textureProvider = [](const Feature& a_feature) {
 					return static_cast<const FrameGeneration&>(a_feature)
-			            .GetDebugTexture(DebugView::kMotion);
+			            .GetDebugTexture(render::FrameGenerationDebugResource::kMotion);
 				} }
 		};
 		return views;
@@ -460,28 +451,11 @@ namespace cs::features
 			a_view);
 	}
 
-	FeatureDebugTexture FrameGeneration::GetDebugTexture(DebugView a_view) const
+	FeatureDebugTexture FrameGeneration::GetDebugTexture(render::FrameGenerationDebugResource a_view) const
 	{
-		std::string_view view;
-		switch (a_view) {
-		case DebugView::kHudless:
-			view = "hudless_color";
-			break;
-		case DebugView::kFinal:
-			view = "final_color";
-			break;
-		case DebugView::kDepth:
-			view = "conditioned_depth";
-			break;
-		case DebugView::kMotion:
-			view = "conditioned_motion";
-			break;
-		case DebugView::kOff:
-			break;
-		}
 		return render::TemporalPipeline::Get()
 		    .Renderer()
-		    .GetFrameGenerationDebugTexture(view);
+		    .GetFrameGenerationDebugTexture(a_view);
 	}
 
 	void FrameGeneration::DrawSettings()

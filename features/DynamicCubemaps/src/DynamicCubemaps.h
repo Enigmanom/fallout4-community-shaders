@@ -74,7 +74,7 @@ namespace cs::features
 		void SetDebugView(std::string_view a_view) noexcept override;
 		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
-		cs::DynamicCubemapsFeatureData GetCommonBufferData() const;
+		void WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4) override;
 		std::vector<std::string_view> GetRestartSettings() const override;
 
 		// Null unless enabled, operational and published, so consumers fail neutral.

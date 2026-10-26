@@ -2,7 +2,6 @@
 
 #include "ExtendedMaterialsSettings.h"
 #include "Feature.h"
-#include "FeatureBuffer.h"
 #include "FeatureCategories.h"
 #include "ShaderDefines.h"
 #include "Utils/CSBuffer.h"
@@ -33,7 +32,7 @@ namespace cs::features
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
 		void Prepass() override;
 
-		cs::ExtendedMaterialsFeatureData GetCommonBufferData() const;
+		void WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB&) override;
 
 		using Settings = extended_materials::Settings;
 

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Feature.h"
-#include "FeatureBuffer.h"
 #include "FeatureCategories.h"
 #include "Render/PrecipitationOcclusion.h"
 #include "Render/ShadowCascades.h"
+#include "Render/SharedFeatureData.h"
 #include "Render/SunShadowLights.h"
 #include "ShaderDefines.h"
 #include "SkylightingSettings.h"
@@ -61,7 +61,7 @@ namespace cs::features
 		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
 		// Packs b6; repeated packs within a frame must not advance the grid again.
-		cs::SkylightingFeatureData GetCommonBufferData();
+		void WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4) override;
 
 	private:
 		Skylighting() = default;

@@ -1,4 +1,5 @@
 #include "ScreenSpaceShadows.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <DirectXMath.h>
@@ -379,9 +380,9 @@ namespace cs::features
 		(void)EnsureResources();
 	}
 
-	cs::ScreenSpaceShadowsFeatureData ScreenSpaceShadows::GetCommonBufferData() const
+	void ScreenSpaceShadows::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		return { .Enabled = IsEnabled() ? 1u : 0u };
+		a_fo4.EnabledScreenSpaceShadows = 1u;
 	}
 
 	bool ScreenSpaceShadows::IsShadowMaskReady()

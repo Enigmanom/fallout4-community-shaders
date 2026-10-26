@@ -166,11 +166,10 @@ namespace cs::render
 			return false;
 		}
 
-		if (a_upscalemethod == UpscaleMethod::kFSR ||
+		if (a_upscalemethod == UpscaleMethod::kFSR3 ||
 			a_upscalemethod == UpscaleMethod::kFSR4) {
 			return render::TemporalPipeline::Get()
-			           .IsSuperResolutionRuntimeReady(
-						   a_upscalemethod == UpscaleMethod::kFSR4 ? render::temporal::SuperResolutionMethod::kFSR4 : render::temporal::SuperResolutionMethod::kFSR3) &&
+			           .IsSuperResolutionRuntimeReady(a_upscalemethod) &&
 			       sharpenerTexture &&
 			       publicationTexture &&
 			       sharpenerTexture->resource.get() != upscalingTexture->resource.get() &&
@@ -282,19 +281,8 @@ namespace cs::render
 			static_cast<int>(a_upscalemethod), magic_enum::enum_name(a_upscalemethod),
 			previousQualityMode, settings.qualityMode);
 
-		render::temporal::ProviderResult release{
-			.code = render::temporal::ProviderResultCode::kSuccess
-		};
-		if (previousUpscaleMode == UpscaleMethod::kDLSS) {
-			release =
-				render::TemporalPipeline::Get().DestroySuperResolutionResources(
-					render::temporal::SuperResolutionMethod::kDLSS);
-		} else if (previousUpscaleMode == UpscaleMethod::kFSR ||
-				   previousUpscaleMode == UpscaleMethod::kFSR4) {
-			release =
-				render::TemporalPipeline::Get().DestroySuperResolutionResources(
-					previousUpscaleMode == UpscaleMethod::kFSR4 ? render::temporal::SuperResolutionMethod::kFSR4 : render::temporal::SuperResolutionMethod::kFSR3);
-		}
+		const auto release =
+			render::TemporalPipeline::Get().DestroySuperResolutionResources(previousUpscaleMode);
 		if (!release.Succeeded()) {
 			render::TemporalPipeline::Get().PostFailure(
 				release.failureDomain ==
@@ -330,7 +318,7 @@ namespace cs::render
 			case UpscaleMethod::kDLSS:
 				defines.push_back({ "DLSS", "" });
 				break;
-			case UpscaleMethod::kFSR:
+			case UpscaleMethod::kFSR3:
 			case UpscaleMethod::kFSR4:
 				defines.push_back({ "FSR", "" });
 				break;
@@ -521,19 +509,8 @@ namespace cs::render
 		_spatialFallbackPreflightReady.store(false, std::memory_order_release);
 
 		const auto method = GetUpscaleMethod();
-		render::temporal::ProviderResult release{
-			.code = render::temporal::ProviderResultCode::kSuccess
-		};
-		if (method == UpscaleMethod::kDLSS) {
-			release =
-				render::TemporalPipeline::Get().DestroySuperResolutionResources(
-					render::temporal::SuperResolutionMethod::kDLSS);
-		} else if (method == UpscaleMethod::kFSR ||
-				   method == UpscaleMethod::kFSR4) {
-			release =
-				render::TemporalPipeline::Get().DestroySuperResolutionResources(
-					method == UpscaleMethod::kFSR4 ? render::temporal::SuperResolutionMethod::kFSR4 : render::temporal::SuperResolutionMethod::kFSR3);
-		}
+		const auto release =
+			render::TemporalPipeline::Get().DestroySuperResolutionResources(method);
 		if (!release.Succeeded()) {
 			render::TemporalPipeline::Get().PostFailure(
 				release.failureDomain ==

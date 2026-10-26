@@ -1,4 +1,5 @@
 #include "Utils/CSUtil.h"
+#include "Render/ShaderInjection.h"
 #include "Utils/ShaderCache/ShaderCache.h"
 #include "Utils/ShaderCompile.h"
 
@@ -64,51 +65,54 @@ namespace cs::util
 			description.DedicatedVideoMemory / (1024 * 1024));
 	}
 
+	HRESULT CreateShaderChild(
+		ID3D11Device& a_device,
+		engine::ShaderStage a_stage,
+		std::span<const std::uint8_t> a_bytecode,
+		ID3D11DeviceChild*& a_shader) noexcept
+	{
+		engine::ScopedNativeShaderObservationBypass bypassObservation;
+		a_shader = nullptr;
+		HRESULT result = E_INVALIDARG;
+		switch (a_stage) {
+		case shader_cache::ShaderCacheStage::kPixel:
+			{
+				Microsoft::WRL::ComPtr<ID3D11PixelShader> shader;
+				result = a_device.CreatePixelShader(
+					a_bytecode.data(), a_bytecode.size(), nullptr, shader.GetAddressOf());
+				if (SUCCEEDED(result) && shader)
+					a_shader = shader.Detach();
+				break;
+			}
+		case shader_cache::ShaderCacheStage::kVertex:
+			{
+				Microsoft::WRL::ComPtr<ID3D11VertexShader> shader;
+				result = a_device.CreateVertexShader(
+					a_bytecode.data(), a_bytecode.size(), nullptr, shader.GetAddressOf());
+				if (SUCCEEDED(result) && shader)
+					a_shader = shader.Detach();
+				break;
+			}
+		case shader_cache::ShaderCacheStage::kCompute:
+			{
+				Microsoft::WRL::ComPtr<ID3D11ComputeShader> shader;
+				result = a_device.CreateComputeShader(
+					a_bytecode.data(), a_bytecode.size(), nullptr, shader.GetAddressOf());
+				if (SUCCEEDED(result) && shader)
+					a_shader = shader.Detach();
+				break;
+			}
+		default:
+			break;
+		}
+		return SUCCEEDED(result) && !a_shader ? E_FAIL : result;
+	}
+
 	namespace
 	{
 		auto* L = cs::log::Get("cs.util");
 		thread_local shader_cache::RevalidationContext*
 			g_activeRevalidation = nullptr;
-
-		HRESULT CreateShaderChild(
-			ID3D11Device& a_device,
-			shader_cache::ShaderCacheStage a_stage,
-			std::span<const std::uint8_t> a_bytecode,
-			ID3D11DeviceChild*& a_shader) noexcept
-		{
-			a_shader = nullptr;
-			HRESULT result = E_INVALIDARG;
-			switch (a_stage) {
-			case shader_cache::ShaderCacheStage::kPixel:
-				{
-					Microsoft::WRL::ComPtr<ID3D11PixelShader> shader;
-					result = a_device.CreatePixelShader(
-						a_bytecode.data(), a_bytecode.size(), nullptr, shader.GetAddressOf());
-					if (SUCCEEDED(result) && shader)
-						a_shader = shader.Detach();
-					break;
-				}
-			case shader_cache::ShaderCacheStage::kVertex:
-				{
-					Microsoft::WRL::ComPtr<ID3D11VertexShader> shader;
-					result = a_device.CreateVertexShader(
-						a_bytecode.data(), a_bytecode.size(), nullptr, shader.GetAddressOf());
-					if (SUCCEEDED(result) && shader)
-						a_shader = shader.Detach();
-					break;
-				}
-			case shader_cache::ShaderCacheStage::kCompute:
-				{
-					Microsoft::WRL::ComPtr<ID3D11ComputeShader> shader;
-					result = a_device.CreateComputeShader(
-						a_bytecode.data(), a_bytecode.size(), nullptr, shader.GetAddressOf());
-					if (SUCCEEDED(result) && shader)
-						a_shader = shader.Detach();
-					break;
-				}
-			}
-			return SUCCEEDED(result) && !a_shader ? E_FAIL : result;
-		}
 
 		void LogCompileFailure(
 			const std::string& a_path,

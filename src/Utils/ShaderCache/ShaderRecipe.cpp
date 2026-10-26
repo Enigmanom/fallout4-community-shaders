@@ -47,6 +47,8 @@ namespace cs::shader_cache
 			return "ps";
 		case ShaderCacheStage::kCompute:
 			return "cs";
+		default:
+			break;
 		}
 		return "??";
 	}

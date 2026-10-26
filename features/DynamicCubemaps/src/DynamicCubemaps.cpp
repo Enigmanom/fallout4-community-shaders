@@ -14,7 +14,6 @@
 #include <string_view>
 #include <vector>
 
-#include "FeatureBuffer.h"
 #include "Log.h"
 #include "LogThrottle.h"
 #include "Menu/Menu.h"
@@ -30,6 +29,7 @@
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderStage.h"
 #include "Render/SharedData.h"
+#include "Render/SharedDataLayout.h"
 #include "Render/SkyReflectionCube.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
@@ -1285,18 +1285,14 @@ namespace cs::features
 					_repeatCallbacks.load(std::memory_order_relaxed)));
 	}
 
-	cs::DynamicCubemapsFeatureData
-	DynamicCubemaps::GetCommonBufferData() const
+	void DynamicCubemaps::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		cs::DynamicCubemapsFeatureData data{};
 		if (_injectionsOperational.load(std::memory_order_acquire)) {
-			data.Enabled = IsEnabled() ? 1u : 0u;
-			data.EnabledSSR =
+			a_fo4.EnabledDynamicCubemaps = 1u;
+			a_fo4.EnabledSSR =
 				_enabledSSR.load(std::memory_order_acquire) ? 1u : 0u;
-			if (data.Enabled)
-				data.MaterialReflections = _materialReflections.load(std::memory_order_acquire);
+			a_fo4.DynamicMaterialReflections = _materialReflections.load(std::memory_order_acquire);
 		}
-		return data;
 	}
 
 	void DynamicCubemaps::DrawSettings()

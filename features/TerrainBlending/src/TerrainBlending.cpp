@@ -1,4 +1,5 @@
 #include "TerrainBlending.h"
+#include "Render/SharedDataLayout.h"
 
 #include "Log.h"
 #include "Render/Annotation.h"
@@ -192,9 +193,9 @@ namespace cs::features
 		       _injectionsOperational.load(std::memory_order_acquire);
 	}
 
-	cs::TerrainBlendingFeatureData TerrainBlending::GetCommonBufferData() const
+	void TerrainBlending::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB&)
 	{
-		return { .Enabled = IsOperational() ? 1u : 0u };
+		a_feature.terrainBlendingSettings.Enabled = IsOperational() ? 1u : 0u;
 	}
 
 	bool TerrainBlending::HoldsTechnique(std::uint32_t a_technique) const noexcept

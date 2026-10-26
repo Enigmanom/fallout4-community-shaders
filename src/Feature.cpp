@@ -479,6 +479,14 @@ namespace cs
 		DispatchRuntimeCallbacks(*this, "Prepass", [](Feature& a_feature) { a_feature.Prepass(); });
 	}
 
+	void FeatureManager::WriteSharedDataAll(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4)
+	{
+		for (auto* feature : GetAll()) {
+			if (feature->IsEnabled())
+				feature->WriteSharedData(a_feature, a_fo4);
+		}
+	}
+
 	void FeatureManager::ActivateAll()
 	{
 		_loadedFeatures.clear();

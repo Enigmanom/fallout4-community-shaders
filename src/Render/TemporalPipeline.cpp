@@ -163,44 +163,6 @@ namespace cs::render
 			return mode.dmDisplayFrequency > 1 ? static_cast<double>(mode.dmDisplayFrequency) : 0.0;
 		}
 
-		temporal::SuperResolutionMethod
-		ToCore(features::Upscaling::UpscaleMethod a_method) noexcept
-		{
-			using Source = features::Upscaling::UpscaleMethod;
-			using Target = temporal::SuperResolutionMethod;
-			switch (a_method) {
-			case Source::kNONE:
-				return Target::kNone;
-			case Source::kTAA:
-				return Target::kTAA;
-			case Source::kFSR:
-				return Target::kFSR3;
-			case Source::kDLSS:
-				return Target::kDLSS;
-			case Source::kFSR4:
-				return Target::kFSR4;
-			}
-			return Target::kNone;
-		}
-
-		temporal::FrameGenerationMethod
-		ToCore(features::FrameGeneration::Method a_method) noexcept
-		{
-			using Source = features::FrameGeneration::Method;
-			using Target = temporal::FrameGenerationMethod;
-			switch (a_method) {
-			case Source::kOff:
-				return Target::kOff;
-			case Source::kFSR3:
-				return Target::kFSR3;
-			case Source::kDLSSG:
-				return Target::kDLSSG;
-			case Source::kFSR4:
-				return Target::kFSR4;
-			}
-			return Target::kOff;
-		}
-
 		temporal::FrameGenerationConfiguration
 		ToCoreFrameGenerationConfiguration(
 			const features::FrameGeneration::Settings& a_settings) noexcept
@@ -228,28 +190,6 @@ namespace cs::render
 			}
 			options.useMarkers = a_settings.reflexUseMarkersToOptimize;
 			return options;
-		}
-
-		features::Upscaling::UpscaleMethod
-		ToFeature(temporal::SuperResolutionMethod a_method) noexcept
-		{
-			using Source = temporal::SuperResolutionMethod;
-			using Target = features::Upscaling::UpscaleMethod;
-			switch (a_method) {
-			case Source::kNone:
-				return Target::kNONE;
-			case Source::kTAA:
-				return Target::kTAA;
-			case Source::kFSR3:
-				return Target::kFSR;
-			case Source::kDLSS:
-				return Target::kDLSS;
-			case Source::kFSR4:
-				return Target::kFSR4;
-			case Source::kCount:
-				break;
-			}
-			return Target::kNONE;
 		}
 
 		bool UsesSharedStreamlineConstants(
@@ -502,8 +442,8 @@ namespace cs::render
 		if (upscaling) {
 			_impl->requestedRenderSettings = upscaling->settings;
 			requested.superResolution =
-				ToCore(static_cast<features::Upscaling::UpscaleMethod>(
-					upscaling->settings.upscaleMethod));
+				static_cast<temporal::SuperResolutionMethod>(
+					upscaling->settings.upscaleMethod);
 			requested.superResolutionEnabled =
 				requested.superResolution !=
 				temporal::SuperResolutionMethod::kNone;
@@ -512,8 +452,8 @@ namespace cs::render
 		}
 		if (frameGeneration) {
 			requested.frameGeneration =
-				ToCore(static_cast<features::FrameGeneration::Method>(
-					frameGeneration->settings.frameGenerationMethod));
+				static_cast<temporal::FrameGenerationMethod>(
+					frameGeneration->settings.frameGenerationMethod);
 			requested.frameGenerationEnabled =
 				requested.frameGeneration !=
 				temporal::FrameGenerationMethod::kOff;
@@ -570,11 +510,11 @@ namespace cs::render
 		std::scoped_lock lock(_impl->mutex);
 		_impl->requestedRenderSettings = upscaling->settings;
 		const auto superResolution =
-			ToCore(static_cast<features::Upscaling::UpscaleMethod>(
-				upscaling->settings.upscaleMethod));
+			static_cast<temporal::SuperResolutionMethod>(
+				upscaling->settings.upscaleMethod);
 		const auto frameGenerationMethod =
-			ToCore(static_cast<features::FrameGeneration::Method>(
-				frameGeneration->settings.frameGenerationMethod));
+			static_cast<temporal::FrameGenerationMethod>(
+				frameGeneration->settings.frameGenerationMethod);
 		_impl->topology.SubmitLive(
 			superResolution != temporal::SuperResolutionMethod::kNone,
 			superResolution,
@@ -809,8 +749,7 @@ namespace cs::render
 								_impl->topology.Effective();
 							_impl->effectiveRenderSettings.upscaleMethod =
 								static_cast<std::uint32_t>(
-									ToFeature(
-										effective.superResolution));
+									effective.superResolution);
 							_impl->effectiveRenderSettings.qualityMode =
 								effective.qualityMode;
 							_impl->effectiveRenderSettings.enabled =
@@ -862,7 +801,7 @@ namespace cs::render
 					_impl->requestedRenderSettings;
 				_impl->effectiveRenderSettings.upscaleMethod =
 					static_cast<std::uint32_t>(
-						ToFeature(effective.superResolution));
+						effective.superResolution);
 				_impl->effectiveRenderSettings.qualityMode =
 					effective.qualityMode;
 				_impl->effectiveRenderSettings.enabled =
@@ -946,7 +885,7 @@ namespace cs::render
 			const auto& effective = _impl->topology.Effective();
 			renderSettings.upscaleMethod =
 				static_cast<std::uint32_t>(
-					ToFeature(effective.superResolution));
+					effective.superResolution);
 			renderSettings.qualityMode = effective.qualityMode;
 			renderSettings.enabled = effective.superResolutionEnabled;
 			_impl->effectiveRenderSettings = renderSettings;
@@ -1434,7 +1373,7 @@ namespace cs::render
 				const auto& effective = _impl->topology.Effective();
 				_impl->effectiveRenderSettings.upscaleMethod =
 					static_cast<std::uint32_t>(
-						ToFeature(effective.superResolution));
+						effective.superResolution);
 				_impl->effectiveRenderSettings.qualityMode =
 					effective.qualityMode;
 				_impl->effectiveRenderSettings.enabled =
@@ -2184,6 +2123,8 @@ namespace cs::render
 			break;
 		case FrameGenerationDebugResource::kMotion:
 			resource = _impl->swapChain.GetMotionTexture();
+			break;
+		case FrameGenerationDebugResource::kOff:
 			break;
 		}
 		return resource && resource->srv11 ? FrameGenerationDebugTexture{ .srv = resource->srv11.get(),

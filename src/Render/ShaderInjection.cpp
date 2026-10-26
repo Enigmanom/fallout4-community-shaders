@@ -366,21 +366,6 @@ namespace cs::engine
 	{
 		constexpr auto& kTargets = kShaderInjectionTargets;
 
-		constexpr std::string_view StageName(ShaderStage a_stage) noexcept
-		{
-			static_assert(
-				static_cast<std::uint8_t>(ShaderStage::kCount) == 3);
-			switch (a_stage) {
-			case ShaderStage::kVertex:
-				return "vertex";
-			case ShaderStage::kPixel:
-				return "pixel";
-			case ShaderStage::kCompute:
-				return "compute";
-			}
-			std::unreachable();
-		}
-
 		constexpr ShaderStageMask kValidShaderStages =
 			ShaderStageBit(ShaderStage::kVertex) | ShaderStageBit(ShaderStage::kPixel) | ShaderStageBit(ShaderStage::kCompute);
 
@@ -890,7 +875,7 @@ namespace cs::engine
 				L->error(
 					"Native descriptor compile request rejected for '{}/{}/{:#010x}': {}",
 					metadata->name,
-					StageName(descriptor.stage),
+					ShaderStageName(descriptor.stage),
 					descriptor.descriptor,
 					error);
 				return candidate;
@@ -923,7 +908,7 @@ namespace cs::engine
 				L->error(
 					"Native descriptor compile failed for '{}/{}/{:#010x}': {}",
 					metadata->name,
-					StageName(descriptor.stage),
+					ShaderStageName(descriptor.stage),
 					descriptor.descriptor,
 					"compilation cache rejected request");
 				service.runtime[ToIndex(descriptor.target)]

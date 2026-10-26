@@ -1,4 +1,5 @@
 #include "Skylighting.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <d3d11.h>
@@ -732,18 +733,21 @@ namespace cs::features
 		cs::render::profiling::CollectPassTimings(a_sink, "Skylighting/");
 	}
 
-	cs::SkylightingFeatureData Skylighting::GetCommonBufferData()
+	void Skylighting::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4)
 	{
 		const auto* graphics = cs::engine::GetGraphicsState();
-		if (!graphics || !IsEnabled())
-			return {};
+		if (!graphics)
+			return;
 		// FO4: packs repeat within a frame and the advance must happen once.
-		if (_grid.frame == graphics->frameCount)
-			return { .shared = _grid.block, .Enabled = 1u };
+		if (_grid.frame == graphics->frameCount) {
+			a_feature.skylightingSettings = _grid.block;
+			a_fo4.EnabledSkylighting = 1u;
+			return;
+		}
 		// FO4: the captured world camera replaces Util::GetEyePosition.
 		const auto camera = cs::engine::GetCapturedWorldCameraRecord(graphics->frameCount);
 		if (!camera)
-			return {};
+			return;
 
 		const auto eye = cs::engine::CameraWorldOrigin(*camera);
 		const DirectX::XMFLOAT3 cellSize{
@@ -773,7 +777,8 @@ namespace cs::features
 			.MinSpecularVisibility = _settings.MinSpecularVisibility
 		};
 		_grid.frame = graphics->frameCount;
-		return { .shared = _grid.block, .Enabled = 1u };
+		a_feature.skylightingSettings = _grid.block;
+		a_fo4.EnabledSkylighting = 1u;
 	}
 
 	void Skylighting::Prepass()

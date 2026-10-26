@@ -1,4 +1,5 @@
 #include "VolumetricShadows.h"
+#include "Render/SharedDataLayout.h"
 
 #include <d3d11.h>
 
@@ -354,9 +355,9 @@ namespace cs::features
 		return _preview[CascadeMip(a_cascade)].GetDebugTexture("Shadow map preview not populated.");
 	}
 
-	cs::VolumetricShadowsFeatureData VolumetricShadows::GetCommonBufferData() const
+	void VolumetricShadows::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		return { .Enabled = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u };
+		a_fo4.EnabledVolumetricShadows = _injectionsOperational.load(std::memory_order_acquire) ? 1u : 0u;
 	}
 
 	void VolumetricShadows::DrawSettings()

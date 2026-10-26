@@ -95,7 +95,8 @@ namespace cs::render
 		kHudless,
 		kFinal,
 		kDepth,
-		kMotion
+		kMotion,
+		kOff = 255
 	};
 
 	struct FrameGenerationDiagnostics

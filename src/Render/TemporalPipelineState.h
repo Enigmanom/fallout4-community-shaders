@@ -8,31 +8,10 @@
 #include <utility>
 
 #include "Render/TemporalProvider.h"
+#include "Render/TemporalRenderSettings.h"
 
 namespace cs::render::temporal
 {
-	enum class SuperResolutionMethod : std::uint8_t
-	{
-		kNone,
-		kTAA,
-		kFSR3,
-		kDLSS,
-		kFSR4,
-		kCount
-	};
-
-	enum class FrameGenerationMethod : std::uint8_t
-	{
-		kOff,
-		kFSR3,
-		kDLSSG,
-		kFSR4,
-		kCount
-	};
-
-	inline constexpr std::uint32_t kMaxFrameGenerationMethodValue =
-		static_cast<std::uint32_t>(FrameGenerationMethod::kFSR4);
-
 	struct FailureImpact
 	{
 		bool superResolution = false;

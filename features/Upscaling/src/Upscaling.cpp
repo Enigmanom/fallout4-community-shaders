@@ -26,41 +26,8 @@ namespace cs::features
 
 		std::string_view MethodName(std::uint32_t a_method) noexcept
 		{
-			switch (static_cast<Upscaling::UpscaleMethod>(a_method)) {
-			case Upscaling::UpscaleMethod::kNONE:
-				return "Off";
-			case Upscaling::UpscaleMethod::kTAA:
-				return "TAA";
-			case Upscaling::UpscaleMethod::kFSR:
-				return "FSR 3";
-			case Upscaling::UpscaleMethod::kDLSS:
-				return "DLSS";
-			case Upscaling::UpscaleMethod::kFSR4:
-				return "FSR 4";
-			case Upscaling::UpscaleMethod::kCount:
-				break;
-			}
-			return "Unknown";
-		}
-
-		std::string_view MethodName(
-			render::temporal::SuperResolutionMethod a_method) noexcept
-		{
-			switch (a_method) {
-			case render::temporal::SuperResolutionMethod::kNone:
-				return "Off";
-			case render::temporal::SuperResolutionMethod::kTAA:
-				return "TAA";
-			case render::temporal::SuperResolutionMethod::kFSR3:
-				return "FSR 3";
-			case render::temporal::SuperResolutionMethod::kDLSS:
-				return "DLSS";
-			case render::temporal::SuperResolutionMethod::kFSR4:
-				return "FSR 4";
-			case render::temporal::SuperResolutionMethod::kCount:
-				break;
-			}
-			return "Unknown";
+			return render::temporal::presentation::Name(
+				static_cast<Upscaling::UpscaleMethod>(a_method));
 		}
 
 	}
@@ -80,11 +47,11 @@ namespace cs::features
 
 		candidate.enabled =
 			candidate.upscaleMethod !=
-			static_cast<std::uint32_t>(UpscaleMethod::kNONE);
+			static_cast<std::uint32_t>(UpscaleMethod::kNone);
 		settings = candidate;
 		_bootSettings = candidate;
 		_liveSettings = cs::settings::BindLiveSettings(render::temporal::kSchema, settings, [this] {
-			settings.enabled = settings.upscaleMethod != static_cast<std::uint32_t>(UpscaleMethod::kNONE);
+			settings.enabled = settings.upscaleMethod != static_cast<std::uint32_t>(UpscaleMethod::kNone);
 			render::TemporalPipeline::Get().SubmitLiveConfiguration();
 		});
 		return true;
@@ -174,17 +141,12 @@ namespace cs::features
 				settings.upscaleMethod = *method.selected;
 				settings.enabled =
 					settings.upscaleMethod !=
-					static_cast<std::uint32_t>(UpscaleMethod::kNONE);
+					static_cast<std::uint32_t>(UpscaleMethod::kNone);
 				changed = true;
 			}
 
 			const bool externalMethod =
-				settings.upscaleMethod ==
-					static_cast<std::uint32_t>(UpscaleMethod::kFSR) ||
-				settings.upscaleMethod ==
-					static_cast<std::uint32_t>(UpscaleMethod::kDLSS) ||
-				settings.upscaleMethod ==
-					static_cast<std::uint32_t>(UpscaleMethod::kFSR4);
+				render::temporal::IsExternalUpscaler(static_cast<UpscaleMethod>(settings.upscaleMethod));
 			if (externalMethod) {
 				const std::array qualityModes{
 					dmui::ChoiceOption<std::uint32_t>{

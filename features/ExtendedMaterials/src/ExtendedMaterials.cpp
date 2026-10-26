@@ -1,4 +1,5 @@
 #include "ExtendedMaterials.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 
@@ -226,17 +227,16 @@ namespace cs::features
 		return true;
 	}
 
-	cs::ExtendedMaterialsFeatureData ExtendedMaterials::GetCommonBufferData() const
+	void ExtendedMaterials::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB&)
 	{
 		if (!_injectionsOperational.load(std::memory_order_acquire))
-			return {};
-		cs::ExtendedMaterialsFeatureData data{};
+			return;
+		auto& data = a_feature.extendedMaterialSettings;
 		data.EnableParallax = _settings.EnableParallax ? 1u : 0u;
 		data.EnableTerrainParallax = _settings.EnableTerrain ? 1u : 0u;
 		data.EnableHeightBlending = _settings.EnableHeightBlending ? 1u : 0u;
 		data.EnableShadows = _settings.EnableShadows ? 1u : 0u;
 		data.EnableParallaxWarpingFix = _settings.EnableParallaxWarpingFix ? 1u : 0u;
-		return data;
 	}
 
 	void ExtendedMaterials::DrawSettings()

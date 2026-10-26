@@ -1,4 +1,5 @@
 #include "ScreenSpaceGI.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <DirectXTex.h>
@@ -510,9 +511,9 @@ namespace cs::features
 		}
 	}
 
-	cs::ScreenSpaceGIFeatureData ScreenSpaceGI::GetCommonBufferData() const
+	void ScreenSpaceGI::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		return { .Enabled = IsEnabled() ? 1u : 0u };
+		a_fo4.EnabledScreenSpaceGI = 1u;
 	}
 
 	void ScreenSpaceGI::UpdateConsumer(bool a_enabled, bool a_tiled)
