@@ -135,7 +135,7 @@ namespace cs::render
 		float CloudsLightingDesaturation, CloudsLightingForwardScattering, CloudsLightingDensity;
 		float CloudsColorFilter[3], CloudsIntensity;
 		float CloudsVertexAlphaBoost, CloudsEdgeClamp, CloudsEdgeFadePower, SunBillboardTan;
-		float MasserBillboardTan, SecundaBillboardTan, SkyScaleMultiplier = 1.0f, SkyScatteringPad0;
+		float MasserBillboardTan, SecundaBillboardTan, SkyScaleMultiplier, SkyScatteringPad0;
 		std::uint32_t EnableWater;
 		float WaterWavesAmplitude, WaterMuddiness, WaterSunLightingMultiplier;
 		float WaterSunSpecularMultiplier, WaterFresnelMin, WaterFresnelMax, WaterFresnelMultiplier;
