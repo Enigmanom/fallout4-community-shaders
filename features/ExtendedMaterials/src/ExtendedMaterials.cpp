@@ -133,10 +133,13 @@ namespace cs::features
 		}
 	}
 
-	void ExtendedMaterials::BindShadowTarget(ID3D11DeviceContext* a_context) const
+	void ExtendedMaterials::BindShadowTarget(ID3D11DeviceContext* a_context)
 	{
-		if (!_shadowFrameReady)
+		// Only an engine output commit or plugin work can unbind Target6.
+		const auto epoch = cs::engine::GetFrameBindingEpoch();
+		if (!_shadowFrameReady || epoch == _shadowTargetEpoch)
 			return;
+		_shadowTargetEpoch = epoch;
 		// FO4: SV_Target6 follows the engine's six G-buffer targets, left as bound.
 		std::array<ID3D11RenderTargetView*, kParallaxShadowRTVSlot + 1> targets{};
 		winrt::com_ptr<ID3D11DepthStencilView> depth;
