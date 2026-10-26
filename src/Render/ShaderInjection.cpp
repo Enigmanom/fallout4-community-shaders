@@ -20,6 +20,7 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -133,6 +134,25 @@ namespace cs::engine
 			std::array<ID3D11SamplerState*, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> values{};
 		};
 
+		// Logical outputs; the engine leaves DIRTY_RENDERTARGET set when unchanged.
+		using RE::BSGraphics::RendererShadowState;
+		constexpr std::size_t kOutputStateBegin = offsetof(RendererShadowState, readOnlyDepth);
+		constexpr std::size_t kOutputStateEnd = offsetof(RendererShadowState, currentRenderTargetIndex);
+		static_assert(offsetof(RendererShadowState, renderTargets) > kOutputStateBegin &&
+					  offsetof(RendererShadowState, setDepthStencilMode) < kOutputStateEnd);
+		using OutputState = std::array<std::byte, kOutputStateEnd - kOutputStateBegin>;
+		thread_local std::optional<OutputState> t_committedOutputs;
+
+		bool OutputsChanged(const RendererShadowState& a_state) noexcept
+		{
+			OutputState current;
+			std::memcpy(current.data(), reinterpret_cast<const std::byte*>(&a_state) + kOutputStateBegin, current.size());
+			if (t_committedOutputs == current)
+				return false;
+			t_committedOutputs = current;
+			return true;
+		}
+
 		struct NativeVariant;
 
 		// The engine draw flush whose injection dispatch is running.
@@ -239,6 +259,7 @@ namespace cs::engine
 		t_drawMetrics = { .frame = a_frame };
 		ResetFrameBindings();
 		ReleaseSamplerOverrides(GetEngineShadowState());
+		t_committedOutputs.reset();
 		t_drawFrameStarted = true;
 	}
 
@@ -2438,7 +2459,9 @@ namespace cs::engine
 		if (!_state)
 			return;
 		using RE::BSGraphics::ShaderFlags;
-		if ((_state->stateUpdateFlags & std::to_underlying(ShaderFlags::DIRTY_RENDERTARGET)) || a_compute)
+		// Invalidate sets every flag after direct device work such as NVGodrays.
+		const bool invalidated = _state->stateUpdateFlags == UINT32_MAX;
+		if (invalidated || ((_state->stateUpdateFlags & std::to_underlying(ShaderFlags::DIRTY_RENDERTARGET)) && OutputsChanged(*_state)) || a_compute)
 			InvalidateFrameBindings();
 		// Output-only flushes skip the engine's slot masks.
 		if (a_outputStateOnly || !g_engineSamplerRestore.load(std::memory_order_relaxed))
