@@ -731,11 +731,13 @@ namespace cs::host
 
 	void HostClient::SyncShaderCompileOverlay() noexcept
 	{
+		// SCREEN_POSITION needs ABI 2.2; older hosts keep the menu without it.
+		const bool wanted = _shaderCompile.Observe() && _client.AbiMinor() >= 2;
 		SyncOverlay(
 			_shaderCompileOverlay,
 			"shader compilation overlay",
-			_shaderCompile.Observe(),
-			ShaderCompileOverlay::ManagedOverlayOptions(_client.AbiMinor()));
+			wanted,
+			ShaderCompileOverlay::ManagedOverlayOptions());
 	}
 
 	void HostClient::SyncOverlay(

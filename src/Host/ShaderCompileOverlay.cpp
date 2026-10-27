@@ -72,7 +72,7 @@ namespace cs::host
 		dmui::ui::PopStyleColor();
 	}
 
-	DMUI_ManagedOverlayOptions ShaderCompileOverlay::ManagedOverlayOptions(std::uint32_t a_abiMinor) noexcept
+	DMUI_ManagedOverlayOptions ShaderCompileOverlay::ManagedOverlayOptions() noexcept
 	{
 		constexpr float kWidthFraction = 0.4f;
 		constexpr float kMinWidth = 640.0f;
@@ -85,9 +85,8 @@ namespace cs::host
 		                        std::min(std::max(display * kWidthFraction, kMinWidth), display - 2.0f * kMargin) :
 		                        kMinWidth;
 		const float left = display > 0.0f ? std::floor((display - width) * 0.5f) : kMargin;
-		// Hosts before ABI 2.2 reject SCREEN_POSITION; FREE offsets scale instead.
 		return {
-			.anchor = a_abiMinor >= 2 ? DMUI_OVERLAY_ANCHOR_SCREEN_POSITION : DMUI_OVERLAY_ANCHOR_FREE,
+			.anchor = DMUI_OVERLAY_ANCHOR_SCREEN_POSITION,
 			.offset = { left, kMargin },
 			.size = { width, 0.0f },
 			.minimumSize = { 0.0f, 0.0f },

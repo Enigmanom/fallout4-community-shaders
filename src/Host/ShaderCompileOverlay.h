@@ -44,7 +44,7 @@ namespace cs::host
 	public:
 		[[nodiscard]] bool Observe() noexcept;
 		void Draw() const;
-		[[nodiscard]] static DMUI_ManagedOverlayOptions ManagedOverlayOptions(std::uint32_t a_abiMinor) noexcept;
+		[[nodiscard]] static DMUI_ManagedOverlayOptions ManagedOverlayOptions() noexcept;
 
 	private:
 		ShaderCompileOverlayModel _model;

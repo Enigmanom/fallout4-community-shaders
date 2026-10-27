@@ -88,7 +88,7 @@ The Shader Compilation Overlay shows once a batch has compiled for over a second
 `shader_cache.background_compilation` is off, the engine-native `Main::GetCanLoad` hook keeps the
 main menu's Continue, Load, and New Game queued behind its own spinner; loads that bypass the menu
 (console `load`, autoload mods) proceed with stock shaders. Quitting stops pending compiles. The
-window is centered with the `SCREEN_POSITION` anchor on hosts with ABI 2.2 or newer, else `FREE`.
+window is centered with the ABI 2.2 `SCREEN_POSITION` anchor; older hosts do not show it.
 
 Performance Overlay offset and size are author defaults. DearModdingUI persists the user's
 arrangement in its `imgui.ini`; Reset Layout discards it and reapplies the defaults.
