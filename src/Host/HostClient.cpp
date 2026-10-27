@@ -731,12 +731,10 @@ namespace cs::host
 
 	void HostClient::SyncShaderCompileOverlay() noexcept
 	{
-		// SCREEN_POSITION needs ABI 2.2; older hosts keep the menu without it.
-		const bool wanted = _shaderCompile.Observe() && _client.AbiMinor() >= 2;
 		SyncOverlay(
 			_shaderCompileOverlay,
 			"shader compilation overlay",
-			wanted,
+			_shaderCompile.Observe(),
 			ShaderCompileOverlay::ManagedOverlayOptions());
 	}
 
@@ -763,12 +761,14 @@ namespace cs::host
 		if (!a_wanted)
 			return;
 
-		if (_client.ConfigureOverlay(a_overlay.page->handle, a_options))
-			a_overlay.configurationFailure.reset();
-		else
+		// Hosts reject options their ABI lacks; never show an unconfigured overlay.
+		if (!_client.ConfigureOverlay(a_overlay.page->handle, a_options)) {
 			LogFailureOnce(
 				std::format("{} configuration", a_name),
 				a_overlay.configurationFailure);
+			return;
+		}
+		a_overlay.configurationFailure.reset();
 		if (demandAction == FrameDemandAction::kRequest) {
 			const bool requested = _client.RequestFrame(a_overlay.page->handle);
 			a_overlay.demand.Complete(demandAction, requested);
