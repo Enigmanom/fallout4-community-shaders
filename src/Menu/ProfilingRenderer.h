@@ -89,9 +89,8 @@ namespace cs
 		static inline float cachedMaxP95Ms = 0.0f;
 		static inline float cachedMaxP99Ms = 0.0f;
 		static inline std::vector<GroupEntry> cachedGroups;
-		// FO4: DmUI has no tree nodes or table sort state, so both are kept here.
+		// FO4: DmUI has no tree nodes, so the expanded groups are kept here.
 		static inline std::unordered_set<std::string> expandedGroups;
-		static inline Util::TableSortSpec statisticsSort;
 
 		struct PassStatistics
 		{
@@ -109,7 +108,6 @@ namespace cs
 			Util::GraphSampleGate gate;
 			double lastStatisticsUpdate = -1.0;
 			std::unordered_map<std::string, PassStatistics> statistics;
-			Util::TableSortSpec sort;
 
 			// User-provided so the static members below can default-construct it in-class.
 			GraphState() :
@@ -128,7 +126,7 @@ namespace cs
 		static dmui::ui::Vec4 HeatColor(float value, float maxValue);
 		static void TextHeat(const char* fmt, float value, float maxValue);
 		static void RenderTimingModeToggle();
-		static Util::TableSortSpec SetupTimingTableColumns(bool includePercentColumn, Util::TableSortSpec& sort);
+		static void SetupTimingTableColumns(bool includePercentColumn);
 		static void RenderGraph();
 		static std::string GetFeatureTimerPrefix(const std::string& featurePrefix);
 		static bool IsFeatureTimerResult(const Profiler::TimerResult& result, std::string_view prefix);

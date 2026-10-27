@@ -175,10 +175,7 @@ namespace cs
 	void ProfilingRenderer::TextHeat(const char* fmt, float value, float maxValue)
 	{
 		const Vec4 bg = HeatColor(value, maxValue);
-		// TODO(dmui 2.2): TableSetBgColor
-		const Vec2 min = dmui::ui::GetCursorScreenPos();
-		const Vec2 max{ min.x + dmui::ui::GetContentRegionAvail().x, min.y + dmui::ui::GetFontSize() };
-		dmui::ui::WindowDrawList().AddRectFilled(min, max, dmui::ui::GetColorU32(bg));
+		dmui::ui::TableSetBgColor(dmui::ui::TableBgTarget::kCell, dmui::ui::GetColorU32(bg));
 		dmui::ui::TextColored(DefaultTextColor(), fmt, value);
 	}
 
@@ -199,19 +196,17 @@ namespace cs
 		dmui::ui::PopID();
 	}
 
-	Util::TableSortSpec ProfilingRenderer::SetupTimingTableColumns(bool includePercentColumn, Util::TableSortSpec& sort)
+	void ProfilingRenderer::SetupTimingTableColumns(bool includePercentColumn)
 	{
 		const float scale = GetUIScale();
 		// Timings sort slowest first on the first click, names A to Z.
 		constexpr auto metricFlags = TableColumnFlags::kWidthFixed | TableColumnFlags::kPreferSortDescending;
-		const std::array columns{
-			Util::TableSortColumn{ "Pass", TableColumnFlags::kWidthStretch, 3.0f },
-			Util::TableSortColumn{ "Avg", metricFlags, kTimingTableMetricColumnWidth * scale },
-			Util::TableSortColumn{ "P95", metricFlags, kTimingTableMetricColumnWidth * scale },
-			Util::TableSortColumn{ "P99", metricFlags, kTimingTableMetricColumnWidth * scale },
-			Util::TableSortColumn{ "%", metricFlags, kTimingTablePercentColumnWidth * scale }
-		};
-		return Util::TableSortHeaders(std::span(columns).first(includePercentColumn ? 5 : 4), sort, true);
+		dmui::ui::TableSetupColumn("Pass", TableColumnFlags::kWidthStretch, 3.0f);
+		dmui::ui::TableSetupColumn("Avg", metricFlags, kTimingTableMetricColumnWidth * scale);
+		dmui::ui::TableSetupColumn("P95", metricFlags, kTimingTableMetricColumnWidth * scale);
+		dmui::ui::TableSetupColumn("P99", metricFlags, kTimingTableMetricColumnWidth * scale);
+		if (includePercentColumn)
+			dmui::ui::TableSetupColumn("%", metricFlags, kTimingTablePercentColumnWidth * scale);
 	}
 
 	void ProfilingRenderer::RenderGraph()
@@ -345,13 +340,16 @@ namespace cs
 			float availHeight = dmui::ui::GetContentRegionAvail().y - dmui::ui::GetFrameHeight();
 
 			if (dmui::ui::BeginTable("##Profiler", 5,
-					dmui::ui::TableFlags::kBordersInnerV | dmui::ui::TableFlags::kSizingStretchProp | dmui::ui::TableFlags::kPadOuterX | dmui::ui::TableFlags::kScrollY,
+					dmui::ui::TableFlags::kBordersInnerV | dmui::ui::TableFlags::kSizingStretchProp | dmui::ui::TableFlags::kPadOuterX | dmui::ui::TableFlags::kScrollY |
+						dmui::ui::TableFlags::kSortable | dmui::ui::TableFlags::kSortTristate,
 					Vec2{ 0.0f, availHeight })) {
 				dmui::ui::TableSetupScrollFreeze(0, 1);
+				SetupTimingTableColumns(true);
+				dmui::ui::TableHeadersRow();
 
 				// Groups sort among themselves and each group's passes within it. No
 				// active sort (the tristate's third click) keeps the order the passes ran in.
-				const Util::TableSortSpec sort = SetupTimingTableColumns(true, statisticsSort);
+				const Util::TableSortSpec sort = Util::ReadTableSortSpec();
 				const auto groupSorts = TimingRowSorts<GroupEntry>([](const GroupEntry& a_group) -> const std::string& { return a_group.name; },
 					[](const GroupEntry& a_group) { return std::array{ a_group.totalAvgMs, a_group.totalP95Ms, a_group.totalP99Ms }; });
 				const auto passSorts = TimingRowSorts<PassEntry>([](const PassEntry& a_pass) -> const std::string& { return a_pass.label; },
@@ -492,15 +490,16 @@ namespace cs
 
 		state.Render(tasks, kFeatureGraphLegendWidth, kFeatureGraphHeight, kFeatureGraphMinFrameTimeSec);
 
-		if (dmui::ui::BeginTable("##FeatureTimers", 4, dmui::ui::TableFlags::kBordersInnerV | dmui::ui::TableFlags::kSizingStretchProp | dmui::ui::TableFlags::kPadOuterX)) {
-			const Util::TableSortSpec sort = SetupTimingTableColumns(false, state.sort);
+		if (dmui::ui::BeginTable("##FeatureTimers", 4, dmui::ui::TableFlags::kBordersInnerV | dmui::ui::TableFlags::kSizingStretchProp | dmui::ui::TableFlags::kPadOuterX | dmui::ui::TableFlags::kSortable | dmui::ui::TableFlags::kSortTristate)) {
+			SetupTimingTableColumns(false);
+			dmui::ui::TableHeadersRow();
 
 			// The Total row stays last whatever the order.
 			std::vector<const Entry*> rows;
 			rows.reserve(entries.size());
 			for (const auto& e : entries)
 				rows.push_back(&e);
-			Util::SortTableRows(rows, sort,
+			Util::SortTableRows(rows, Util::ReadTableSortSpec(),
 				TimingRowSorts<Entry>([](const Entry& a_entry) -> const std::string& { return a_entry.label; },
 					[](const Entry& a_entry) { return std::array{ a_entry.avgMs, a_entry.p95Ms, a_entry.p99Ms }; }));
 

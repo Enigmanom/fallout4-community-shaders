@@ -6,6 +6,7 @@
 #include "Menu/ProfilingRenderer.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
+#include "Menu/TableSort.h"
 #include "Render/FrameProfiler.h"
 #include "Render/RenderHooks.h"
 #include "Render/ShaderSubclassHooks.h"
@@ -69,12 +70,17 @@ namespace cs::features
 
 		// Name columns sort A to Z first and metric columns slowest first.
 		template <std::size_t N>
-		std::array<Util::TableSortColumn, N> SortColumns(const char* const (&a_labels)[N])
+		Util::TableSortSpec SortHeaders(const char* const (&a_labels)[N], int a_defaultColumn)
 		{
-			std::array<Util::TableSortColumn, N> columns{};
-			for (std::size_t i = 0; i < N; ++i)
-				columns[i] = { a_labels[i], i ? dmui::ui::TableColumnFlags::kPreferSortDescending : dmui::ui::TableColumnFlags::kNone };
-			return columns;
+			using dmui::ui::TableColumnFlags;
+			for (std::size_t i = 0; i < N; ++i) {
+				auto flags = i ? TableColumnFlags::kPreferSortDescending : TableColumnFlags::kNone;
+				if (static_cast<int>(i) == a_defaultColumn)
+					flags |= TableColumnFlags::kDefaultSort;
+				dmui::ui::TableSetupColumn(a_labels[i], flags);
+			}
+			dmui::ui::TableHeadersRow();
+			return Util::ReadTableSortSpec(a_defaultColumn, false);
 		}
 
 		template <class Row, class Metric>
@@ -470,10 +476,10 @@ namespace cs::features
 	void PerformanceOverlay::DrawDrawCalls(const std::vector<DrawCallRow>& a_rows)
 	{
 		auto rows = a_rows;
-		if (!dmui::ui::BeginTable("ShaderTimings", 4))
+		if (!dmui::ui::BeginTable("ShaderTimings", 4, dmui::ui::TableFlags::kSortable))
 			return;
 		const char* labels[]{ "Shader Type", "Draw Calls", "Frame Time", "Cost/Call" };
-		const auto sort = Util::TableSortHeaders(SortColumns(labels), _drawSort);
+		const auto sort = SortHeaders(labels, 2);
 		SortRows(rows, sort, [&sort](const auto& a_row) {
 			switch (sort.column) {
 			case 1:
@@ -558,10 +564,10 @@ namespace cs::features
 		                       hasBothVariants && frames >= kMinimumSamplesForMarginal && duration >= kMinimumDurationForMarginal ? "Marginal" :
 		                                                                                                                            "Insufficient";
 		dmui::ui::Text("%s: %d frames, %.1f seconds, %d excluded, %.1f%% valid", validity, frames, duration, excluded, validPercent);
-		if (!dmui::ui::BeginTable("ABResults", 7))
+		if (!dmui::ui::BeginTable("ABResults", 7, dmui::ui::TableFlags::kSortable))
 			return;
 		const char* labels[]{ "Shader Type", "A Avg", "B Avg", "Delta", "A Median", "B Median", "Median Delta" };
-		const auto sort = Util::TableSortHeaders(SortColumns(labels), _testSort);
+		const auto sort = SortHeaders(labels, 3);
 		auto rows = _aggregator.GetAggregatedResults();
 		SortRows(rows, sort, [&sort](const auto& row) {
 			switch (sort.column) {

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Feature.h"
-#include "Menu/TableSort.h"
 #include "PerformanceOverlaySettings.h"
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/UI.h>
@@ -67,7 +66,6 @@ namespace cs::features
 		ABTestAggregator _aggregator;
 		bool _testing{}, _variantB = true, _restorePending{};
 		int _testInterval{};
-		Util::TableSortSpec _drawSort{ 2, false }, _testSort{ 3, false };
 		std::uint32_t _graphWarmup = Settings::kGraphWarmupFrames;
 		std::string _testError;
 	};

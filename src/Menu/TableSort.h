@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <functional>
-#include <span>
 #include <string>
 #include <vector>
 
@@ -21,41 +20,19 @@ namespace Util
 		bool ascending = true;
 	};
 
-	/** @brief One header of a sortable table. */
-	struct TableSortColumn
-	{
-		const char* label;
-		dmui::ui::TableColumnFlags flags = dmui::ui::TableColumnFlags::kNone;
-		float widthOrWeight = 0.0f;
-	};
-
 	/**
-	 * @brief Sets up and draws the current table's headers and returns its sort (between BeginTable and EndTable).
-	 * a_state holds the sort across frames; a tristate table returns to column -1 on the third click.
+	 * @brief Reads the current table's sort specs (between BeginTable and EndTable).
+	 * Falls back to the defaults when the table has no active sort: a table that is not
+	 * sortable, or a tristate one the user has un-sorted. Pass -1 to leave the rows as they are then.
 	 */
-	// FO4: replaces ImGui::TableHeadersRow + ReadTableSortSpec, as DmUI cannot read sort specs back.
-	inline TableSortSpec TableSortHeaders(std::span<const TableSortColumn> a_columns, TableSortSpec& a_state, bool a_tristate = false)
+	inline TableSortSpec ReadTableSortSpec(int defaultColumn = -1, bool defaultAscending = true)
 	{
-		// TODO(dmui 2.2): TableGetSortSpecs
-		using dmui::ui::TableColumnFlags;
-		for (const auto& column : a_columns)
-			dmui::ui::TableSetupColumn(column.label, column.flags, column.widthOrWeight);
-		dmui::ui::TableNextRow(dmui::ui::TableRowFlags::kHeaders);
-		for (std::size_t i = 0; i < a_columns.size(); ++i) {
-			(void)dmui::ui::TableSetColumnIndex(static_cast<int>(i));
-			const bool sorted = a_state.column == static_cast<int>(i);
-			const auto label = std::string(a_columns[i].label) + (sorted ? (a_state.ascending ? " ^" : " v") : "") + "##sort";
-			if (!dmui::ui::Selectable(label.c_str(), sorted))
-				continue;
-			const bool preferAscending = (a_columns[i].flags & TableColumnFlags::kPreferSortDescending) == TableColumnFlags::kNone;
-			if (!sorted)
-				a_state = { static_cast<int>(i), preferAscending };
-			else if (a_tristate && a_state.ascending != preferAscending)
-				a_state = {};
-			else
-				a_state.ascending = !a_state.ascending;
+		TableSortSpec spec{ defaultColumn, defaultAscending };
+		if (const auto sortSpecs = dmui::ui::TableGetSortSpecs(); !sortSpecs.empty()) {
+			spec.column = sortSpecs.front().column;
+			spec.ascending = sortSpecs.front().direction == DMUI_UI_SORT_DIRECTION_ASCENDING;
 		}
-		return a_state;
+		return spec;
 	}
 
 	/** @brief Stable-sorts rows with one comparator, unless the spec says to leave them as they are. */
