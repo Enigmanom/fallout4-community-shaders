@@ -326,6 +326,8 @@ namespace cs::engine
 		private:
 			void RunWorker(std::stop_token a_stopToken)
 			{
+				// As upstream; Normal starves the BelowNormal loading-screen thread.
+				SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
 				for (;;) {
 					CompilationTask task;
 					{
