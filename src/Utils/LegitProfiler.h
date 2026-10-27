@@ -271,6 +271,10 @@ namespace ImGuiUtils
 
 		static void Rect(const dmui::ui::DrawList& drawList, Vec2 minPoint, Vec2 maxPoint, uint32_t col, bool filled = true)
 		{
+			// FO4: DmUI rejects inverted rects that ImGui accepts; bars are drawn bottom-up.
+			const Vec2 lo{ std::min(minPoint.x, maxPoint.x), std::min(minPoint.y, maxPoint.y) };
+			maxPoint = Vec2{ std::max(minPoint.x, maxPoint.x), std::max(minPoint.y, maxPoint.y) };
+			minPoint = lo;
 			if (filled)
 				drawList.AddRectFilled(minPoint, maxPoint, col);
 			else
