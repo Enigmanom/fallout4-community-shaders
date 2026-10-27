@@ -572,7 +572,7 @@ namespace cs::features
 		};
 		if (_maskTexture && _maskTexture->uav && sss_resources::Covers(realExtent, required)) {
 			cs::render::annotation::ScopedEvent annotationScope(
-				"ScreenSpaceShadows/ClearMask");
+				"ScreenSpaceShadows::ClearMask");
 			context->ClearUnorderedAccessViewFloat(
 				_maskTexture->uav.get(),
 				white);
@@ -605,7 +605,7 @@ namespace cs::features
 
 					if (viewportSize[0] > 0 && viewportSize[1] > 0) {
 						cs::render::annotation::ScopedEvent annotationScope(
-							"ScreenSpaceShadows/Raymarch");
+							"ScreenSpaceShadows::Raymarch");
 						cs::engine::ComputeOMScope scope(context);
 
 						const auto sceneCamera = cs::engine::GetWorldCameraRecord();

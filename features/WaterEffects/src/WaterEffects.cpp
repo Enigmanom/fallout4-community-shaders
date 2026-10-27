@@ -295,7 +295,7 @@ namespace cs::features
 			cs::render::ScopedContextState state(a_context, _debugContextState.get());
 			if (!state.IsActive())
 				return;
-			cs::render::annotation::ScopedEvent annotation("WaterEffects/Debug");
+			cs::render::annotation::ScopedEvent annotation("WaterEffects::Debug");
 			a_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			a_context->VSSetShader(_debugVS.get(), nullptr, 0);
 			a_context->PSSetShader(_debugPS[mode == DebugVisualization::kSubmersion ? 1 : 0].get(), nullptr, 0);

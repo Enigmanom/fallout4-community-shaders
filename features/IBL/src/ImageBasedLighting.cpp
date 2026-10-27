@@ -34,8 +34,8 @@ namespace cs::features
 
 		namespace ibl = image_based_lighting;
 
-		constexpr std::string_view kEnvironmentPass = "IBL::EnvDiffuseIBL";
-		constexpr std::string_view kSkyPass = "IBL::SkyDiffuseIBL";
+		constexpr std::string_view kEnvironmentPass = "ImageBasedLighting::EnvDiffuseIBL";
+		constexpr std::string_view kSkyPass = "ImageBasedLighting::SkyDiffuseIBL";
 
 		void Tooltip(const char* a_text)
 		{
@@ -296,7 +296,7 @@ namespace cs::features
 			.Field("cleared_projections", count(_counters.cleared))
 			.Field("skipped_scene", count(_counters.skippedScene))
 			.Field("consumer_binds", count(_counters.consumerBinds));
-		render::profiling::CollectPassTimings(a_sink, "IBL::");
+		render::profiling::CollectPassTimings(a_sink, "ImageBasedLighting::");
 	}
 
 	void ImageBasedLighting::DrawSettings()

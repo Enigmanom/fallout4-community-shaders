@@ -33,8 +33,8 @@ namespace cs::render
 			std::uint32_t publishedFrame = UINT32_MAX;
 		};
 		// The scene product is render-resolution; the output one follows upscaling.
-		Product scene{ "Render/CanonicalDepth" };
-		Product output{ "Render/CanonicalDepth.Output" };
+		Product scene{ "Render::CanonicalDepth" };
+		Product output{ "Render::CanonicalDepth.Output" };
 		std::unique_ptr<buffer::ConstantBuffer> constants;
 		winrt::com_ptr<ID3D11ComputeShader> shader;
 

@@ -654,7 +654,7 @@ namespace cs::features
 		// D3D leaves UAV contents undefined.
 		if (a_context && shadow->uav) {
 			cs::render::annotation::ScopedEvent annotationScope(
-				"TerrainShadows/ClearShadowField");
+				"TerrainShadows::ClearShadowField");
 			const float clear[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
 			a_context->ClearUnorderedAccessViewFloat(shadow->uav.get(), clear);
 		}
@@ -821,7 +821,7 @@ namespace cs::features
 		const std::uint32_t updateCount =
 			a_refreshImmediately ? _plan.maxUpdates : 1u;
 		cs::render::annotation::ScopedEvent annotationScope(
-			"TerrainShadows/Update");
+			"TerrainShadows::Update");
 		const ScopedShadowHeightBindings shadowBindings(a_context);
 		cs::engine::ComputeOMScope scope(a_context, 1, 0, 1, 1);
 		ID3D11ShaderResourceView* srvs[1] = { _heightTexture->srv.get() };
@@ -873,7 +873,7 @@ namespace cs::features
 
 		if (_shadowStatsPending) {
 			cs::render::annotation::ScopedEvent annotationScope(
-				"TerrainShadows/StatisticsReadback");
+				"TerrainShadows::StatisticsReadback");
 			D3D11_MAPPED_SUBRESOURCE mapped{};
 			const HRESULT hr = a_context->Map(
 				_shadowStatsStaging.get(),
@@ -968,7 +968,7 @@ namespace cs::features
 
 		{
 			cs::render::annotation::ScopedEvent annotationScope(
-				"TerrainShadows/Statistics");
+				"TerrainShadows::Statistics");
 			const ScopedShadowHeightBindings shadowBindings(a_context, true);
 			cs::ComputeScope scope(a_context, 1, 1, 1, 1);
 			ID3D11ShaderResourceView* height = _heightTexture->srv.get();
@@ -990,7 +990,7 @@ namespace cs::features
 
 		{
 			cs::render::annotation::ScopedEvent annotationScope(
-				"TerrainShadows/CopyStatisticsReadback");
+				"TerrainShadows::CopyStatisticsReadback");
 			a_context->CopyResource(
 				_shadowStatsStaging.get(), _shadowStatsBuffer.get());
 		}

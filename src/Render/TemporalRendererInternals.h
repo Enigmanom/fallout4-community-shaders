@@ -57,7 +57,7 @@ namespace cs::features
 		}
 
 		cs::render::annotation::ScopedEvent annotationScope(
-			"Upscaling/PreparePassthrough");
+			"Upscaling::PreparePassthrough");
 		cs::engine::CopyResourcePreservingOM(
 			a_context, a_privateOutput, a_input);
 		return true;
@@ -75,7 +75,7 @@ namespace cs::features
 		}
 
 		cs::render::annotation::ScopedEvent annotationScope(
-			"Upscaling/PublishOutput");
+			"Upscaling::PublishOutput");
 		cs::engine::CopyResourcePreservingOM(a_context, a_frameBuffer, a_providerOutput);
 		return true;
 	}

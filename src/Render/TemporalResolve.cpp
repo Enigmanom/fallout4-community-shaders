@@ -75,7 +75,7 @@ namespace cs::render
 
 			{
 				cs::render::annotation::ScopedEvent encodeScope(
-					"Upscaling/EncodeTextures");
+					"Upscaling::EncodeTextures");
 				cs::ComputeScope computeScope(context);
 
 				// Null t0 and the G-buffer normal's unused channel produce the accepted zero masks.
@@ -209,14 +209,14 @@ namespace cs::render
 
 			render::temporal::ProviderResult providerResult;
 			if (upscaleMethod == UpscaleMethod::kDLSS) {
-				cs::render::annotation::ScopedEvent providerScope("Upscaling/DLSS");
+				cs::render::annotation::ScopedEvent providerScope("Upscaling::DLSS");
 				providerResult =
 					render::TemporalPipeline::Get().EvaluateSuperResolution(
 						render::temporal::SuperResolutionMethod::kDLSS, request);
 			} else if (upscaleMethod == UpscaleMethod::kFSR ||
 					   upscaleMethod == UpscaleMethod::kFSR4) {
 				cs::render::annotation::ScopedEvent providerScope(
-					upscaleMethod == UpscaleMethod::kFSR4 ? "Upscaling/FSR4" : "Upscaling/FSR3");
+					upscaleMethod == UpscaleMethod::kFSR4 ? "Upscaling::FSR4" : "Upscaling::FSR3");
 				providerResult =
 					render::TemporalPipeline::Get().EvaluateSuperResolution(
 						upscaleMethod == UpscaleMethod::kFSR4 ? render::temporal::SuperResolutionMethod::kFSR4 : render::temporal::SuperResolutionMethod::kFSR3,
@@ -269,7 +269,7 @@ namespace cs::render
 
 	bool TemporalRenderer::PerformUpscaling()
 	{
-		cs::render::annotation::ScopedEvent upscaleScope("Upscaling/SuperResolution", false);
+		cs::render::annotation::ScopedEvent upscaleScope("Upscaling::SuperResolution", false);
 		_upscaledThisFrame = false;
 		_spatialFallbackThisFrame.store(false, std::memory_order_release);
 		_superResolutionSubmissionUnsafe = false;
@@ -304,7 +304,7 @@ namespace cs::render
 
 		{
 			cs::render::annotation::ScopedEvent inputScope(
-				"Upscaling/CaptureInputColor");
+				"Upscaling::CaptureInputColor");
 			cs::engine::CopyResourcePreservingOM(
 				context, upscalingTexture->resource.get(), frameBuffer.get());
 		}
@@ -435,7 +435,7 @@ namespace cs::render
 
 		{
 			cs::render::annotation::ScopedEvent inputScope(
-				"Upscaling/CaptureMissedResolveInputColor");
+				"Upscaling::CaptureMissedResolveInputColor");
 			cs::engine::CopyResourcePreservingOM(
 				context, upscalingTexture->resource.get(), frameBuffer.get());
 		}
@@ -484,7 +484,7 @@ namespace cs::render
 
 		{
 			cs::render::annotation::ScopedEvent fallbackScope(
-				"Upscaling/SpatialFallback");
+				"Upscaling::SpatialFallback");
 			cs::engine::OMScope omScope(context);
 			context->IASetInputLayout(nullptr);
 			context->IASetVertexBuffers(0, 0, nullptr, nullptr, nullptr);
@@ -543,7 +543,7 @@ namespace cs::render
 		}
 
 		cs::render::annotation::ScopedEvent passthroughScope(
-			"Upscaling/FullExtentPassthrough", false);
+			"Upscaling::FullExtentPassthrough", false);
 		if (!PrepareUpscalingPassthrough(a_context,
 				publicationTexture->resource.get(),
 				upscalingTexture->resource.get())) {
@@ -605,7 +605,7 @@ namespace cs::render
 		if (!fullscreenVS || !depthUpscalePS) {
 			return;
 		}
-		cs::render::annotation::ScopedEvent annotationScope("Upscaling/UpscaleDepth");
+		cs::render::annotation::ScopedEvent annotationScope("Upscaling::UpscaleDepth");
 
 		// Restore the engine's exact OM bindings after the depth pass.
 		cs::engine::OMScope omScope(context);

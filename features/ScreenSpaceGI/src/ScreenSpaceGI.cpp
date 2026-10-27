@@ -316,7 +316,7 @@ namespace cs::features
 			QueueReset("resource_recreation");
 			const float clear[4]{};
 			auto* context = cs::engine::GetImmediateContext();
-			cs::render::annotation::ScopedEvent timing("SSGI/ClearHistory");
+			cs::render::annotation::ScopedEvent timing("ScreenSpaceGI::ClearHistory");
 			for (auto* textures : { &_textures.ao, &_textures.accumulation, &_textures.luma, &_textures.chroma })
 				for (auto& texture : *textures)
 					context->ClearUnorderedAccessViewFloat(texture->uav.get(), clear);
@@ -442,7 +442,7 @@ namespace cs::features
 			const bool reset = _queuedReset.exchange(false);
 			_historyUsed = !reset && _settings.enableTemporalDenoiser;
 			if (reset) {
-				cs::render::annotation::ScopedEvent timing("SSGI/ResetAccumulation");
+				cs::render::annotation::ScopedEvent timing("ScreenSpaceGI::ResetAccumulation");
 				const float clear[4]{};
 				for (auto& texture : _textures.accumulation)
 					context->ClearUnorderedAccessViewFloat(texture->uav.get(), clear);
@@ -455,31 +455,31 @@ namespace cs::features
 			ID3D11SamplerState* samplers[]{ _pointSampler.get(), cs::render::GetLinearClampSampler() };
 			context->CSSetSamplers(0, 2, samplers);
 			Passes pass(context, kConsumerSlot, _consumer->CB());
-			cs::render::annotation::ScopedEvent generation("ScreenSpaceGI/Generate", false);
+			cs::render::annotation::ScopedEvent generation("ScreenSpaceGI::Generate", false);
 			auto& t = _textures;
 			const auto specularSRV = [&](UINT a_index) { return t.specular[a_index] ? t.specular[a_index]->srv.get() : nullptr; };
 			const auto specularUAV = [&](UINT a_index) { return t.specular[a_index] ? t.specular[a_index]->uav.get() : nullptr; };
 			// FO4: prepare native normals and current shaded diffuse before unchanged upstream kernels.
 			pass.Run(_prepare.get(), { normals, material, albedo, diffuse, tiled ? diffuseB : nullptr, emissive },
-				{ t.normalGloss->uav.get(), t.diffuse ? t.diffuse->uav.get() : nullptr }, width, height, 8, "SSGI/Prepare");
+				{ t.normalGloss->uav.get(), t.diffuse ? t.diffuse->uav.get() : nullptr }, width, height, 8, "ScreenSpaceGI::Prepare");
 			const auto prefilter = [&](UINT a_shader, ID3D11ShaderResourceView* a_input, MipTexture& a_output, UINT a_width, UINT a_height, const char* a_name) {
 				pass.Run(_shaders[a_shader].get(), { a_input }, { a_output.uavs[0].get(), a_output.uavs[1].get(), a_output.uavs[2].get(), a_output.uavs[3].get(), a_output.uavs[4].get() }, a_width, a_height, 16, a_name);
 			};
-			prefilter(0, depth, t.depth, width, height, "SSGI/PrefilterDepths");
+			prefilter(0, depth, t.depth, width, height, "ScreenSpaceGI::PrefilterDepths");
 			UINT ao = _lastAO, gi = _lastGI;
 			pass.Run(_shaders[1].get(), { t.diffuse ? t.diffuse->srv.get() : nullptr, t.depth.texture->srv.get(), t.normalGloss->srv.get(), t.previousGeometry->srv.get(), motion, t.accumulation[_lastAccum]->srv.get(), t.ao[ao]->srv.get(), t.luma[gi]->srv.get(), t.chroma[gi]->srv.get(), specularSRV(ao) },
 				{ t.radianceTemp->uav.get(), t.accumulation[!_lastAccum]->uav.get(), t.ao[!ao]->uav.get(),
 					t.luma[!gi]->uav.get(), t.chroma[!gi]->uav.get(), specularUAV(!ao) },
-				internalWidth, internalHeight, 8, "SSGI/RadianceDisocc");
-			prefilter(2, t.radianceTemp->srv.get(), t.radiance, internalWidth, internalHeight, "SSGI/PrefilterRadiance");
+				internalWidth, internalHeight, 8, "ScreenSpaceGI::RadianceDisocc");
+			prefilter(2, t.radianceTemp->srv.get(), t.radiance, internalWidth, internalHeight, "ScreenSpaceGI::PrefilterRadiance");
 			ao = !ao;
 			gi = !gi;
 			_lastAccum = !_lastAccum;
-			prefilter(3, t.normalGloss->srv.get(), t.normals, internalWidth, internalHeight, "SSGI/PrefilterNormals");
+			prefilter(3, t.normalGloss->srv.get(), t.normals, internalWidth, internalHeight, "ScreenSpaceGI::PrefilterNormals");
 			pass.Run(_shaders[4].get(), { t.depth.texture->srv.get(), t.normalGloss->srv.get(), t.radiance.texture->srv.get(), _noise.get(), t.accumulation[_lastAccum]->srv.get(), t.luma[gi]->srv.get(), t.chroma[gi]->srv.get(), specularSRV(ao), t.normals.texture->srv.get() },
 				{ t.ao[!ao]->uav.get(), t.luma[!gi]->uav.get(), t.chroma[!gi]->uav.get(),
 					specularUAV(!ao), t.previousGeometry->uav.get() },
-				internalWidth, internalHeight, 8, "SSGI/GI");
+				internalWidth, internalHeight, 8, "ScreenSpaceGI::GI");
 			ao = !ao;
 			gi = !gi;
 			_lastAO = ao;
@@ -487,7 +487,7 @@ namespace cs::features
 			if (_settings.enableBlur) {
 				pass.Run(_shaders[5].get(), { t.depth.texture->srv.get(), t.normalGloss->srv.get(), t.accumulation[_lastAccum]->srv.get(), t.luma[gi]->srv.get(), t.chroma[gi]->srv.get() },
 					{ t.accumulation[!_lastAccum]->uav.get(), t.luma[!gi]->uav.get(), t.chroma[!gi]->uav.get() },
-					internalWidth, internalHeight, 8, "SSGI/Blur");
+					internalWidth, internalHeight, 8, "ScreenSpaceGI::Blur");
 				gi = !gi;
 				_lastGI = gi;
 				_lastAccum = !_lastAccum;
@@ -495,7 +495,7 @@ namespace cs::features
 			if (_settings.resolutionMode != 0) {
 				pass.Run(_shaders[6].get(), { t.depth.texture->srv.get(), t.ao[ao]->srv.get(), t.luma[gi]->srv.get(), t.chroma[gi]->srv.get(), specularSRV(ao) },
 					{ t.ao[!ao]->uav.get(), t.luma[!gi]->uav.get(), t.chroma[!gi]->uav.get(), specularUAV(!ao) },
-					width, height, 8, "SSGI/Upsample");
+					width, height, 8, "ScreenSpaceGI::Upsample");
 				ao = !ao;
 				gi = !gi;
 			}

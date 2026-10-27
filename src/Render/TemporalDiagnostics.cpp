@@ -155,7 +155,7 @@ namespace cs::render
 			a_snapshot.sourceDesc = sourceDesc;
 		}
 
-		cs::render::annotation::ScopedEvent event("Temporal/CaptureDebugSnapshot");
+		cs::render::annotation::ScopedEvent event("Temporal::CaptureDebugSnapshot");
 		cs::engine::CopyResourcePreservingOM(
 			context, a_snapshot.texture.get(), a_source);
 		a_snapshot.capturedView = a_view;

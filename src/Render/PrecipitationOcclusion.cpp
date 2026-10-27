@@ -177,7 +177,7 @@ namespace cs::engine
 				_precipitation.ComputeProjection(_precipitation.occlusionData.camera);
 				_primed = true;
 				{
-					const cs::render::annotation::ScopedEvent event{ "Skylighting/OcclusionMask" };
+					const cs::render::annotation::ScopedEvent event{ "Skylighting::OcclusionMask" };
 					const ScopedPreCullBypass bypass;
 					const auto begin = CaptureClock::now();
 					_precipitation.RenderOcclusionMapImpl(nullptr);

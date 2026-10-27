@@ -50,7 +50,7 @@ namespace cs::features
 		// Same square as the stock precipitation occlusion depth and color targets.
 		constexpr std::uint32_t kOcclusionResolution = 512;
 		constexpr std::uint64_t kSummaryIntervalFrames = 300;
-		constexpr std::string_view kProbeUpdatePass = "Skylighting/ProbeUpdate";
+		constexpr std::string_view kProbeUpdatePass = "Skylighting::ProbeUpdate";
 
 		constexpr float kRadiansToDegrees = 180.0f / std::numbers::pi_v<float>;
 
@@ -426,7 +426,7 @@ namespace cs::features
 			}
 			cs::engine::ComputeOMScope scope(a_context, 2, 0, 1, 0);
 			cs::render::ScopedComputeSharedDataBinding substrate(a_context);
-			cs::render::annotation::ScopedEvent event("Skylighting/Debug", false);
+			cs::render::annotation::ScopedEvent event("Skylighting::Debug", false);
 			ID3D11ShaderResourceView* srvs[]{ normals, _texProbeArray->srv.get() };
 			ID3D11UnorderedAccessView* uavs[]{ _debugTexture->uav.get() };
 			a_context->CSSetShaderResources(0, 2, srvs);
@@ -732,7 +732,7 @@ namespace cs::features
 			.Field("split_end_1", static_cast<double>(_cascadeCounters.splitEnd[1].load(std::memory_order_relaxed)))
 			.Field("split_end_2", static_cast<double>(_cascadeCounters.splitEnd[2].load(std::memory_order_relaxed)))
 			.Field("cascade_overlap", static_cast<double>(_cascadeCounters.overlap.load(std::memory_order_relaxed)));
-		cs::render::profiling::CollectPassTimings(a_sink, "Skylighting/");
+		cs::render::profiling::CollectPassTimings(a_sink, "Skylighting::");
 	}
 
 	cs::SkylightingFeatureData Skylighting::GetCommonBufferData()

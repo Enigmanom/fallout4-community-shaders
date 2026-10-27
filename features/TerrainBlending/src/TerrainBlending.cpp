@@ -255,7 +255,7 @@ namespace cs::features
 			g_replay.depthSRV = std::move(view);
 			g_replay.depthDesc = copyDesc;
 		}
-		cs::render::annotation::ScopedEvent timing("TerrainBlending/DepthCopy");
+		cs::render::annotation::ScopedEvent timing("TerrainBlending::DepthCopy");
 		cs::engine::CopyResourcePreservingOM(a_context, g_replay.depth.get(), source);
 		_depthCopies.fetch_add(1, std::memory_order_relaxed);
 		return true;
@@ -288,7 +288,7 @@ namespace cs::features
 			DrawHeld(a_buckets, kStock);
 			return;
 		}
-		cs::render::annotation::ScopedEvent timing("TerrainBlending/Replay");
+		cs::render::annotation::ScopedEvent timing("TerrainBlending::Replay");
 		DrawHeld(a_buckets, kColor);
 		DrawHeld(a_buckets, kData);
 		ID3D11ShaderResourceView* noView = nullptr;
@@ -328,7 +328,7 @@ namespace cs::features
 			.Field("data_draws", _dataDraws.load(std::memory_order_relaxed))
 			.Field("depth_copies", _depthCopies.load(std::memory_order_relaxed))
 			.Field("z_passes_offset", _zPassesOffset.load(std::memory_order_relaxed));
-		cs::render::profiling::CollectPassTimings(a_sink, "TerrainBlending/");
+		cs::render::profiling::CollectPassTimings(a_sink, "TerrainBlending::");
 	}
 
 	namespace
