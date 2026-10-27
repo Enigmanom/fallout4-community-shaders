@@ -10,13 +10,13 @@
 #include "Log.h"
 #include "Menu/Menu.h"
 #include "Render/Annotation.h"
-#include "Render/FrameBuffer.h"
 #include "Render/FrameProfiler.h"
-#include "Render/PixelShaderSwapBroker.h"
 #include "Render/ShaderCompileGate.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
 #include "Render/TemporalPipeline.h"
+#include "Settings/FeatureConfig.h"
+#include "Settings/SettingsRegistry.h"
 #include "Utils/CSUtil.h"
 #include "Utils/ShaderCache/CacheStorage.h"
 #include "Utils/ShaderCache/CompilerIdentity.h"
@@ -88,17 +88,27 @@ namespace cs::d3d11
 					shader_cache::DescribeCompilerIdentity(identity));
 			}
 
-			if (!identity.established)
-				return;
-			const auto synchronized =
-				shader_cache::SynchronizeCacheIdentity(
-					root,
-					identity,
-					shader_cache::kRecordSchemaVersion);
-			if (!synchronized.resetMessage.empty())
-				CacheL->info("{}", synchronized.resetMessage);
-			if (!synchronized.error.empty())
-				CacheL->warn("Shader cache: {}", synchronized.error);
+			if (identity.established) {
+				const auto synchronized =
+					shader_cache::SynchronizeCacheIdentity(
+						root,
+						identity,
+						shader_cache::kRecordSchemaVersion);
+				if (!synchronized.resetMessage.empty())
+					CacheL->info("{}", synchronized.resetMessage);
+				if (!synchronized.error.empty())
+					CacheL->warn("Shader cache: {}", synchronized.error);
+			}
+			std::string error;
+			const auto cacheSettings = settings::ParseCoreSection(
+				settings::core::kShaderCache, feature_config::GetRoot(), "shader_cache", error);
+			if (!error.empty())
+				CacheL->warn("{}; using the default", error);
+			const auto cap = static_cast<std::uint64_t>(cacheSettings.maxSizeMb) * 1024 * 1024;
+			shader_cache::SetShaderCacheMaxBytes(cap);
+			const auto usage = shader_cache::TrimCacheRecords(root, cap);
+			CacheL->info("shader cache storage: {} records, {} bytes, {} trimmed",
+				usage.records, usage.bytes, usage.trimmed);
 		}
 
 		void LogShaderCacheSummary()
@@ -148,17 +158,13 @@ namespace cs::d3d11
 			});
 			engine::InstallShaderCompileSummaryLog();
 			util::ShaderCompilationBatch shaderCompilationBatch;
-			// The engine b12 snapshot must be live before any feature reads a camera.
-			InvokeOwner("FrameBuffer snapshot hooks", [&] {
-				engine::OnFrameBufferD3D11Ready(*a_immediateContext);
-			});
 			InvokeOwner("RunComputeShader dispatch bridge", [&] {
 				engine::EnsureComputeDispatchBridgeInstalled(
 					*a_immediateContext);
 			});
 			// Register injections before the registry freezes.
-			InvokeOwner("PixelShaderSwapBroker D3D11 readiness", [&] {
-				engine::SetPixelShaderSwapBrokerDevice(*a_device);
+			InvokeOwner("Native shader creation hooks", [&] {
+				engine::InstallNativeShaderCreationHooks(*a_device);
 			});
 			InvokeOwner("Temporal pipeline D3D11 readiness", [&] {
 				render::TemporalPipeline::Get().OnD3D11Ready(a_adapter, *a_device);

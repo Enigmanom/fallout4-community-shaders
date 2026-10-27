@@ -31,21 +31,10 @@ namespace cs::host
 			BuiltInPage{ "changelog", "Changelog", "", 40, HostPageKind::kChangelog }
 		};
 
-		struct KnownCategory
-		{
-			std::string_view id;
-			std::string_view displayName;
-			std::string_view iconName{};
-		};
+		using KnownCategory = FeatureCategories::Category;
 
 		constexpr std::array kKnownCategories{
 			KnownCategory{ kGeneralCategoryId, kGeneralCategory },
-			KnownCategory{ "display", FeatureCategories::kDisplay, "monitor" },
-			KnownCategory{ "landscape-textures", FeatureCategories::kLandscapeAndTextures, "mountains" },
-			KnownCategory{ "lighting", FeatureCategories::kLighting, "sun-horizon" },
-			KnownCategory{ "materials", FeatureCategories::kMaterials, "cube" },
-			KnownCategory{ "utility", FeatureCategories::kUtility, "wrench" },
-			KnownCategory{ "water", FeatureCategories::kWater, "waves" },
 			KnownCategory{ kOtherCategoryId, kUncategorized },
 			KnownCategory{ kUnloadedCategoryId, kUnloadedCategory },
 			KnownCategory{ kOverlayCategoryId, kOverlayCategory }
@@ -58,6 +47,10 @@ namespace cs::host
 
 		const KnownCategory* FindKnownCategory(std::string_view a_displayName)
 		{
+			const auto feature = std::ranges::find(
+				FeatureCategories::kCategories, a_displayName, &KnownCategory::displayName);
+			if (feature != FeatureCategories::kCategories.end())
+				return &*feature;
 			const auto result = std::ranges::find(
 				kKnownCategories, a_displayName, &KnownCategory::displayName);
 			return result == kKnownCategories.end() ? nullptr : &*result;
@@ -67,12 +60,12 @@ namespace cs::host
 		{
 			if (a_displayName == kGeneralCategory)
 				return 0;
-			const auto liveCategory =
-				std::ranges::find(FeatureCategories::kRenderOrder, a_displayName);
-			if (liveCategory != FeatureCategories::kRenderOrder.end()) {
+			const auto liveCategory = std::ranges::find(
+				FeatureCategories::kCategories, a_displayName, &FeatureCategories::Category::displayName);
+			if (liveCategory != FeatureCategories::kCategories.end()) {
 				return 100 +
 				       static_cast<std::int32_t>(
-						   liveCategory - FeatureCategories::kRenderOrder.begin()) *
+						   liveCategory - FeatureCategories::kCategories.begin()) *
 				           10;
 			}
 			if (a_displayName == kUncategorized)
@@ -82,6 +75,31 @@ namespace cs::host
 			if (a_displayName == kOverlayCategory)
 				return 1000;
 			return kCustomCategorySortKey;
+		}
+
+		std::string MakeAsciiId(std::string_view a_text)
+		{
+			std::string id;
+			id.reserve(a_text.size());
+			for (const char character : a_text) {
+				const auto value = static_cast<unsigned char>(character);
+				char mapped = '-';
+				if (value >= 'a' && value <= 'z')
+					mapped = character;
+				else if (value >= 'A' && value <= 'Z')
+					mapped = static_cast<char>(value - 'A' + 'a');
+				else if (value >= '0' && value <= '9')
+					mapped = character;
+				else if (character == '.' || character == '_' || character == '-')
+					mapped = character;
+
+				if (mapped == '-' && (id.empty() || id.back() == '-'))
+					continue;
+				id.push_back(mapped);
+			}
+			while (!id.empty() && id.back() == '-')
+				id.pop_back();
+			return id.empty() ? std::string("page") : id;
 		}
 
 		std::string MakeUniqueCategoryId(
@@ -108,31 +126,6 @@ namespace cs::host
 				}
 			}
 		}
-	}
-
-	std::string MakeAsciiId(std::string_view a_text)
-	{
-		std::string id;
-		id.reserve(a_text.size());
-		for (const char character : a_text) {
-			const auto value = static_cast<unsigned char>(character);
-			char mapped = '-';
-			if (value >= 'a' && value <= 'z')
-				mapped = character;
-			else if (value >= 'A' && value <= 'Z')
-				mapped = static_cast<char>(value - 'A' + 'a');
-			else if (value >= '0' && value <= '9')
-				mapped = character;
-			else if (character == '.' || character == '_' || character == '-')
-				mapped = character;
-
-			if (mapped == '-' && (id.empty() || id.back() == '-'))
-				continue;
-			id.push_back(mapped);
-		}
-		while (!id.empty() && id.back() == '-')
-			id.pop_back();
-		return id.empty() ? std::string("page") : id;
 	}
 
 	HostPageCatalog BuildPageCatalog(const std::vector<FeaturePageInput>& a_features)
@@ -169,6 +162,8 @@ namespace cs::host
 
 		std::unordered_set<std::string> usedCategoryIds;
 		for (const auto& known : kKnownCategories)
+			usedCategoryIds.emplace(known.id);
+		for (const auto& known : FeatureCategories::kCategories)
 			usedCategoryIds.emplace(known.id);
 
 		std::map<std::string, std::string, std::less<>> categoryIds;

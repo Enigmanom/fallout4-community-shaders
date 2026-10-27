@@ -31,13 +31,6 @@ namespace cs::telemetry
 
 namespace cs::engine
 {
-	struct ShaderSubclassHookInstallStats
-	{
-		unsigned attempted = 0;
-		unsigned succeeded = 0;
-		unsigned failed = 0;
-	};
-
 	void InstallShaderSubclassHooks();
 
 	// The engine path that baked a prepass draw's per-draw constants.

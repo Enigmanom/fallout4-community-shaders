@@ -2,7 +2,6 @@
 
 #include "Render/FrameBindings.h"
 #include "Render/GameRuntime.h"
-#include "Render/PixelShaderSwapBroker.h"
 #include "Render/ShaderDefineProvider.h"
 #include "Render/ShaderInjectionTargets.h"
 #include "Render/SharedData.h"
@@ -68,12 +67,9 @@ namespace cs::engine
 	{
 		std::uint32_t frame = 0;
 		std::uint64_t scopes = 0;
-		// Injection work only (lookup, binds, restores), never the engine draw.
-		std::uint64_t injectionNanoseconds = 0;
 		std::uint64_t captures = 0;
 		std::uint64_t restores = 0;
 		std::uint64_t d3dBinds = 0;
-		std::uint64_t undispatchedDraws = 0;
 		FrameBindingMetrics frameBindings;
 	};
 
@@ -170,21 +166,12 @@ namespace cs::engine
 		ShaderInjectionDefines defines;
 	};
 
-	enum class DeveloperShaderOverride : std::uint8_t
-	{
-		kAuto,
-		kForceOn,
-		kForceOff
-	};
-
 	struct ShaderInjectionTargetSnapshot
 	{
 		ShaderInjectionTarget id = ShaderInjectionTarget::kCount;
 		std::string name;
-		bool requested = false;
 		bool enabled = false;
 		bool published = false;
-		DeveloperShaderOverride developerOverride = DeveloperShaderOverride::kAuto;
 		std::size_t contributors = 0;
 		std::size_t observedComputeShaders = 0;
 		std::uint64_t computeBindCalls = 0;
@@ -215,7 +202,6 @@ namespace cs::engine
 
 	struct ShaderInjectionSummary
 	{
-		std::size_t requested = 0;
 		std::size_t published = 0;
 		std::uint64_t matches = 0;
 		std::uint64_t substitutions = 0;
@@ -226,8 +212,25 @@ namespace cs::engine
 		ShaderInjectionDrawMetrics draw;
 	};
 
-	std::string DescribeShaderInjectionDefines(
-		const ShaderInjectionDefines& a_defines);
+	template <class Defines>
+	std::string DescribeShaderInjectionDefines(const Defines& a_defines)
+	{
+		std::string names;
+		for (const auto& [name, value] : a_defines) {
+			if (!names.empty())
+				names += ",";
+			names += name;
+			names += "=";
+			names += value;
+		}
+		return names.empty() ? std::string("none") : names;
+	}
+
+	std::optional<ShaderInjectionDefines> GatherShaderInjectionDefines(
+		ShaderInjectionTarget a_target,
+		ShaderStageMask a_stages,
+		std::span<const ShaderReplacementRegistration> a_contributions,
+		std::string* a_error = nullptr);
 
 	std::optional<ShaderVariantCompilationDescriptor>
 	BuildEffectiveShaderCompileRequest(
@@ -245,9 +248,6 @@ namespace cs::engine
 	bool SetBaselineShaderOwnership(
 		ShaderInjectionTarget a_target,
 		bool a_enabled);
-	bool SetDeveloperShaderForceOffEnabled(bool a_enabled);
-	bool SetDeveloperShaderOverride(ShaderInjectionTarget a_target, DeveloperShaderOverride a_override);
-	bool SetDeveloperShaderSourceRoot(std::wstring a_sourceRoot);
 	bool SetShaderInjectionEnabled(bool a_enabled);
 	bool SetShaderInjectionRuntime(GameRuntime a_runtime);
 	void ApplyShaderOwnershipConfig(const feature_config::ShaderOwnershipConfig& a_config);
@@ -274,9 +274,6 @@ namespace cs::engine
 		util::ShaderSamplerUse a_samplers = {}) noexcept;
 	void DispatchInjectionsForBoundPixelShader(
 		ID3D11DeviceContext* a_context) noexcept;
-	// Counts draw flushes outside every route that bind an injected pixel shader.
-	void RecordUndispatchedInjectedDraw(
-		ID3D11DeviceContext* a_context) noexcept;
 	NativeGraphicsShaderBinding ResolveNativeGraphicsShaderBinding(
 		RE::BSShader* a_shader,
 		std::uint32_t a_vertexShaderId,
@@ -293,11 +290,20 @@ namespace cs::engine
 		ShaderInjectionTarget a_target,
 		std::string_view a_nativeName,
 		bool a_streamIsGood) noexcept;
-	void ObserveNativeShaderBytecode(
-		ShaderStage a_stage,
-		const void* a_bytecode,
-		std::size_t a_bytecodeLength,
-		ID3D11DeviceChild* a_shader) noexcept;
+	void InstallNativeShaderCreationHooks(ID3D11Device* a_device);
+
+	class ScopedNativeShaderObservationBypass
+	{
+	public:
+		ScopedNativeShaderObservationBypass() noexcept;
+		~ScopedNativeShaderObservationBypass() noexcept;
+
+		ScopedNativeShaderObservationBypass(const ScopedNativeShaderObservationBypass&) = delete;
+		ScopedNativeShaderObservationBypass(ScopedNativeShaderObservationBypass&&) = delete;
+		ScopedNativeShaderObservationBypass& operator=(const ScopedNativeShaderObservationBypass&) = delete;
+		ScopedNativeShaderObservationBypass& operator=(ScopedNativeShaderObservationBypass&&) = delete;
+	};
+
 	void InvalidateNativeShaderVariantCompilations() noexcept;
 	// Drops queued compiles and joins the workers; later requests fail fast.
 	void StopNativeShaderVariantCompilations() noexcept;

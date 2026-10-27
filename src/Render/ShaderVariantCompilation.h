@@ -70,6 +70,7 @@ namespace cs::engine
 
 		virtual std::shared_ptr<ShaderVariantCompilationHandle> Request(
 			ShaderVariantCompilationRequest a_request) = 0;
+		virtual void Demand(const std::shared_ptr<ShaderVariantCompilationHandle>& a_handle) = 0;
 		virtual void Invalidate() = 0;
 		virtual void Stop() noexcept = 0;
 	};
@@ -79,6 +80,8 @@ namespace cs::engine
 	// Observers run on compile worker threads and must not block.
 	void AddShaderCompileBatchObserver(ShaderCompileBatchObserver a_observer);
 	ShaderCompileBatch GetShaderCompileBatch();
+	// True from the first enqueued task until the batch settles.
+	[[nodiscard]] bool IsShaderCompileBatchActive() noexcept;
 
 	std::shared_ptr<ShaderVariantCompilationCache>
 	CreateAsyncShaderVariantCompilationCache(

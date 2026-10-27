@@ -356,38 +356,6 @@ target("FrameDispatcherTests", function()
     add_tests("FrameDispatcher")
 end)
 
-target("ShaderCompileOverlayModelTests", function()
-    set_kind("binary")
-    set_default(false)
-    set_group("unit")
-    add_files("tests/ShaderCompileOverlayModelTests.cpp")
-    add_tests("ShaderCompileOverlayModel")
-end)
-
-target("DirectionalShadowLightDataTests", function()
-    set_kind("binary")
-    set_default(false)
-    set_group("unit")
-    add_files("tests/DirectionalShadowLightDataTests.cpp")
-    add_defines("NOMINMAX")
-    add_packages("vcpkg::directxmath")
-    add_tests("DirectionalShadowLightData")
-end)
-
-target("SettingsJsonTests", function()
-    set_kind("binary")
-    set_default(false)
-    set_group("unit")
-    add_files(
-        "tests/SettingsJsonTests.cpp",
-        "src/Settings/SettingsJson.cpp",
-        "src/Settings/FeatureConfig.cpp"
-    )
-    add_sysincludedirs("extern/Streamline/external/json/include")
-    add_packages("vcpkg::tomlplusplus")
-    add_tests("SettingsJson")
-end)
-
 target("FrameGenerationRetirementGpuTests", function()
     set_kind("binary")
     set_default(false)
@@ -452,10 +420,11 @@ local function stock_shader_identity_target(name, compiler, tests)
             "src/Render/ShaderInjectionCompileRequest.cpp",
             "src/Render/ShaderVariantRecipe.cpp",
             "src/Render/StockShaderTable.cpp",
-            "src/Utils/CSSha1.cpp",
+            "tests/CSSha1.cpp",
             "src/Utils/ShaderCompile.cpp"
         )
         add_files(shader_cache_sources)
+        add_defines("NOMINMAX")
         add_includedirs("features/ScreenSpaceGI/src")
         add_packages("spdlog", "vcpkg::directxmath", "vcpkg::tomlplusplus")
         add_syslinks("bcrypt", "d3dcompiler", "version")

@@ -222,10 +222,7 @@ namespace cs::features
 		if (!TryLoadRuntime(error))
 			FailLoad(std::move(error));
 
-		if (!render::RegisterPostSwap([this] {
-				FeatureManager::Get().RunRuntimeCallback(
-					*this, "FrameBoundary::OnFrameBoundary", [this] { OnFrameBoundary(); });
-			}))
+		if (!render::RegisterPostSwap(*this, [this] { OnFrameBoundary(); }))
 			L->error("RenderDoc frame boundary registration failed; captures unavailable");
 	}
 

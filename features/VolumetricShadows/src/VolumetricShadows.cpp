@@ -1,4 +1,5 @@
 #include "VolumetricShadows.h"
+#include "Render/SharedDataLayout.h"
 
 #include <d3d11.h>
 
@@ -80,7 +81,7 @@ namespace cs::features
 			FailLoad("Volumetric Shadows needs the shared sun shadow light data");
 			return;
 		}
-		if (!cs::engine::RegisterPostSunShadowRender([this] { Produce(); })) {
+		if (!cs::engine::RegisterPostSunShadowRender(*this, [this] { Produce(); })) {
 			FailLoad("Volumetric Shadows needs the main sun shadow render hook");
 			return;
 		}
@@ -354,9 +355,9 @@ namespace cs::features
 		return _preview[CascadeMip(a_cascade)].GetDebugTexture("Shadow map preview not populated.");
 	}
 
-	cs::VolumetricShadowsFeatureData VolumetricShadows::GetCommonBufferData() const
+	void VolumetricShadows::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		return { .Enabled = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u };
+		a_fo4.EnabledVolumetricShadows = _injectionsOperational.load(std::memory_order_acquire) ? 1u : 0u;
 	}
 
 	void VolumetricShadows::DrawSettings()

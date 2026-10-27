@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <atomic>
 #include <map>
-#include <mutex>
 #include <utility>
 
 #ifdef TRACY_SUPPORT
@@ -32,7 +31,6 @@ namespace cs::render::profiling
 #endif
 			}
 
-			std::mutex mutex;
 #ifdef TRACY_SUPPORT
 			TracyD3D11Ctx tracyContext{};
 #endif
@@ -66,7 +64,6 @@ namespace cs::render::profiling
 		if (!a_device || !a_context)
 			return;
 		auto& state = State();
-		const std::scoped_lock lock{ state.mutex };
 		state.device = a_device;
 		state.context = a_context;
 #ifdef TRACY_SUPPORT
@@ -82,7 +79,6 @@ namespace cs::render::profiling
 		FrameMark;
 #endif
 		auto& state = State();
-		const std::scoped_lock lock{ state.mutex };
 #ifdef TRACY_SUPPORT
 		if (state.tracyContext)
 			TracyD3D11Collect(state.tracyContext);
@@ -108,13 +104,16 @@ namespace cs::render::profiling
 			state.initialized = false;
 		}
 		++state.sequence;
+		state.shaderType = -1;
+		// Per-shader timings are collected only while the overlay wants them.
+		if (!state.enabled)
+			return;
 		for (auto& timing : state.shaderTimings) {
 			const auto& sample = state.shaderFrame[timing.type];
 			timing.calls = timing.calls * 0.95f + sample.calls * 0.05f;
 			timing.milliseconds = timing.milliseconds * 0.95f + sample.milliseconds * 0.05f;
 		}
 		state.shaderFrame.clear();
-		state.shaderType = -1;
 		state.lastDraw = Util::GetNowSecs();
 	}
 
@@ -190,15 +189,13 @@ namespace cs::render::profiling
 					   if (std::exchange(began, false))
 						   EndPass();
 				   },
-				   engine::HookPriority::InnermostPost,
-				   engine::HookEffect::kObserve) &&
+				   engine::HookPriority::InnermostPost) &&
 		       engine::RegisterPreDeferredComposite(
 				   [] {
 					   began = BeginEnginePass(kPass);
 					   event.Begin(kPass, false);
 				   },
-				   engine::HookPriority::InnermostPre,
-				   engine::HookEffect::kObserve);
+				   engine::HookPriority::InnermostPre);
 	}
 
 	void SetShaderFamily(int a_type, std::string_view a_name)

@@ -52,9 +52,15 @@ namespace cs::render::frame_annotations
 			kLive
 		};
 
+		// Per-draw names cost CPU, so build them only for a consumer.
+		[[nodiscard]] bool AnnotateDraws() noexcept
+		{
+			return Enabled() && annotation::EventsConsumed();
+		}
+
 		[[nodiscard]] bool Open(Gate a_gate) noexcept
 		{
-			return a_gate == Gate::kAlways || Enabled();
+			return a_gate == Gate::kAlways || AnnotateDraws();
 		}
 
 		// The name is a string_view or a generator, run only when the gate is open.
@@ -111,7 +117,7 @@ namespace cs::render::frame_annotations
 
 			static void thunk(RE::BSShader* a_self, RE::BSRenderPass* a_pass)
 			{
-				if (Enabled() && a_pass) {
+				if (AnnotateDraws() && a_pass) {
 					t_geometry.Begin(
 						std::format("[{}:{:X}] ({:X}) {}",
 							ShaderLabel(a_self),
@@ -302,14 +308,15 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		template <class RegisterPre, class RegisterPost, class Name>
-		void BracketPass(RegisterPre a_pre, RegisterPost a_post, Name a_name, Gate a_gate = Gate::kAlways)
+		template <class Name>
+		void BracketPass(
+			bool (*a_pre)(engine::RenderHookCallback, engine::HookPriority),
+			bool (*a_post)(engine::RenderHookCallback, engine::HookPriority),
+			Name a_name, Gate a_gate = Gate::kAlways)
 		{
 			auto span = std::make_shared<annotation::SpannedEvent>();
 			// Post first: a pre without its post would leave the event open.
-			// Annotations touch no draw bindings, so they register as observers.
-			constexpr auto kEffect = engine::HookEffect::kObserve;
-			if (!a_post([span] { span->End(); }, engine::HookPriority::OutermostPost, kEffect) ||
+			if (!a_post([span] { span->End(); }, engine::HookPriority::OutermostPost) ||
 				!a_pre(
 					[span, a_name, a_gate] {
 						if (!Open(a_gate))
@@ -317,23 +324,22 @@ namespace cs::render::frame_annotations
 						std::string storage;
 						span->Begin(NameView(a_name, storage), false);
 					},
-					engine::HookPriority::OutermostPre,
-					kEffect)) {
+					engine::HookPriority::OutermostPre)) {
 				std::string storage;
 				L->error("Engine pass '{}' unavailable", NameView(a_name, storage));
 			}
 		}
 
 		template <engine::ShadowLightKind Kind>
-		bool PreShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority, engine::HookEffect a_effect)
+		bool PreShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority)
 		{
-			return engine::RegisterPreShadowLightRender(Kind, std::move(a_callback), a_priority, a_effect);
+			return engine::RegisterPreShadowLightRender(Kind, std::move(a_callback), a_priority);
 		}
 
 		template <engine::ShadowLightKind Kind>
-		bool PostShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority, engine::HookEffect a_effect)
+		bool PostShadow(engine::RenderHookCallback a_callback, engine::HookPriority a_priority)
 		{
-			return engine::RegisterPostShadowLightRender(Kind, std::move(a_callback), a_priority, a_effect);
+			return engine::RegisterPostShadowLightRender(Kind, std::move(a_callback), a_priority);
 		}
 
 		void InstallEnginePasses()
@@ -441,10 +447,10 @@ namespace cs::render::frame_annotations
 	{
 		std::string error;
 		const bool requested = settings::ParseCoreSection(
-			feature_config::GetRoot(), "diagnostics", settings::core::kDiagnostics, error)
+			settings::core::kDiagnostics, feature_config::GetRoot(), "diagnostics", error)
 		                           .frameAnnotations;
 		if (!error.empty())
-			L->warn("diagnostics.{}; using the default", error);
+			L->warn("{}; using the default", error);
 		g_requested.store(requested, std::memory_order_relaxed);
 		if (!requested)
 			return;
@@ -474,7 +480,7 @@ namespace cs::render::frame_annotations
 		if (!g_installed)
 			return;
 		t_bound = { a_shader, a_pixelShaderId };
-		if (Enabled())
+		if (AnnotateDraws())
 			annotation::SetMarker(std::format("Draw: {}::{:x}", ShaderLabel(a_shader), a_pixelShaderId));
 	}
 }

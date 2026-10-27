@@ -207,7 +207,7 @@ namespace cs::features
 			_refreshHz = std::max(30.0f, static_cast<float>(mode.dmDisplayFrequency));
 	}
 
-	void PerformanceOverlay::OnRuntimeQuarantined() noexcept
+	void PerformanceOverlay::OnRuntimeQuarantined(std::string_view, std::string_view) noexcept
 	{
 		render::profiling::SetEnabled(false);
 		AbortTest("Performance Overlay was quarantined; restart required");
@@ -376,7 +376,7 @@ namespace cs::features
 		_graphMax += Settings::kSmoothingFactor * (_averageMs + spread - _graphMax);
 		_frameGeneration = render::TemporalPipeline::Get().GetFrameGenerationDiagnostics(false).active;
 		if (_frameGeneration) {
-			// FO4: the pinned active-FG branch always selects the calculated 2x fallback.
+			// Upstream derives post-FG figures from the fixed multiplier.
 			const float postMs = _frameMs / Settings::kFrameGenerationMultiplier;
 			if (_updateTimer <= 0.0f) {
 				_postDisplayMs = postMs;

@@ -1,11 +1,11 @@
 #include "Render/RenderHooks.h"
 
 #include "Log.h"
-#include "Render/DeferredDrawAnchor.h"
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
 #include "Render/FrameProfiler.h"
 #include "Render/HookRegistry.h"
+#include "Render/RuntimeCallback.h"
 #include "Render/ShaderInjection.h"
 
 #include "RE/B/BSGeometry.h"
@@ -38,35 +38,62 @@ namespace cs::engine
 		{
 			HookPriority priority;
 			RenderHookCallback cb;
-			HookEffect effect = HookEffect::kGpuWork;
+			Feature* owner;
 		};
 
 		constexpr std::size_t kShadowLightKindCount = 3;
 
-		std::vector<PrioritizedCallback> g_postDeferredPrePass;
-		std::vector<PrioritizedCallback> g_preDeferredPrePass;
-		std::vector<PrioritizedCallback> g_preDeferredLightsImpl;
-		std::vector<PrioritizedCallback> g_postDeferredLightsImpl;
-		std::vector<PrioritizedCallback> g_preDeferredComposite;
-		std::vector<PrioritizedCallback> g_postDeferredComposite;
-		std::vector<PrioritizedCallback> g_preFullscreenDeferredLightDraw;
-		std::vector<PrioritizedCallback> g_postForwardSky;
-		std::vector<PrioritizedCallback> g_prePrecipitationOcclusion;
-		std::vector<PrioritizedCallback> g_postPrecipitationOcclusion;
-		std::vector<PrioritizedCallback> g_postSunShadowRender;
-		std::vector<PrioritizedCallback> g_preWaterUpdate;
-		std::vector<PrioritizedCallback> g_postWaterUpdate;
-		std::vector<PrioritizedCallback> g_preCommandBufferReplay;
-		std::vector<PrioritizedCallback> g_postCommandBufferReplay;
-		std::array<std::vector<PrioritizedCallback>, kShadowLightKindCount> g_preShadowLightRender;
-		std::array<std::vector<PrioritizedCallback>, kShadowLightKindCount> g_postShadowLightRender;
-		std::vector<PrioritizedCallback> g_postResetState;
+		bool EnsureDeferredPrePassInstalled();
+		bool EnsureDeferredLightsImplInstalled();
+		bool EnsureDeferredCompositeInstalled();
+		bool EnsureForwardSkyInstalled();
+		bool EnsurePrecipitationOcclusionInstalled();
+		bool EnsureSunShadowRenderInstalled();
+		bool EnsureWaterUpdateInstalled();
+		bool EnsureCommandBufferRouteInstalled();
+		bool EnsureResetStateInstalled();
+		bool EnsureShadowLightRenderInstalled(ShadowLightKind a_kind);
+
+		struct HookPoint
+		{
+			const char* name;
+			std::vector<PrioritizedCallback> callbacks;
+			bool (*ensureInstalled)();
+			// Per-bucket replay points stay inside one pass and keep the cache.
+			bool passBoundary = true;
+		};
+
+		HookPoint g_postDeferredPrePass{ "PostDeferredPrePass", {}, EnsureDeferredPrePassInstalled };
+		HookPoint g_preDeferredPrePass{ "PreDeferredPrePass", {}, EnsureDeferredPrePassInstalled };
+		HookPoint g_preDeferredLightsImpl{ "PreDeferredLightsImpl", {}, EnsureDeferredLightsImplInstalled };
+		HookPoint g_postDeferredLightsImpl{ "PostDeferredLightsImpl", {}, EnsureDeferredLightsImplInstalled };
+		HookPoint g_preDeferredComposite{ "PreDeferredComposite", {}, EnsureDeferredCompositeInstalled };
+		HookPoint g_postDeferredComposite{ "PostDeferredComposite", {}, EnsureDeferredCompositeInstalled };
+		HookPoint g_postForwardSky{ "PostForwardSky", {}, EnsureForwardSkyInstalled };
+		HookPoint g_prePrecipitationOcclusion{ "PrePrecipitationOcclusion", {}, EnsurePrecipitationOcclusionInstalled };
+		HookPoint g_postPrecipitationOcclusion{ "PostPrecipitationOcclusion", {}, EnsurePrecipitationOcclusionInstalled };
+		HookPoint g_postSunShadowRender{ "PostSunShadowRender", {}, EnsureSunShadowRenderInstalled };
+		HookPoint g_preWaterUpdate{ "PreWaterUpdate", {}, EnsureWaterUpdateInstalled };
+		HookPoint g_postWaterUpdate{ "PostWaterUpdate", {}, EnsureWaterUpdateInstalled };
+		HookPoint g_preCommandBufferReplay{ "PreCommandBufferReplay", {}, EnsureCommandBufferRouteInstalled, false };
+		HookPoint g_postCommandBufferReplay{ "PostCommandBufferReplay", {}, EnsureCommandBufferRouteInstalled, false };
+		const auto makeShadowPoints = [](const char* a_prefix) {
+			return std::array<HookPoint, kShadowLightKindCount>{
+				HookPoint{ a_prefix, {}, [] { return EnsureShadowLightRenderInstalled(ShadowLightKind::kDirectional); } },
+				HookPoint{ a_prefix, {}, [] { return EnsureShadowLightRenderInstalled(ShadowLightKind::kFrustum); } },
+				HookPoint{ a_prefix, {}, [] { return EnsureShadowLightRenderInstalled(ShadowLightKind::kParabolic); } }
+			};
+		};
+		auto g_preShadowLightRender = makeShadowPoints("PreShadowLightRender");
+		auto g_postShadowLightRender = makeShadowPoints("PostShadowLightRender");
+		HookPoint g_postResetState{ "PostResetState", {}, EnsureResetStateInstalled };
 		struct PrepassHold
 		{
 			HookPriority priority;
 			PrepassBucketPredicate predicate;
 			HeldPrepassBucketsCallback replay;
 			std::vector<HeldPrepassBucket> held;
+			Feature* owner;
 		};
 
 		std::vector<PrepassHold> g_prepassHolds;
@@ -93,7 +120,6 @@ namespace cs::engine
 		bool g_waterUpdateInstalled = false;
 		bool g_resetStateInstalled = false;
 		bool g_insideDeferredLightsImpl = false;
-		bool g_insideDeferredComposite = false;
 
 		// Registration closes when the first render hook runs.
 		const DWORD g_registrationThreadId = ::GetCurrentThreadId();
@@ -117,37 +143,32 @@ namespace cs::engine
 			return true;
 		}
 
-		// Callbacks run plugin GPU work that may replace cached draw bindings.
-		class ScopedForeignWork
+		bool Register(HookPoint& a_point, RenderHookCallback a_callback, HookPriority a_priority, Feature* a_owner)
+		{
+			if (!RegistrationAllowed(a_point.name) || !a_point.ensureInstalled())
+				return false;
+			InsertByPriority(a_point.callbacks, PrioritizedCallback{ a_priority, std::move(a_callback), a_owner });
+			return true;
+		}
+
+		// Engine pass boundaries and plugin GPU work may replace cached bindings.
+		class ScopedPassBoundary
 		{
 		public:
-			explicit ScopedForeignWork(bool a_active) noexcept :
+			explicit ScopedPassBoundary(bool a_active = true) noexcept :
 				_active(a_active)
 			{}
-			~ScopedForeignWork()
+			~ScopedPassBoundary()
 			{
 				if (_active)
 					InvalidateShaderInjectionBindings();
 			}
-			ScopedForeignWork(const ScopedForeignWork&) = delete;
-			ScopedForeignWork& operator=(const ScopedForeignWork&) = delete;
+			ScopedPassBoundary(const ScopedPassBoundary&) = delete;
+			ScopedPassBoundary& operator=(const ScopedPassBoundary&) = delete;
 
 		private:
 			bool _active;
 		};
-
-		[[nodiscard]] bool AnyGpuWork(const std::vector<PrioritizedCallback>& v) noexcept
-		{
-			return std::ranges::any_of(v, [](const PrioritizedCallback& e) { return e.effect == HookEffect::kGpuWork; });
-		}
-
-		void Dispatch(const std::vector<PrioritizedCallback>& v)
-		{
-			const ScopedForeignWork work(AnyGpuWork(v));
-			for (auto& entry : v) {
-				entry.cb();
-			}
-		}
 
 		class ScopedRenderPhase
 		{
@@ -171,37 +192,32 @@ namespace cs::engine
 		};
 
 		// Callbacks run inside engine frames, so failures are logged, not unwound.
-		void DispatchGuarded(const std::vector<PrioritizedCallback>& v, const char* a_where) noexcept
+		void Dispatch(const HookPoint& a_point, const char* a_label) noexcept
 		{
-			const ScopedForeignWork work(AnyGpuWork(v));
-			for (auto& entry : v) {
-				try {
-					entry.cb();
-				} catch (const std::exception& e) {
-					L->error("{} callback failed: {}", a_where, e.what());
-				} catch (...) {
-					L->error("{} callback failed.", a_where);
-				}
-			}
+			const ScopedPassBoundary boundary{ a_point.passBoundary };
+			for (const auto& entry : a_point.callbacks)
+				render::RunRenderCallback(entry.owner, a_label, entry.cb);
 		}
 
 		class PostDispatchScope
 		{
 		public:
 			explicit PostDispatchScope(
-				const std::vector<PrioritizedCallback>& a_callbacks) noexcept :
-				_callbacks(a_callbacks)
+				const HookPoint& a_callbacks, const char* a_label) noexcept :
+				_callbacks(a_callbacks),
+				_label(a_label)
 			{}
 			~PostDispatchScope() noexcept
 			{
-				DispatchGuarded(_callbacks, "Deferred-lights post");
+				Dispatch(_callbacks, _label);
 			}
 
 			PostDispatchScope(const PostDispatchScope&) = delete;
 			PostDispatchScope& operator=(const PostDispatchScope&) = delete;
 
 		private:
-			const std::vector<PrioritizedCallback>& _callbacks;
+			const HookPoint& _callbacks;
+			const char* _label;
 		};
 
 		struct DeferredPrePass_Hook
@@ -209,9 +225,9 @@ namespace cs::engine
 			static void thunk()
 			{
 				MarkRegistrationClosed();
-				Dispatch(g_preDeferredPrePass);
+				Dispatch(g_preDeferredPrePass, "Deferred prepass pre");
 				func();
-				Dispatch(g_postDeferredPrePass);
+				Dispatch(g_postDeferredPrePass, "Deferred prepass post");
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -221,8 +237,8 @@ namespace cs::engine
 			static void thunk()
 			{
 				MarkRegistrationClosed();
-				const PostDispatchScope post(g_postDeferredLightsImpl);
-				Dispatch(g_preDeferredLightsImpl);
+				const PostDispatchScope post(g_postDeferredLightsImpl, "Deferred-lights post");
+				Dispatch(g_preDeferredLightsImpl, "Deferred-lights pre");
 				{
 					ScopedRenderPhase phase(g_insideDeferredLightsImpl);
 					func();
@@ -276,13 +292,13 @@ namespace cs::engine
 			static void thunk(RE::BSGraphics::Renderer* a_this, Args... a_args)
 			{
 				if constexpr (Route == DrawRoute::kCommandBuffer)
-					Dispatch(g_preCommandBufferReplay);
+					Dispatch(g_preCommandBufferReplay, "Command buffer replay pre");
 				{
 					const DrawRouteScope scope(Route);
 					func(a_this, a_args...);
 				}
 				if constexpr (Route == DrawRoute::kCommandBuffer)
-					Dispatch(g_postCommandBufferReplay);
+					Dispatch(g_postCommandBufferReplay, "Command buffer replay post");
 			}
 			static inline REL::Relocation<void(RE::BSGraphics::Renderer*, Args...)> func;
 			static inline bool installed = false;
@@ -298,52 +314,20 @@ namespace cs::engine
 			(a_context->*Draw)(a_args...);
 		}
 
-		// Command-buffer flushes precede records that bind their own state.
-		std::optional<DeferredDrawAnchorDecision> SelectDrawFlushDecision(std::uint32_t a_residualR9d) noexcept
-		{
-			if (!g_deferredDrawAnchorInstalled || t_drawRoute == DrawRoute::kNone || t_drawRoute == DrawRoute::kCommandBuffer)
-				return std::nullopt;
-			return SelectDeferredDrawAnchorDecision(
-				g_insideDeferredLightsImpl,
-				g_insideDeferredComposite,
-				t_drawRoute == DrawRoute::kTriShape,
-				a_residualR9d);
-		}
-
-		void OnDrawStateFlushed(bool a_outputStateOnly, bool a_compute, const std::optional<DeferredDrawAnchorDecision>& a_decision) noexcept
-		{
-			auto* rendererData = RE::BSGraphics::GetRendererData();
-			auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
-			if (t_drawRoute == DrawRoute::kNone) {
-				// Flush is output-only and RunComputeShader is compute; draws are neither.
-				if (!a_outputStateOnly && !a_compute)
-					RecordUndispatchedInjectedDraw(context);
-				return;
-			}
-			if (!a_decision)
-				return;
-			if (a_decision->dispatchFullscreenLightCallbacks)
-				Dispatch(g_preFullscreenDeferredLightDraw);
-			if (a_decision->dispatchInjections)
-				DispatchInjectionsForBoundPixelShader(context);
-		}
-
-		// The fourth argument is residual r9d state, not a call parameter.
 		struct SetDirtyStates_Hook
 		{
-			static void thunk(
-				bool a_outputStateOnly,
-				bool a_compute,
-				std::uint32_t,
-				std::uint32_t a_residualR9d)
+			static void thunk(bool a_outputStateOnly, bool a_compute)
 			{
-				const auto decision = SelectDrawFlushDecision(a_residualR9d);
-				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, decision && decision->dispatchInjections);
+				const bool dispatches = g_deferredDrawAnchorInstalled && t_drawRoute != DrawRoute::kNone && t_drawRoute != DrawRoute::kCommandBuffer;
+				const ScopedEngineDrawFlush flush(a_outputStateOnly, a_compute, dispatches);
 				func(a_outputStateOnly, a_compute);
-				if (g_drawProfilingInstalled)
+				if (g_drawProfilingInstalled && !a_outputStateOnly && !a_compute)
 					render::profiling::RecordDraw();
-				if (g_deferredDrawAnchorInstalled)
-					OnDrawStateFlushed(a_outputStateOnly, a_compute, decision);
+				if (dispatches) {
+					auto* rendererData = RE::BSGraphics::GetRendererData();
+					auto* context = rendererData ? reinterpret_cast<ID3D11DeviceContext*>(rendererData->context) : nullptr;
+					DispatchInjectionsForBoundPixelShader(context);
+				}
 			}
 			static inline REL::Relocation<decltype(&RE::BSGraphics::SetDirtyStates)> func;
 		};
@@ -353,8 +337,7 @@ namespace cs::engine
 			static void thunk(RE::BSGraphics::Renderer* a_this)
 			{
 				func(a_this);
-				InvalidateShaderInjectionBindings();
-				DispatchGuarded(g_postResetState, "Post reset state");
+				Dispatch(g_postResetState, "Post reset state");
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -364,12 +347,9 @@ namespace cs::engine
 			static void thunk()
 			{
 				MarkRegistrationClosed();
-				Dispatch(g_preDeferredComposite);
-				{
-					ScopedRenderPhase phase(g_insideDeferredComposite);
-					func();
-				}
-				Dispatch(g_postDeferredComposite);
+				Dispatch(g_preDeferredComposite, "Deferred composite pre");
+				func();
+				Dispatch(g_postDeferredComposite, "Deferred composite post");
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -379,9 +359,9 @@ namespace cs::engine
 			static void thunk()
 			{
 				MarkRegistrationClosed();
-				Dispatch(g_prePrecipitationOcclusion);
+				Dispatch(g_prePrecipitationOcclusion, "Precipitation occlusion pre");
 				func();
-				DispatchGuarded(g_postPrecipitationOcclusion, "Precipitation occlusion");
+				Dispatch(g_postPrecipitationOcclusion, "Precipitation occlusion post");
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -397,12 +377,12 @@ namespace cs::engine
 		{
 			static void thunk(RE::BSShadowDirectionalLight* a_this, std::uint32_t a_mask)
 			{
-				Dispatch(g_preShadowLightRender[static_cast<std::size_t>(ShadowLightKind::kDirectional)]);
+				Dispatch(g_preShadowLightRender[static_cast<std::size_t>(ShadowLightKind::kDirectional)], "Directional shadow light pre");
 				func(a_this, a_mask);
 				constexpr std::uint32_t kMainSunMask = 7;
 				if (a_mask == kMainSunMask && g_insideDeferredLightsImpl && a_this == GetSunShadowLight())
-					DispatchGuarded(g_postSunShadowRender, "Post sun shadow render");
-				Dispatch(g_postShadowLightRender[static_cast<std::size_t>(ShadowLightKind::kDirectional)]);
+					Dispatch(g_postSunShadowRender, "Post sun shadow render");
+				Dispatch(g_postShadowLightRender[static_cast<std::size_t>(ShadowLightKind::kDirectional)], "Directional shadow light post");
 			}
 			static inline REL::Relocation<void(RE::BSShadowDirectionalLight*, std::uint32_t)> func;
 		};
@@ -413,9 +393,9 @@ namespace cs::engine
 		{
 			static void thunk(Light* a_this, std::uint32_t a_mask)
 			{
-				Dispatch(g_preShadowLightRender[static_cast<std::size_t>(Kind)]);
+				Dispatch(g_preShadowLightRender[static_cast<std::size_t>(Kind)], "Local shadow light pre");
 				func(a_this, a_mask);
-				Dispatch(g_postShadowLightRender[static_cast<std::size_t>(Kind)]);
+				Dispatch(g_postShadowLightRender[static_cast<std::size_t>(Kind)], "Local shadow light post");
 			}
 			static inline REL::Relocation<void(Light*, std::uint32_t)> func;
 		};
@@ -429,7 +409,7 @@ namespace cs::engine
 				bool a_alpha)
 			{
 				func(a_accumulator, a_group, a_alpha);
-				Dispatch(g_postForwardSky);
+				Dispatch(g_postForwardSky, "Forward sky post");
 			}
 			static inline REL::Relocation<void(RE::BSShaderAccumulator*, std::uint32_t, bool)> func;
 		};
@@ -442,9 +422,9 @@ namespace cs::engine
 			static void Invoke(RE::BSGeometryListCullingProcess* a_cullingProcess)
 			{
 				MarkRegistrationClosed();
-				DispatchGuarded(g_preWaterUpdate, "Pre water update");
+				Dispatch(g_preWaterUpdate, "Pre water update");
 				original.load(std::memory_order_acquire)(a_cullingProcess);
-				DispatchGuarded(g_postWaterUpdate, "Post water update");
+				Dispatch(g_postWaterUpdate, "Post water update");
 			}
 
 			static void thunk(Callback a_callback)
@@ -477,6 +457,8 @@ namespace cs::engine
 			{
 				if (g_insideWorldPrepassBatch) {
 					for (auto& hold : g_prepassHolds) {
+						if (hold.owner && !hold.owner->IsHealthy())
+							continue;
 						if (hold.predicate(a_technique)) {
 							hold.held.push_back({ a_renderer, a_head, a_technique, a_alpha });
 							return false;
@@ -497,13 +479,14 @@ namespace cs::engine
 				for (auto& hold : g_prepassHolds) {
 					if (hold.held.empty())
 						continue;
-					const ScopedForeignWork work(true);
-					try {
-						hold.replay(hold.held);
-					} catch (const std::exception& e) {
-						L->error("Prepass hold replay failed: {}", e.what());
-					} catch (...) {
-						L->error("Prepass hold replay failed.");
+					const ScopedPassBoundary boundary;
+					if (!render::RunRenderCallback(hold.owner, "Prepass hold replay", [&] {
+							hold.replay(hold.held);
+						})) {
+						render::RunRenderCallback(nullptr, "Stock prepass replay", [&] {
+							for (const auto& bucket : hold.held)
+								ReplayHeldPrepassBucket(bucket);
+						});
 					}
 					hold.held.clear();
 				}
@@ -554,17 +537,26 @@ namespace cs::engine
 				g_resetStateInstalled, RE::ID::BSGraphics::Renderer::ResetState, "BSGraphics::Renderer::ResetState");
 		}
 
-		void EnsureForwardSkyInstalled()
+		bool EnsureForwardSkyInstalled()
 		{
 			if (g_forwardSkyInstalled) {
-				return;
+				return true;
 			}
-			const auto runtimeIdx = static_cast<std::uint8_t>(REX::FModule::GetRuntimeIndex());
-			constexpr std::ptrdiff_t offsets[] = { 0x2C9, 0x2D5, 0x2D5 };
-			stl::write_thunk_call<ForwardSkyGroup_Hook>(
-				RE::ID::DrawWorld::Forward.address() + offsets[runtimeIdx]);
+			const CallSiteAnchor anchor{
+				"DrawWorld::Forward cloud group",
+				RE::ID::DrawWorld::Forward,
+				{ 0x2C9, 0x2D5, 0x2D5 },
+				RE::ID::BSShaderAccumulator::RenderGeometryGroup
+			};
+			const auto site = ResolveCallSite(anchor);
+			if (!site) {
+				L->error("Forward sky hook unavailable: {}", site.error());
+				return false;
+			}
+			stl::write_thunk_call<ForwardSkyGroup_Hook>(*site);
 			g_forwardSkyInstalled = true;
 			L->info("Hook installed on DrawWorld::Forward cloud group call (post-sky boundary)");
+			return true;
 		}
 
 		bool EnsurePrecipitationOcclusionInstalled()
@@ -573,14 +565,10 @@ namespace cs::engine
 				g_precipitationOcclusionInstalled, RE::ID::Precipitation::RenderOcclusionMap, "Precipitation::RenderOcclusionMap");
 		}
 
-		void EnsureDeferredLightsImplInstalled()
+		bool EnsureDeferredLightsImplInstalled()
 		{
-			if (g_lightsImplInstalled) {
-				return;
-			}
-			stl::detour_thunk<DeferredLightsImpl_Hook>(RE::ID::DrawWorld::DeferredLightsImpl);
-			g_lightsImplInstalled = true;
-			L->info("Hook installed on DrawWorld::DeferredLightsImpl");
+			return EnsureDetourInstalled<DeferredLightsImpl_Hook>(
+				g_lightsImplInstalled, RE::ID::DrawWorld::DeferredLightsImpl, "DrawWorld::DeferredLightsImpl");
 		}
 
 		constexpr std::size_t kShadowRenderVtableSlot = 10;
@@ -615,6 +603,8 @@ namespace cs::engine
 
 		bool EnsureSunShadowRenderInstalled()
 		{
+			if (!EnsureDeferredLightsImplInstalled())
+				return false;
 			if (g_sunShadowRenderInstalled) {
 				return true;
 			}
@@ -625,8 +615,6 @@ namespace cs::engine
 					"BSShadowDirectionalLight")) {
 				return false;
 			}
-			// The inside-DeferredLightsImpl flag only flips while that hook is installed.
-			EnsureDeferredLightsImplInstalled();
 			return true;
 		}
 
@@ -651,24 +639,16 @@ namespace cs::engine
 			return false;
 		}
 
-		void EnsureDeferredPrePassInstalled()
+		bool EnsureDeferredPrePassInstalled()
 		{
-			if (g_prePassInstalled) {
-				return;
-			}
-			stl::detour_thunk<DeferredPrePass_Hook>(RE::ID::DrawWorld::DeferredPrePass);
-			g_prePassInstalled = true;
-			L->info("Hook installed on DrawWorld::DeferredPrePass");
+			return EnsureDetourInstalled<DeferredPrePass_Hook>(
+				g_prePassInstalled, RE::ID::DrawWorld::DeferredPrePass, "DrawWorld::DeferredPrePass");
 		}
 
-		void EnsureDeferredCompositeInstalled()
+		bool EnsureDeferredCompositeInstalled()
 		{
-			if (g_compositeInstalled) {
-				return;
-			}
-			stl::detour_thunk<DeferredComposite_Hook>(RE::ID::DrawWorld::DeferredComposite);
-			g_compositeInstalled = true;
-			L->info("Hook installed on DrawWorld::DeferredComposite");
+			return EnsureDetourInstalled<DeferredComposite_Hook>(
+				g_compositeInstalled, RE::ID::DrawWorld::DeferredComposite, "DrawWorld::DeferredComposite");
 		}
 
 		bool EnsurePrepassHoldInstalled()
@@ -702,10 +682,11 @@ namespace cs::engine
 					return false;
 				}
 			}
+			if (!EnsureDeferredPrePassInstalled())
+				return false;
 			stl::write_thunk_call<WorldPrepassBatches_Hook>(*batches);
 			stl::write_thunk_call<WorldOpaqueDecals_Hook>(*decals);
 			stl::write_thunk_call<PrepassBucket_Hook>(*bucket);
-			EnsureDeferredPrePassInstalled();
 			g_prepassHoldInstalled = true;
 			L->info("Hooks installed on world batch-4 render, bucket render and opaque decals (prepass hold)");
 			return true;
@@ -812,8 +793,6 @@ namespace cs::engine
 
 		void InstallDeferredDrawAnchor()
 		{
-			EnsureDeferredLightsImplInstalled();
-			EnsureDeferredCompositeInstalled();
 			if (g_deferredDrawAnchorInstalled) {
 				return;
 			}
@@ -849,106 +828,46 @@ namespace cs::engine
 		return RegistrationAllowed(a_where);
 	}
 
-	bool RegisterPostDeferredPrePass(RenderHookCallback callback, HookPriority priority, HookEffect effect)
+#define CS_DEFINE_RENDER_HOOK(name, point, ...)                                                 \
+	bool name(__VA_ARGS__ RenderHookCallback callback, HookPriority priority)                   \
+	{                                                                                           \
+		return Register(point, std::move(callback), priority, nullptr);                         \
+	}                                                                                           \
+	bool name(Feature& a_owner, __VA_ARGS__ RenderHookCallback callback, HookPriority priority) \
+	{                                                                                           \
+		return Register(point, std::move(callback), priority, &a_owner);                        \
+	}
+
+	CS_DEFINE_RENDER_HOOK(RegisterPostDeferredPrePass, g_postDeferredPrePass)
+	CS_DEFINE_RENDER_HOOK(RegisterPreDeferredPrePass, g_preDeferredPrePass)
+	CS_DEFINE_RENDER_HOOK(RegisterPreDeferredLightsImpl, g_preDeferredLightsImpl)
+	CS_DEFINE_RENDER_HOOK(RegisterPostDeferredLightsImpl, g_postDeferredLightsImpl)
+	CS_DEFINE_RENDER_HOOK(RegisterPreDeferredComposite, g_preDeferredComposite)
+	CS_DEFINE_RENDER_HOOK(RegisterPostDeferredComposite, g_postDeferredComposite)
+	CS_DEFINE_RENDER_HOOK(RegisterPreWaterUpdate, g_preWaterUpdate)
+	CS_DEFINE_RENDER_HOOK(RegisterPostWaterUpdate, g_postWaterUpdate)
+	CS_DEFINE_RENDER_HOOK(RegisterPreCommandBufferReplay, g_preCommandBufferReplay)
+	CS_DEFINE_RENDER_HOOK(RegisterPostCommandBufferReplay, g_postCommandBufferReplay)
+	CS_DEFINE_RENDER_HOOK(RegisterPreShadowLightRender, g_preShadowLightRender[static_cast<std::size_t>(a_kind)], ShadowLightKind a_kind, )
+	CS_DEFINE_RENDER_HOOK(RegisterPostShadowLightRender, g_postShadowLightRender[static_cast<std::size_t>(a_kind)], ShadowLightKind a_kind, )
+	CS_DEFINE_RENDER_HOOK(RegisterPostResetState, g_postResetState)
+	CS_DEFINE_RENDER_HOOK(RegisterPostForwardSky, g_postForwardSky)
+	CS_DEFINE_RENDER_HOOK(RegisterPostSunShadowRender, g_postSunShadowRender)
+	CS_DEFINE_RENDER_HOOK(RegisterPrePrecipitationOcclusion, g_prePrecipitationOcclusion)
+	CS_DEFINE_RENDER_HOOK(RegisterPostPrecipitationOcclusion, g_postPrecipitationOcclusion)
+
+#undef CS_DEFINE_RENDER_HOOK
+
+	static bool RegisterPrepassHold(
+		PrepassBucketPredicate a_predicate,
+		HeldPrepassBucketsCallback a_replay,
+		HookPriority a_priority,
+		Feature* a_owner)
 	{
-		if (!RegistrationAllowed("PostDeferredPrePass"))
+		if (!RegistrationAllowed("WorldPrepassHold") || !EnsurePrepassHoldInstalled())
 			return false;
-		InsertByPriority(g_postDeferredPrePass, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureDeferredPrePassInstalled();
+		InsertByPriority(g_prepassHolds, PrepassHold{ a_priority, a_predicate, std::move(a_replay), {}, a_owner });
 		return true;
-	}
-
-	bool RegisterPreDeferredPrePass(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PreDeferredPrePass"))
-			return false;
-		InsertByPriority(g_preDeferredPrePass, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureDeferredPrePassInstalled();
-		return true;
-	}
-
-	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PreDeferredLightsImpl"))
-			return false;
-		InsertByPriority(g_preDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureDeferredLightsImplInstalled();
-		return true;
-	}
-
-	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostDeferredLightsImpl"))
-			return false;
-		InsertByPriority(g_postDeferredLightsImpl, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureDeferredLightsImplInstalled();
-		return true;
-	}
-
-	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PreDeferredComposite"))
-			return false;
-		InsertByPriority(g_preDeferredComposite, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureDeferredCompositeInstalled();
-		return true;
-	}
-
-	bool RegisterPostDeferredComposite(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostDeferredComposite"))
-			return false;
-		InsertByPriority(g_postDeferredComposite, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureDeferredCompositeInstalled();
-		return true;
-	}
-
-	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PreWaterUpdate"))
-			return false;
-		InsertByPriority(g_preWaterUpdate, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureWaterUpdateInstalled();
-	}
-
-	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostWaterUpdate"))
-			return false;
-		InsertByPriority(g_postWaterUpdate, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureWaterUpdateInstalled();
-	}
-
-	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PreCommandBufferReplay"))
-			return false;
-		InsertByPriority(g_preCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureCommandBufferRouteInstalled();
-	}
-
-	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostCommandBufferReplay"))
-			return false;
-		InsertByPriority(g_postCommandBufferReplay, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureCommandBufferRouteInstalled();
-	}
-
-	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PreShadowLightRender"))
-			return false;
-		InsertByPriority(g_preShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureShadowLightRenderInstalled(a_kind);
-	}
-
-	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostShadowLightRender"))
-			return false;
-		InsertByPriority(g_postShadowLightRender[static_cast<std::size_t>(a_kind)], PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureShadowLightRenderInstalled(a_kind);
 	}
 
 	bool RegisterWorldPrepassHold(
@@ -956,10 +875,16 @@ namespace cs::engine
 		HeldPrepassBucketsCallback a_replay,
 		HookPriority a_priority)
 	{
-		if (!RegistrationAllowed("WorldPrepassHold") || !EnsurePrepassHoldInstalled())
-			return false;
-		InsertByPriority(g_prepassHolds, PrepassHold{ a_priority, a_predicate, std::move(a_replay), {} });
-		return true;
+		return RegisterPrepassHold(a_predicate, std::move(a_replay), a_priority, nullptr);
+	}
+
+	bool RegisterWorldPrepassHold(
+		Feature& a_owner,
+		PrepassBucketPredicate a_predicate,
+		HeldPrepassBucketsCallback a_replay,
+		HookPriority a_priority)
+	{
+		return RegisterPrepassHold(a_predicate, std::move(a_replay), a_priority, &a_owner);
 	}
 
 	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket)
@@ -975,54 +900,4 @@ namespace cs::engine
 		return true;
 	}
 
-	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostResetState"))
-			return false;
-		InsertByPriority(g_postResetState, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureResetStateInstalled();
-	}
-
-	bool RegisterPostForwardSky(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostForwardSky"))
-			return false;
-		InsertByPriority(g_postForwardSky, PrioritizedCallback{ priority, std::move(callback), effect });
-		EnsureForwardSkyInstalled();
-		return true;
-	}
-
-	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostSunShadowRender"))
-			return false;
-		InsertByPriority(g_postSunShadowRender, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsureSunShadowRenderInstalled();
-	}
-
-	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PrePrecipitationOcclusion"))
-			return false;
-		InsertByPriority(g_prePrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsurePrecipitationOcclusionInstalled();
-	}
-
-	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority, HookEffect effect)
-	{
-		if (!RegistrationAllowed("PostPrecipitationOcclusion"))
-			return false;
-		InsertByPriority(g_postPrecipitationOcclusion, PrioritizedCallback{ priority, std::move(callback), effect });
-		return EnsurePrecipitationOcclusionInstalled();
-	}
-
-	void RegisterPreFullscreenDeferredLightDraw(
-		RenderHookCallback callback,
-		HookPriority priority)
-	{
-		if (!RegistrationAllowed("PreFullscreenDeferredLightDraw"))
-			return;
-		InsertByPriority(g_preFullscreenDeferredLightDraw, PrioritizedCallback{ priority, std::move(callback) });
-		InstallDeferredDrawAnchor();
-	}
 }

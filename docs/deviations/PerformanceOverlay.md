@@ -6,6 +6,3 @@
 | Divergence | A/B snapshots include all settings | Only healthy, schema-declared live-effect fields | Activation, ownership and restart-only fields cannot change live |
 | Pending | Manual shader-family/Total toggles and captured TEST columns in the draw-call table | Family instrumentation is read-only | A live ownership bypass is not acceptable |
 
-## Upstream bugs
-
-- `PerformanceOverlay.cpp`: the measured-FG branch requires `!IsFrameGenerationActive()` inside an already-active block, so active FG always takes the 2x fallback; needs a real post-FG measurement.

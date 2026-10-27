@@ -40,6 +40,7 @@ namespace cs::feature_config
 		toml::table root;
 		FileLoadStatus status{ FileLoadStatus::kMissing };
 		std::string error;
+		std::vector<std::string> warnings;
 	};
 
 	std::string RenderDocument(const settings::Registry& a_registry, const toml::table& a_root);

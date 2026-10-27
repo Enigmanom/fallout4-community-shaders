@@ -1,4 +1,5 @@
 #include "ImageBasedLighting.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <d3d11.h>
@@ -87,7 +88,7 @@ namespace cs::features
 			return;
 		}
 		// FO4: vanilla never renders the reflections cube; the host does.
-		if (!engine::RegisterSkyReflectionCubeConsumer("ImageBasedLighting", [this] {
+		if (!engine::RegisterSkyReflectionCubeConsumer(*this, "ImageBasedLighting", [this] {
 				return IsEnabled() && _wantsSkyCube.load(std::memory_order_acquire);
 			})) {
 			FailLoad("Image Based Lighting needs the host sky reflection cube.");
@@ -188,11 +189,11 @@ namespace cs::features
 		return _frame;
 	}
 
-	render::IBLSettings ImageBasedLighting::GetCommonBufferData()
+	void ImageBasedLighting::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB&)
 	{
 		const auto& frame = EvaluateFrame();
 		const auto& settings = frame.settings;
-		return {
+		a_feature.iblSettings = {
 			.EnableIBL = frame.active ? 1u : 0u,
 			.PreserveFogLuminance = settings.PreserveFogLuminance ? 1u : 0u,
 			.UseStaticIBL = 0u,

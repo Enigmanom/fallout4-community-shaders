@@ -2,8 +2,6 @@
 
 #include "Render/ShaderInjectionTargets.h"
 
-#include <array>
-#include <bitset>
 #include <cstdint>
 
 struct ID3D11DeviceContext;
@@ -15,12 +13,8 @@ namespace cs::engine
 {
 	struct FrameBindingMetrics
 	{
-		std::uint64_t checks = 0;
-		std::uint64_t lost = 0;
-		std::uint64_t lostTotal = 0;
 		std::uint64_t skipped = 0;
-		std::array<std::bitset<128>, 3> resources;
-		std::array<std::bitset<14>, 3> buffers;
+		bool collect = false;
 	};
 
 	// Stage-dispatched context binds and reads; unknown stages are no-ops.
@@ -31,7 +25,8 @@ namespace cs::engine
 	void GetStageBindings(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11Buffer**) noexcept;
 	void GetStageBindings(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11SamplerState**) noexcept;
 
-	void ResetFrameBindings() noexcept;
+	// Starts a frame; metrics accumulate only when a_collectMetrics is set.
+	void ResetFrameBindings(bool a_collectMetrics = false) noexcept;
 	// Outputs or plugin GPU work may have unbound views; rebind on next use.
 	void InvalidateFrameBindings() noexcept;
 	// Advances on reset or invalidation; earlier outputs may be gone.
@@ -42,6 +37,4 @@ namespace cs::engine
 	// Binds only slots whose trusted binding differs; returns the D3D calls made.
 	std::uint32_t BindDrawShaderResources(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11ShaderResourceView* const*) noexcept;
 	std::uint32_t BindDrawConstantBuffers(ID3D11DeviceContext*, ShaderStage, std::uint32_t, std::uint32_t, ID3D11Buffer* const*) noexcept;
-	// Once per frame per target: read back tracked slots, distrust losses.
-	void VerifyFrameBindings(ID3D11DeviceContext*, ShaderStage, ShaderInjectionTarget) noexcept;
 }

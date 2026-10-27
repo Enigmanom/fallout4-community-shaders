@@ -1,4 +1,5 @@
 #include "ScreenSpaceGI.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <DirectXTex.h>
@@ -13,13 +14,13 @@
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
+#include "RE/D/DrawWorld.h"
 #include "Render/Annotation.h"
 #include "Render/CanonicalDepth.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
 #include "Render/ShaderInjection.h"
-#include "Render/ShaderVariantRuntimeResolver.h"
 #include "Render/SharedData.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
@@ -138,15 +139,10 @@ namespace cs::features
 			FailLoad("SSGI shader contribution registration failed.");
 			return;
 		}
-		cs::engine::RegisterPostDeferredLightsImpl([] { GetSingleton()->OnPostDeferredLights(); GetSingleton()->Prepass(); });
-		if (!cs::engine::RegisterPostDeferredPrePass([] { GetSingleton()->ApplyVanillaSSAO(); }))
+		cs::engine::RegisterPostDeferredLightsImpl(*this, [] { GetSingleton()->OnPostDeferredLights(); GetSingleton()->Prepass(); });
+		if (!cs::engine::RegisterPostDeferredPrePass(*this, [] { GetSingleton()->ApplyVanillaSSAO(); }))
 			L->warn("Vanilla SSAO control could not register; the engine's AO stays as configured.");
 		_started = true;
-	}
-
-	void ScreenSpaceGI::OnLoadingMenuClosed()
-	{
-		QueueReset("loading_screen_closed");
 	}
 
 	void ScreenSpaceGI::ApplyVanillaSSAO()
@@ -384,6 +380,8 @@ namespace cs::features
 		_cameraReady = false;
 		_tiledAvailable = false;
 		_motionAvailable = false;
+		if (cs::render::IsHistoryResetFrame())
+			QueueReset("loading_screen_closed");
 		if (!IsEnabled())
 			return;
 		if (_recompile && !CompileShaders()) {
@@ -395,7 +393,7 @@ namespace cs::features
 			return;
 		const auto camera = cs::engine::GetWorldCameraRecord();
 		_cameraReady = camera.has_value();
-		const bool tiled = cs::engine::QueryTiledLightingEnabled();
+		const bool tiled = RE::DrawWorld::QTiledLighting();
 		auto* manager = cs::engine::GetRenderTargetManager();
 		auto* depth = cs::render::GetCanonicalSceneDepthSRV();
 		auto* normals = cs::engine::GetRenderTargetSRV(RT::kGBufferNormal);
@@ -510,9 +508,9 @@ namespace cs::features
 		}
 	}
 
-	cs::ScreenSpaceGIFeatureData ScreenSpaceGI::GetCommonBufferData() const
+	void ScreenSpaceGI::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		return { .Enabled = IsEnabled() ? 1u : 0u };
+		a_fo4.EnabledScreenSpaceGI = 1u;
 	}
 
 	void ScreenSpaceGI::UpdateConsumer(bool a_enabled, bool a_tiled)

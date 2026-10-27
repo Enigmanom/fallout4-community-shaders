@@ -2,8 +2,47 @@
 #include "Render/SharedData.h"
 #include "Render/TemporalRendererInternals.h"
 
+#include <cmath>
+#include <cstdint>
+
 namespace cs::render
 {
+	namespace
+	{
+		enum class RenderUIOutputExtent : std::uint8_t
+		{
+			kInvalid,
+			kCommitted,
+			kFull
+		};
+
+		RenderUIOutputExtent ClassifyRenderUIOutputExtent(
+			float a_topLeftX,
+			float a_topLeftY,
+			float a_width,
+			float a_height,
+			std::uint32_t a_committedWidth,
+			std::uint32_t a_committedHeight,
+			std::uint32_t a_fullWidth,
+			std::uint32_t a_fullHeight) noexcept
+		{
+			const auto isNear = [](float a_value, std::uint32_t a_expected) {
+				return std::isfinite(a_value) &&
+				       std::abs(a_value - static_cast<float>(a_expected)) <= 0.5f;
+			};
+			if (!isNear(a_topLeftX, 0) || !isNear(a_topLeftY, 0) ||
+				!a_committedWidth || !a_committedHeight ||
+				!a_fullWidth || !a_fullHeight)
+				return RenderUIOutputExtent::kInvalid;
+			if (isNear(a_width, a_fullWidth) && isNear(a_height, a_fullHeight))
+				return RenderUIOutputExtent::kFull;
+			if (isNear(a_width, a_committedWidth) &&
+				isNear(a_height, a_committedHeight))
+				return RenderUIOutputExtent::kCommitted;
+			return RenderUIOutputExtent::kInvalid;
+		}
+	}
+
 	using namespace renderer_detail;
 
 	bool TemporalRenderer::PreflightExternalResolve(UpscaleMethod a_method)
@@ -213,14 +252,13 @@ namespace cs::render
 				providerResult =
 					render::TemporalPipeline::Get().EvaluateSuperResolution(
 						render::temporal::SuperResolutionMethod::kDLSS, request);
-			} else if (upscaleMethod == UpscaleMethod::kFSR ||
+			} else if (upscaleMethod == UpscaleMethod::kFSR3 ||
 					   upscaleMethod == UpscaleMethod::kFSR4) {
 				cs::render::annotation::ScopedEvent providerScope(
 					upscaleMethod == UpscaleMethod::kFSR4 ? "Upscaling::FSR4" : "Upscaling::FSR3");
 				providerResult =
 					render::TemporalPipeline::Get().EvaluateSuperResolution(
-						upscaleMethod == UpscaleMethod::kFSR4 ? render::temporal::SuperResolutionMethod::kFSR4 : render::temporal::SuperResolutionMethod::kFSR3,
-						request);
+						upscaleMethod, request);
 			}
 			upscaled = providerResult.CanPublishOutput();
 			providerSkipped =
@@ -357,7 +395,7 @@ namespace cs::render
 
 		const auto method = GetUpscaleMethod();
 		bool published = false;
-		if (method == UpscaleMethod::kFSR ||
+		if (method == UpscaleMethod::kFSR3 ||
 			method == UpscaleMethod::kFSR4) {
 			published = PublishUpscalingOutput(
 				context, frameBuffer.get(),
@@ -412,12 +450,12 @@ namespace cs::render
 		context->RSGetViewports(&viewportCount, &sourceViewport);
 		const auto [renderWidth, renderHeight] = GetRenderSize();
 		const auto outputExtent =
-			viewportCount == 1 ? cs::engine::ClassifyRenderUIOutputExtent(
+			viewportCount == 1 ? ClassifyRenderUIOutputExtent(
 									 sourceViewport.TopLeftX, sourceViewport.TopLeftY,
 									 sourceViewport.Width, sourceViewport.Height, renderWidth,
 									 renderHeight, frameBufferDesc.Width, frameBufferDesc.Height) :
-								 cs::engine::RenderUIOutputExtent::kInvalid;
-		if (outputExtent == cs::engine::RenderUIOutputExtent::kInvalid) {
+								 RenderUIOutputExtent::kInvalid;
+		if (outputExtent == RenderUIOutputExtent::kInvalid) {
 			_renderUiRecoverySourceWidth.store(0, std::memory_order_relaxed);
 			_renderUiRecoverySourceHeight.store(0, std::memory_order_relaxed);
 			_renderUiRecoveryPassthrough.store(false, std::memory_order_release);
@@ -426,7 +464,7 @@ namespace cs::render
 		}
 
 		const bool passthrough =
-			outputExtent == cs::engine::RenderUIOutputExtent::kFull;
+			outputExtent == RenderUIOutputExtent::kFull;
 		const auto sourceWidth = passthrough ? frameBufferDesc.Width : renderWidth;
 		const auto sourceHeight = passthrough ? frameBufferDesc.Height : renderHeight;
 		_renderUiRecoverySourceWidth.store(sourceWidth, std::memory_order_relaxed);

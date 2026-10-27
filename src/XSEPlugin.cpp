@@ -87,11 +87,11 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_f
 	const auto config = cs::feature_config::Initialize(std::move(registry));
 	if (!config.error.empty())
 		L->error("Settings initialization: {}", config.error);
+	for (const auto& warning : config.warnings)
+		L->warn("{}", warning);
 	toml::table loggingConfig;
 	if (const auto* logging = config.root["logging"].as_table()) {
 		loggingConfig = *logging;
-	} else if (config.root.contains("logging")) {
-		L->warn("Unified config [logging] must be a table; using logging defaults");
 	}
 	cs::log::ApplyConfigFromToml(loggingConfig);
 	const auto shaderOwnership =
