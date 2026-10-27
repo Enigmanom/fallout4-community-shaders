@@ -81,7 +81,7 @@ namespace cs::features
 			FailLoad("Volumetric Shadows needs the shared sun shadow light data");
 			return;
 		}
-		if (!cs::engine::RegisterPostSunShadowRender([this] { Produce(); })) {
+		if (!cs::engine::RegisterPostSunShadowRender(*this, [this] { Produce(); })) {
 			FailLoad("Volumetric Shadows needs the main sun shadow render hook");
 			return;
 		}

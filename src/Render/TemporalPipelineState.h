@@ -7,6 +7,7 @@
 #include <string_view>
 #include <utility>
 
+#include "Render/Extent.h"
 #include "Render/TemporalProvider.h"
 #include "Render/TemporalRenderSettings.h"
 
@@ -43,15 +44,6 @@ namespace cs::render::temporal
 						a_fg == FrameGenerationMethod::kDLSSG))
 		};
 	}
-
-	struct Extent
-	{
-		std::uint32_t width = 0;
-		std::uint32_t height = 0;
-
-		[[nodiscard]] bool IsValid() const noexcept { return width != 0 && height != 0; }
-		auto operator<=>(const Extent&) const = default;
-	};
 
 	struct RequestedTopology
 	{

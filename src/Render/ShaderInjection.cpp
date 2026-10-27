@@ -8,6 +8,7 @@
 #include "Render/NativeShaderFamily.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
+#include "Render/RuntimeCallback.h"
 #include "Render/ShaderFamilyDescriptor.h"
 #include "Render/ShaderVariantCompilation.h"
 #include "Render/SharedData.h"
@@ -400,6 +401,7 @@ namespace cs::engine
 			{
 				ShaderStageMask stages = 0;
 				ShaderInjectionBindCallback callback;
+				Feature* owner = nullptr;
 			};
 			std::vector<Bind> binds;
 			std::size_t contributors = 0;
@@ -761,7 +763,7 @@ namespace cs::engine
 					target.contributions.push_back(registration);
 					if (registration.bind) {
 						target.binds.push_back({ registration.stages,
-							registration.bind });
+							registration.bind, registration.feature ? registration.feature->GetRuntimeOwner() : nullptr });
 					}
 				}
 
@@ -1143,25 +1145,10 @@ namespace cs::engine
 			for (const auto& bind : a_target.binds) {
 				if ((bind.stages & ShaderStageBit(a_stage)) == 0)
 					continue;
-				try {
+				render::RunRenderCallback(bind.owner, kTargets[ToIndex(a_target.id)].name, [&] {
 					bind.callback(a_context);
 					Tally(runtime.dispatches);
-				} catch (const std::exception& e) {
-					CS_LOG_EVERY_MS(
-						L,
-						2000,
-						spdlog::level::warn,
-						"Shader injection for '{}' failed: {}.",
-						kTargets[ToIndex(a_target.id)].name,
-						e.what());
-				} catch (...) {
-					CS_LOG_EVERY_MS(
-						L,
-						2000,
-						spdlog::level::warn,
-						"Shader injection for '{}' failed.",
-						kTargets[ToIndex(a_target.id)].name);
-				}
+				});
 			}
 		}
 

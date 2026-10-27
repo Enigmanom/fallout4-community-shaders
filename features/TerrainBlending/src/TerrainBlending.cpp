@@ -18,6 +18,7 @@
 #include "RE/B/BSGeometry.h"
 #include "RE/B/BSRenderPass.h"
 #include "RE/B/BSShaderProperty.h"
+#include <REX/TScopeExit.h>
 
 #include <array>
 #include <d3d11.h>
@@ -144,7 +145,7 @@ namespace cs::features
 			return;
 		}
 		if (!cs::engine::RegisterWorldPrepassHold(
-				&Hold, [this](std::span<const cs::engine::HeldPrepassBucket> a_buckets) { Replay(a_buckets); })) {
+				*this, &Hold, [this](std::span<const cs::engine::HeldPrepassBucket> a_buckets) { Replay(a_buckets); })) {
 			FailLoad("Terrain Blending needs the world prepass bucket hold-back.");
 			return;
 		}
@@ -265,9 +266,9 @@ namespace cs::features
 	void TerrainBlending::DrawHeld(std::span<const cs::engine::HeldPrepassBucket> a_buckets, std::uint32_t a_pass)
 	{
 		g_replay.replaying = static_cast<ReplayPass>(a_pass);
+		const REX::TScopeExit restore{ []() noexcept { g_replay.replaying = kStock; } };
 		for (const auto& bucket : a_buckets)
 			cs::engine::ReplayHeldPrepassBucket(bucket);
-		g_replay.replaying = kStock;
 	}
 
 	void TerrainBlending::Replay(std::span<const cs::engine::HeldPrepassBucket> a_buckets)
@@ -290,12 +291,14 @@ namespace cs::features
 			return;
 		}
 		cs::render::annotation::ScopedEvent timing("TerrainBlending/Replay");
+		const REX::TScopeExit clear{ [context]() noexcept {
+			ID3D11ShaderResourceView* noView = nullptr;
+			ID3D11Buffer* noBuffer = nullptr;
+			cs::engine::BindFrameShaderResources(context, cs::engine::ShaderStage::kPixel, kObjectDepthSlot, 1, &noView);
+			cs::engine::BindFrameConstantBuffers(context, cs::engine::ShaderStage::kPixel, kReplayPassSlot, 1, &noBuffer);
+		} };
 		DrawHeld(a_buckets, kColor);
 		DrawHeld(a_buckets, kData);
-		ID3D11ShaderResourceView* noView = nullptr;
-		ID3D11Buffer* noBuffer = nullptr;
-		cs::engine::BindFrameShaderResources(context, cs::engine::ShaderStage::kPixel, kObjectDepthSlot, 1, &noView);
-		cs::engine::BindFrameConstantBuffers(context, cs::engine::ShaderStage::kPixel, kReplayPassSlot, 1, &noBuffer);
 	}
 
 	void TerrainBlending::BindReplayDraw(ID3D11DeviceContext* a_context) noexcept

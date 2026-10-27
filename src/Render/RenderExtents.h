@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Render/Engine.h"
+#include "Render/Extent.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -14,10 +15,8 @@ namespace cs::render
 		return std::min(a_extent, static_cast<std::uint32_t>(static_cast<float>(a_extent) * a_ratio));
 	}
 
-	struct ActiveExtentSnapshot
+	struct ActiveExtentSnapshot : Extent
 	{
-		std::uint32_t width = 0;
-		std::uint32_t height = 0;
 		float widthRatio = 1.0f;
 		float heightRatio = 1.0f;
 	};

@@ -139,8 +139,8 @@ namespace cs::features
 			FailLoad("SSGI shader contribution registration failed.");
 			return;
 		}
-		cs::engine::RegisterPostDeferredLightsImpl([] { GetSingleton()->OnPostDeferredLights(); GetSingleton()->Prepass(); });
-		if (!cs::engine::RegisterPostDeferredPrePass([] { GetSingleton()->ApplyVanillaSSAO(); }))
+		cs::engine::RegisterPostDeferredLightsImpl(*this, [] { GetSingleton()->OnPostDeferredLights(); GetSingleton()->Prepass(); });
+		if (!cs::engine::RegisterPostDeferredPrePass(*this, [] { GetSingleton()->ApplyVanillaSSAO(); }))
 			L->warn("Vanilla SSAO control could not register; the engine's AO stays as configured.");
 		_started = true;
 	}

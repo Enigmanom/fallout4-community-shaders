@@ -225,6 +225,7 @@ namespace cs::features
 		_registrationsReady.store(true, std::memory_order_release);
 
 		if (!cs::engine::RegisterPostDeferredPrePass(
+				*this,
 				[] { TerrainShadows::GetSingleton()->OnPostDeferredPrePass(); TerrainShadows::GetSingleton()->Prepass(); },
 				static_cast<cs::engine::HookPriority>(-200))) {
 			FailLoad(
@@ -1001,44 +1002,27 @@ namespace cs::features
 			return;
 		_prepassRuns.fetch_add(1, std::memory_order_relaxed);
 
-		// Render hooks do not catch callback exceptions.
-		try {
-			if (PollGameHourJump())
-				refreshGeneration.fetch_add(1, std::memory_order_release);
-			const auto requestedRefresh = refreshGeneration.load(std::memory_order_acquire);
-			const bool timeJump = requestedRefresh != _handledRefreshGeneration;
-			const auto* sky = RE::Sky::GetSingleton();
-			// FO4: a time-jump refresh waits for the sky to consume the requested hour.
-			const bool celestialReady = !timeJump || (sky && std::abs(sky->currentGameHour - _lastGameHour) < 1e-4f);
-			EnsureLiveResources(context);
+		if (PollGameHourJump())
+			refreshGeneration.fetch_add(1, std::memory_order_release);
+		const auto requestedRefresh = refreshGeneration.load(std::memory_order_acquire);
+		const bool timeJump = requestedRefresh != _handledRefreshGeneration;
+		const auto* sky = RE::Sky::GetSingleton();
+		// FO4: a time-jump refresh waits for the sky to consume the requested hour.
+		const bool celestialReady = !timeJump || (sky && std::abs(sky->currentGameHour - _lastGameHour) < 1e-4f);
+		EnsureLiveResources(context);
 
-			const bool enabled = IsEnabled() && _injectionsOperational.load(std::memory_order_acquire);
-			if (enabled && celestialReady && _mapLoaded.load(std::memory_order_acquire) && _shadowResourcesReady.load(std::memory_order_acquire)) {
-				const bool refresh = _pendingFullRefresh || timeJump;
-				if (UpdateShadow(context, refresh)) {
-					_pendingFullRefresh = false;
-					_handledRefreshGeneration = requestedRefresh;
-				} else
-					_pendingFullRefresh = _pendingFullRefresh || refresh;
-			} else if (timeJump) {
-				_pendingFullRefresh = true;
-			}
-			UpdateShadowStatistics(context);
-
-		} catch (const std::exception& e) {
-			CS_LOG_EVERY_MS(
-				L,
-				kMissingMapLogIntervalMs,
-				spdlog::level::err,
-				"Terrain shadow update failed: {}.",
-				e.what());
-		} catch (...) {
-			CS_LOG_EVERY_MS(
-				L,
-				kMissingMapLogIntervalMs,
-				spdlog::level::err,
-				"Terrain shadow update failed.");
+		const bool enabled = IsEnabled() && _injectionsOperational.load(std::memory_order_acquire);
+		if (enabled && celestialReady && _mapLoaded.load(std::memory_order_acquire) && _shadowResourcesReady.load(std::memory_order_acquire)) {
+			const bool refresh = _pendingFullRefresh || timeJump;
+			if (UpdateShadow(context, refresh)) {
+				_pendingFullRefresh = false;
+				_handledRefreshGeneration = requestedRefresh;
+			} else
+				_pendingFullRefresh = _pendingFullRefresh || refresh;
+		} else if (timeJump) {
+			_pendingFullRefresh = true;
 		}
+		UpdateShadowStatistics(context);
 	}
 
 	void TerrainShadows::Prepass()

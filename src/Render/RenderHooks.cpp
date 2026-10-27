@@ -5,6 +5,7 @@
 #include "Render/EngineCallSite.h"
 #include "Render/FrameProfiler.h"
 #include "Render/HookRegistry.h"
+#include "Render/RuntimeCallback.h"
 #include "Render/ShaderInjection.h"
 
 #include "RE/B/BSGeometry.h"
@@ -37,6 +38,7 @@ namespace cs::engine
 		{
 			HookPriority priority;
 			RenderHookCallback cb;
+			Feature* owner;
 		};
 
 		constexpr std::size_t kShadowLightKindCount = 3;
@@ -91,6 +93,7 @@ namespace cs::engine
 			PrepassBucketPredicate predicate;
 			HeldPrepassBucketsCallback replay;
 			std::vector<HeldPrepassBucket> held;
+			Feature* owner;
 		};
 
 		std::vector<PrepassHold> g_prepassHolds;
@@ -140,11 +143,11 @@ namespace cs::engine
 			return true;
 		}
 
-		bool Register(HookPoint& a_point, RenderHookCallback a_callback, HookPriority a_priority)
+		bool Register(HookPoint& a_point, RenderHookCallback a_callback, HookPriority a_priority, Feature* a_owner)
 		{
 			if (!RegistrationAllowed(a_point.name) || !a_point.ensureInstalled())
 				return false;
-			InsertByPriority(a_point.callbacks, PrioritizedCallback{ a_priority, std::move(a_callback) });
+			InsertByPriority(a_point.callbacks, PrioritizedCallback{ a_priority, std::move(a_callback), a_owner });
 			return true;
 		}
 
@@ -192,15 +195,8 @@ namespace cs::engine
 		void Dispatch(const HookPoint& a_point, const char* a_label) noexcept
 		{
 			const ScopedPassBoundary boundary{ a_point.passBoundary };
-			for (auto& entry : a_point.callbacks) {
-				try {
-					entry.cb();
-				} catch (const std::exception& e) {
-					L->error("{} callback failed: {}", a_label, e.what());
-				} catch (...) {
-					L->error("{} callback failed.", a_label);
-				}
-			}
+			for (const auto& entry : a_point.callbacks)
+				render::RunRenderCallback(entry.owner, a_label, entry.cb);
 		}
 
 		class PostDispatchScope
@@ -461,6 +457,8 @@ namespace cs::engine
 			{
 				if (g_insideWorldPrepassBatch) {
 					for (auto& hold : g_prepassHolds) {
+						if (hold.owner && !hold.owner->IsHealthy())
+							continue;
 						if (hold.predicate(a_technique)) {
 							hold.held.push_back({ a_renderer, a_head, a_technique, a_alpha });
 							return false;
@@ -482,12 +480,13 @@ namespace cs::engine
 					if (hold.held.empty())
 						continue;
 					const ScopedPassBoundary boundary;
-					try {
-						hold.replay(hold.held);
-					} catch (const std::exception& e) {
-						L->error("Prepass hold replay failed: {}", e.what());
-					} catch (...) {
-						L->error("Prepass hold replay failed.");
+					if (!render::RunRenderCallback(hold.owner, "Prepass hold replay", [&] {
+							hold.replay(hold.held);
+						})) {
+						render::RunRenderCallback(nullptr, "Stock prepass replay", [&] {
+							for (const auto& bucket : hold.held)
+								ReplayHeldPrepassBucket(bucket);
+						});
 					}
 					hold.held.clear();
 				}
@@ -829,64 +828,46 @@ namespace cs::engine
 		return RegistrationAllowed(a_where);
 	}
 
-	bool RegisterPostDeferredPrePass(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postDeferredPrePass, std::move(callback), priority);
+#define CS_DEFINE_RENDER_HOOK(name, point, ...)                                                 \
+	bool name(__VA_ARGS__ RenderHookCallback callback, HookPriority priority)                   \
+	{                                                                                           \
+		return Register(point, std::move(callback), priority, nullptr);                         \
+	}                                                                                           \
+	bool name(Feature& a_owner, __VA_ARGS__ RenderHookCallback callback, HookPriority priority) \
+	{                                                                                           \
+		return Register(point, std::move(callback), priority, &a_owner);                        \
 	}
 
-	bool RegisterPreDeferredPrePass(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_preDeferredPrePass, std::move(callback), priority);
-	}
+	CS_DEFINE_RENDER_HOOK(RegisterPostDeferredPrePass, g_postDeferredPrePass)
+	CS_DEFINE_RENDER_HOOK(RegisterPreDeferredPrePass, g_preDeferredPrePass)
+	CS_DEFINE_RENDER_HOOK(RegisterPreDeferredLightsImpl, g_preDeferredLightsImpl)
+	CS_DEFINE_RENDER_HOOK(RegisterPostDeferredLightsImpl, g_postDeferredLightsImpl)
+	CS_DEFINE_RENDER_HOOK(RegisterPreDeferredComposite, g_preDeferredComposite)
+	CS_DEFINE_RENDER_HOOK(RegisterPostDeferredComposite, g_postDeferredComposite)
+	CS_DEFINE_RENDER_HOOK(RegisterPreWaterUpdate, g_preWaterUpdate)
+	CS_DEFINE_RENDER_HOOK(RegisterPostWaterUpdate, g_postWaterUpdate)
+	CS_DEFINE_RENDER_HOOK(RegisterPreCommandBufferReplay, g_preCommandBufferReplay)
+	CS_DEFINE_RENDER_HOOK(RegisterPostCommandBufferReplay, g_postCommandBufferReplay)
+	CS_DEFINE_RENDER_HOOK(RegisterPreShadowLightRender, g_preShadowLightRender[static_cast<std::size_t>(a_kind)], ShadowLightKind a_kind, )
+	CS_DEFINE_RENDER_HOOK(RegisterPostShadowLightRender, g_postShadowLightRender[static_cast<std::size_t>(a_kind)], ShadowLightKind a_kind, )
+	CS_DEFINE_RENDER_HOOK(RegisterPostResetState, g_postResetState)
+	CS_DEFINE_RENDER_HOOK(RegisterPostForwardSky, g_postForwardSky)
+	CS_DEFINE_RENDER_HOOK(RegisterPostSunShadowRender, g_postSunShadowRender)
+	CS_DEFINE_RENDER_HOOK(RegisterPrePrecipitationOcclusion, g_prePrecipitationOcclusion)
+	CS_DEFINE_RENDER_HOOK(RegisterPostPrecipitationOcclusion, g_postPrecipitationOcclusion)
 
-	bool RegisterPreDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_preDeferredLightsImpl, std::move(callback), priority);
-	}
+#undef CS_DEFINE_RENDER_HOOK
 
-	bool RegisterPostDeferredLightsImpl(RenderHookCallback callback, HookPriority priority)
+	static bool RegisterPrepassHold(
+		PrepassBucketPredicate a_predicate,
+		HeldPrepassBucketsCallback a_replay,
+		HookPriority a_priority,
+		Feature* a_owner)
 	{
-		return Register(g_postDeferredLightsImpl, std::move(callback), priority);
-	}
-
-	bool RegisterPreDeferredComposite(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_preDeferredComposite, std::move(callback), priority);
-	}
-
-	bool RegisterPostDeferredComposite(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postDeferredComposite, std::move(callback), priority);
-	}
-
-	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_preWaterUpdate, std::move(callback), priority);
-	}
-
-	bool RegisterPostWaterUpdate(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postWaterUpdate, std::move(callback), priority);
-	}
-
-	bool RegisterPreCommandBufferReplay(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_preCommandBufferReplay, std::move(callback), priority);
-	}
-
-	bool RegisterPostCommandBufferReplay(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postCommandBufferReplay, std::move(callback), priority);
-	}
-
-	bool RegisterPreShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_preShadowLightRender[static_cast<std::size_t>(a_kind)], std::move(callback), priority);
-	}
-
-	bool RegisterPostShadowLightRender(ShadowLightKind a_kind, RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postShadowLightRender[static_cast<std::size_t>(a_kind)], std::move(callback), priority);
+		if (!RegistrationAllowed("WorldPrepassHold") || !EnsurePrepassHoldInstalled())
+			return false;
+		InsertByPriority(g_prepassHolds, PrepassHold{ a_priority, a_predicate, std::move(a_replay), {}, a_owner });
+		return true;
 	}
 
 	bool RegisterWorldPrepassHold(
@@ -894,10 +875,16 @@ namespace cs::engine
 		HeldPrepassBucketsCallback a_replay,
 		HookPriority a_priority)
 	{
-		if (!RegistrationAllowed("WorldPrepassHold") || !EnsurePrepassHoldInstalled())
-			return false;
-		InsertByPriority(g_prepassHolds, PrepassHold{ a_priority, a_predicate, std::move(a_replay), {} });
-		return true;
+		return RegisterPrepassHold(a_predicate, std::move(a_replay), a_priority, nullptr);
+	}
+
+	bool RegisterWorldPrepassHold(
+		Feature& a_owner,
+		PrepassBucketPredicate a_predicate,
+		HeldPrepassBucketsCallback a_replay,
+		HookPriority a_priority)
+	{
+		return RegisterPrepassHold(a_predicate, std::move(a_replay), a_priority, &a_owner);
 	}
 
 	void ReplayHeldPrepassBucket(const HeldPrepassBucket& a_bucket)
@@ -913,28 +900,4 @@ namespace cs::engine
 		return true;
 	}
 
-	bool RegisterPostResetState(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postResetState, std::move(callback), priority);
-	}
-
-	bool RegisterPostForwardSky(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postForwardSky, std::move(callback), priority);
-	}
-
-	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postSunShadowRender, std::move(callback), priority);
-	}
-
-	bool RegisterPrePrecipitationOcclusion(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_prePrecipitationOcclusion, std::move(callback), priority);
-	}
-
-	bool RegisterPostPrecipitationOcclusion(RenderHookCallback callback, HookPriority priority)
-	{
-		return Register(g_postPrecipitationOcclusion, std::move(callback), priority);
-	}
 }

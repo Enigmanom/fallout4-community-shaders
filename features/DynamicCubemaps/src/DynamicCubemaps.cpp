@@ -268,14 +268,14 @@ namespace cs::features
 
 		// FO4 vanilla never renders the reflections cube; the host does.
 		cs::engine::SetSkyReflectionCubeSize(static_cast<std::uint32_t>(_bootSettings.engineCubeSize));
-		if (!cs::engine::RegisterSkyReflectionCubeConsumer("DynamicCubemaps", [this] { return IsEnabled() &&
-			                                                                                  _resourcesReady.load(std::memory_order_acquire) &&
-			                                                                                  _injectionsOperational.load(std::memory_order_acquire); }, [this] { return _engineCubeLod.load(std::memory_order_acquire); })) {
+		if (!cs::engine::RegisterSkyReflectionCubeConsumer(*this, "DynamicCubemaps", [this] { return IsEnabled() &&
+			                                                                                         _resourcesReady.load(std::memory_order_acquire) &&
+			                                                                                         _injectionsOperational.load(std::memory_order_acquire); }, [this] { return _engineCubeLod.load(std::memory_order_acquire); })) {
 			L->warn("Sky reflection cube unavailable; reflections capture the sky from the scene.");
 		}
 
 		// FO4 draws the sky inside DrawWorld::Forward after the composite, so capture and publication follow it.
-		if (!cs::engine::RegisterPostForwardSky([] {
+		if (!cs::engine::RegisterPostForwardSky(*this, [] {
 				auto* feature = DynamicCubemaps::GetSingleton();
 				feature->UpdateCubemap();
 				feature->Prepass();

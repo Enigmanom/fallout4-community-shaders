@@ -320,12 +320,16 @@ namespace cs::render
 			const auto* graphics = engine::GetGraphicsState();
 			if (!graphics || !a_context || !IsSharedDataReady())
 				return;
-			if (state.debugFrame == graphics->frameCount && !a_refresh)
-				return;
 			if (state.debugSelectionFrame != graphics->frameCount) {
 				state.debugFeature = FeatureManager::Get().GetFullscreenDebugFeature();
 				state.debugSelectionFrame = graphics->frameCount;
 			}
+			if (state.debugFeature && !state.debugFeature->IsHealthy()) {
+				state.debugFeature = nullptr;
+				a_refresh = true;
+			}
+			if (state.debugFrame == graphics->frameCount && !a_refresh)
+				return;
 			auto debug = state.debugFeature ? state.debugFeature->GetFullscreenDebugData() : FullscreenDebugData{};
 			if (debug.mode == 0)
 				debug = {};

@@ -1618,8 +1618,8 @@ namespace cs::render
 	}
 
 	bool TemporalPipeline::RecordInputPacket(std::uint64_t a_engineFrame,
-		temporal::Extent a_renderExtent,
-		temporal::Extent a_outputExtent,
+		Extent a_renderExtent,
+		Extent a_outputExtent,
 		std::uint32_t a_slot) noexcept
 	{
 		if (a_slot >= _impl->frames.size()) {

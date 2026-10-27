@@ -88,7 +88,7 @@ namespace cs::features
 			return;
 		}
 		// FO4: vanilla never renders the reflections cube; the host does.
-		if (!engine::RegisterSkyReflectionCubeConsumer("ImageBasedLighting", [this] {
+		if (!engine::RegisterSkyReflectionCubeConsumer(*this, "ImageBasedLighting", [this] {
 				return IsEnabled() && _wantsSkyCube.load(std::memory_order_acquire);
 			})) {
 			FailLoad("Image Based Lighting needs the host sky reflection cube.");

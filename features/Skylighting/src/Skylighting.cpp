@@ -19,6 +19,7 @@
 #include <toml++/toml.hpp>
 
 #include "Log.h"
+#include "LogThrottle.h"
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
@@ -106,7 +107,7 @@ namespace cs::features
 			CaptureLog->info("hook {}: {} ({})", hook.name, hook.installed ? "installed" : "unavailable", hook.detail);
 			installed = installed && hook.installed;
 		}
-		const bool registered = cs::engine::RegisterPostPrecipitationOcclusion([this] { RenderOcclusion(); });
+		const bool registered = cs::engine::RegisterPostPrecipitationOcclusion(*this, [this] { RenderOcclusion(); });
 		CaptureLog->info("hook Precipitation::RenderOcclusionMap detour: {}", registered ? "installed" : "unavailable");
 		if (!installed || !registered) {
 			FailLoad("the precipitation occlusion capture hooks could not be installed");
@@ -125,11 +126,12 @@ namespace cs::features
 			return;
 		}
 		// FO4: the stock array holds the sun cascades until focus shadows reuse it.
-		if (!cs::engine::RegisterPostSunShadowRender([this] { CopySunCascades(); })) {
+		if (!cs::engine::RegisterPostSunShadowRender(*this, [this] { CopySunCascades(); })) {
 			FailLoad("Skylighting shadow history needs the main sun shadow render hook");
 			return;
 		}
 		if (!cs::engine::RegisterPreDeferredComposite(
+				*this,
 				[this] {
 					if (auto* context = cs::engine::GetImmediateContext())
 						RenderDebug(context);
@@ -397,8 +399,8 @@ namespace cs::features
 		const auto extent = cs::render::GetActiveExtent(graphics->screenWidth, graphics->screenHeight);
 		if (!extent.width || !extent.height)
 			return;
-		try {
-			if (!_debugTexture || _debugTexture->desc.Width != graphics->screenWidth || _debugTexture->desc.Height != graphics->screenHeight) {
+		if (!_debugTexture || _debugTexture->desc.Width != graphics->screenWidth || _debugTexture->desc.Height != graphics->screenHeight) {
+			try {
 				D3D11_TEXTURE2D_DESC desc{};
 				desc.Width = graphics->screenWidth;
 				desc.Height = graphics->screenHeight;
@@ -419,22 +421,26 @@ namespace cs::features
 				texture->CreateUAV(uav);
 				texture->SetName("Skylighting/Debug.Texture", "Skylighting/Debug.SRV", "Skylighting/Debug.UAV");
 				_debugTexture = std::move(texture);
+			} catch (const std::exception& e) {
+				CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Skylighting debug target unavailable: {}", e.what());
+				return;
+			} catch (...) {
+				CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Skylighting debug target unavailable.");
+				return;
 			}
-			cs::engine::ComputeOMScope scope(a_context, 2, 0, 1, 0);
-			cs::render::ScopedComputeSharedDataBinding substrate(a_context);
-			cs::render::annotation::ScopedEvent event("Skylighting/Debug", false);
-			ID3D11ShaderResourceView* srvs[]{ normals, _texProbeArray->srv.get() };
-			ID3D11UnorderedAccessView* uavs[]{ _debugTexture->uav.get() };
-			a_context->CSSetShaderResources(0, 2, srvs);
-			a_context->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
-			a_context->CSSetShader(shader, nullptr, 0);
-			a_context->Dispatch((extent.width + 7) / 8, (extent.height + 7) / 8, 1);
-			_debugFrameReady = true;
-			cs::render::InvalidateFullscreenDebugData();
-			_probeCounters.debugFrames.fetch_add(1, std::memory_order_relaxed);
-		} catch (const std::exception& e) {
-			L->warn("Skylighting debug rendering failed: {}", e.what());
 		}
+		cs::engine::ComputeOMScope scope(a_context, 2, 0, 1, 0);
+		cs::render::ScopedComputeSharedDataBinding substrate(a_context);
+		cs::render::annotation::ScopedEvent event("Skylighting/Debug", false);
+		ID3D11ShaderResourceView* srvs[]{ normals, _texProbeArray->srv.get() };
+		ID3D11UnorderedAccessView* uavs[]{ _debugTexture->uav.get() };
+		a_context->CSSetShaderResources(0, 2, srvs);
+		a_context->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+		a_context->CSSetShader(shader, nullptr, 0);
+		a_context->Dispatch((extent.width + 7) / 8, (extent.height + 7) / 8, 1);
+		_debugFrameReady = true;
+		cs::render::InvalidateFullscreenDebugData();
+		_probeCounters.debugFrames.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	FeatureDebugTexture Skylighting::GetOcclusionDebugTexture() const

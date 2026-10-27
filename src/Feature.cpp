@@ -31,17 +31,12 @@ namespace
 		Callback&& a_callback) noexcept
 	{
 		for (auto* feature : a_manager.GetAll()) {
-			if (!feature || !a_manager.PrepareRuntimeCallback(*feature, a_phase)) {
+			if (!feature) {
 				continue;
 			}
-
-			try {
+			a_manager.RunRuntimeCallback(*feature, a_phase, [&] {
 				a_callback(*feature);
-			} catch (const std::exception& e) {
-				a_manager.QuarantineRuntimeCallback(*feature, a_phase, e.what());
-			} catch (...) {
-				a_manager.QuarantineRuntimeCallback(*feature, a_phase, "non-standard exception");
-			}
+			});
 		}
 	}
 
@@ -200,7 +195,7 @@ namespace cs
 		if (a_feature.IsHealthy()) {
 			return PrepareRuntimeCallback(a_feature, a_phase);
 		}
-		return a_feature.GetState().runtimeState == FeatureRuntimeState::kInactive;
+		return a_feature._runtimeState.load(std::memory_order_acquire) == FeatureRuntimeState::kInactive;
 	}
 
 	void FeatureManager::QuarantineRuntimeCallback(
@@ -208,11 +203,10 @@ namespace cs
 		std::string_view a_phase,
 		std::string_view a_reason) noexcept
 	{
-		if (!a_feature.IsHealthy()) {
+		if (!a_feature.BeginRuntimeQuarantine()) {
 			return;
 		}
 
-		a_feature.SetRuntimeStateOnly(FeatureRuntimeState::kDegraded);
 		a_feature.OnRuntimeQuarantined(a_phase, a_reason);
 		try {
 			const auto phase = a_phase.empty() ? std::string_view("runtime callback") : a_phase.substr(0, 64);

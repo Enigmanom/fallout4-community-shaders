@@ -97,7 +97,7 @@ namespace cs::render
 		{
 			UpscaleMethod method = UpscaleMethod::kTAA;
 			temporal::SuperResolutionSizeRequest size;
-			temporal::RenderExtent render;
+			Extent render;
 
 			bool operator==(const ResourceConfiguration&) const noexcept = default;
 		};

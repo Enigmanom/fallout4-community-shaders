@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <exception>
+#include <mutex>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -54,11 +55,20 @@ namespace cs
 		spdlog::logger* Log() const;
 		virtual bool IsInstalled() const;
 
-		const FeatureState& GetState() const noexcept { return _state; }
-		bool IsActive() const noexcept { return _state.IsActive(); }
-		bool IsDegraded() const noexcept { return _state.IsDegraded(); }
-		bool IsHealthy() const noexcept { return _state.IsHealthy(); }
+		FeatureState GetState() const
+		{
+			std::scoped_lock lock(_stateMutex);
+			return { _desiredActive, _runtimeState.load(std::memory_order_acquire), _stateDetail };
+		}
+		bool IsActive() const noexcept
+		{
+			const auto state = _runtimeState.load(std::memory_order_acquire);
+			return state == FeatureRuntimeState::kActive || state == FeatureRuntimeState::kDegraded;
+		}
+		bool IsDegraded() const noexcept { return _runtimeState.load(std::memory_order_acquire) == FeatureRuntimeState::kDegraded; }
+		bool IsHealthy() const noexcept { return _runtimeState.load(std::memory_order_acquire) == FeatureRuntimeState::kActive; }
 		bool IsLoaded() const noexcept override { return _loaded; }
+		Feature* GetRuntimeOwner() const noexcept override { return const_cast<Feature*>(this); }
 
 		// Framework-owned live switch; opt-outs always report enabled.
 		virtual bool SupportsEnableToggle() const { return true; }
@@ -167,14 +177,30 @@ namespace cs
 	private:
 		friend class settings::SettingsEdit;
 		friend class FeatureManager;
-		void SetState(FeatureState a_state) { _state = std::move(a_state); }
+		void SetState(FeatureState a_state)
+		{
+			std::scoped_lock lock(_stateMutex);
+			_desiredActive = a_state.desiredActive;
+			_stateDetail = std::move(a_state.detail);
+			_runtimeState.store(a_state.runtimeState, std::memory_order_release);
+		}
 		void SetRuntimeState(FeatureRuntimeState a_state, std::string a_detail = {})
 		{
-			_state.runtimeState = a_state;
-			_state.detail = std::move(a_detail);
+			std::scoped_lock lock(_stateMutex);
+			_stateDetail = std::move(a_detail);
+			_runtimeState.store(a_state, std::memory_order_release);
 		}
-		void ApplyActivationResult(const ActivationResult& a_result) { _state.ApplyActivationResult(a_result); }
-		void SetRuntimeStateOnly(FeatureRuntimeState a_state) noexcept { _state.runtimeState = a_state; }
+		void ApplyActivationResult(const ActivationResult& a_result)
+		{
+			auto state = GetState();
+			state.ApplyActivationResult(a_result);
+			SetState(std::move(state));
+		}
+		bool BeginRuntimeQuarantine() noexcept
+		{
+			auto expected = FeatureRuntimeState::kActive;
+			return _runtimeState.compare_exchange_strong(expected, FeatureRuntimeState::kDegraded, std::memory_order_acq_rel);
+		}
 		void ComposeEnabledLiveSettings();
 		void ResetLoadFailure() noexcept
 		{
@@ -184,7 +210,10 @@ namespace cs
 		bool HasLoadFailed() const noexcept { return _loadFailed; }
 		const std::string& LoadFailureReason() const noexcept { return _loadFailureReason; }
 
-		FeatureState _state;
+		mutable std::mutex _stateMutex;
+		bool _desiredActive = false;
+		std::string _stateDetail;
+		std::atomic<FeatureRuntimeState> _runtimeState{ FeatureRuntimeState::kPending };
 		mutable spdlog::logger* _log = nullptr;
 		bool _loadFailed = false;
 		bool _loaded = false;
@@ -289,7 +318,10 @@ namespace cs
 		}
 		const std::vector<Feature*>& GetRegisteredFeatures() const noexcept { return _registeredFeatures; }
 		bool ApplyDebugViews(std::span<const FeatureDebugSelection> a_selections);
-		Feature* GetFullscreenDebugFeature() const noexcept { return _fullscreenDebugFeature.load(std::memory_order_acquire); }
+		Feature* GetFullscreenDebugFeature() const noexcept
+		{
+			return _fullscreenDebugFeature.load(std::memory_order_acquire);
+		}
 
 	private:
 		FeatureManager() = default;

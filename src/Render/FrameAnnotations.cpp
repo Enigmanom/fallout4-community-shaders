@@ -308,8 +308,11 @@ namespace cs::render::frame_annotations
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		template <class RegisterPre, class RegisterPost, class Name>
-		void BracketPass(RegisterPre a_pre, RegisterPost a_post, Name a_name, Gate a_gate = Gate::kAlways)
+		template <class Name>
+		void BracketPass(
+			bool (*a_pre)(engine::RenderHookCallback, engine::HookPriority),
+			bool (*a_post)(engine::RenderHookCallback, engine::HookPriority),
+			Name a_name, Gate a_gate = Gate::kAlways)
 		{
 			auto span = std::make_shared<annotation::SpannedEvent>();
 			// Post first: a pre without its post would leave the event open.

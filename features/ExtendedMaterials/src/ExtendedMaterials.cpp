@@ -106,9 +106,9 @@ namespace cs::features
 		const auto* graphics = cs::engine::GetGraphicsState();
 		if (!graphics || !ShadowsActive())
 			return;
-		try {
-			if (!_shadowTexture || _shadowTexture->desc.Width != graphics->screenWidth ||
-				_shadowTexture->desc.Height != graphics->screenHeight) {
+		if (!_shadowTexture || _shadowTexture->desc.Width != graphics->screenWidth ||
+			_shadowTexture->desc.Height != graphics->screenHeight) {
+			try {
 				D3D11_TEXTURE2D_DESC desc{};
 				desc.Width = graphics->screenWidth;
 				desc.Height = graphics->screenHeight;
@@ -125,13 +125,17 @@ namespace cs::features
 				DX::ThrowIfFailed(device->CreateRenderTargetView(texture->resource.get(), nullptr, texture->rtv.put()));
 				texture->SetName("ExtendedMaterials/ParallaxShadow.Texture", "ExtendedMaterials/ParallaxShadow.SRV", "", "ExtendedMaterials/ParallaxShadow.RTV");
 				_shadowTexture = std::move(texture);
+			} catch (const std::exception& e) {
+				CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Extended Materials parallax shadow target unavailable: {}", e.what());
+				return;
+			} catch (...) {
+				CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Extended Materials parallax shadow target unavailable.");
+				return;
 			}
-			const float lit[4]{ 1, 1, 1, 1 };
-			context->ClearRenderTargetView(_shadowTexture->rtv.get(), lit);
-			_shadowFrameReady = true;
-		} catch (const std::exception& e) {
-			CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Extended Materials parallax shadow target unavailable: {}", e.what());
 		}
+		const float lit[4]{ 1, 1, 1, 1 };
+		context->ClearRenderTargetView(_shadowTexture->rtv.get(), lit);
+		_shadowFrameReady = true;
 	}
 
 	void ExtendedMaterials::BindShadowTarget(ID3D11DeviceContext* a_context)
@@ -188,7 +192,7 @@ namespace cs::features
 			FailLoad("Extended Materials shader contribution registration failed.");
 			return;
 		}
-		if (!cs::engine::RegisterPostDeferredPrePass([this] {
+		if (!cs::engine::RegisterPostDeferredPrePass(*this, [this] {
 				if (auto* rendererData = RE::BSGraphics::GetRendererData())
 					PublishShadows(reinterpret_cast<ID3D11DeviceContext*>(rendererData->context));
 			})) {
