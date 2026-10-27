@@ -1003,6 +1003,7 @@ namespace cs::engine
 					settled = false;
 					if (!variant->pendingObserved.exchange(
 							true, std::memory_order_relaxed)) {
+						a_plan.compilationCache->Demand(compilation);
 						runtime.passthroughNotReady.fetch_add(
 							1, std::memory_order_relaxed);
 					}

@@ -70,6 +70,7 @@ namespace cs::engine
 
 		virtual std::shared_ptr<ShaderVariantCompilationHandle> Request(
 			ShaderVariantCompilationRequest a_request) = 0;
+		virtual void Demand(const std::shared_ptr<ShaderVariantCompilationHandle>& a_handle) = 0;
 		virtual void Invalidate() = 0;
 		virtual void Stop() noexcept = 0;
 	};

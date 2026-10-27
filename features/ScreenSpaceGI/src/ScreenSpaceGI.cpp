@@ -145,11 +145,6 @@ namespace cs::features
 		_started = true;
 	}
 
-	void ScreenSpaceGI::OnLoadingMenuClosed()
-	{
-		QueueReset("loading_screen_closed");
-	}
-
 	void ScreenSpaceGI::ApplyVanillaSSAO()
 	{
 		auto* sao = cs::engine::GetScalableAOCompute();
@@ -385,6 +380,8 @@ namespace cs::features
 		_cameraReady = false;
 		_tiledAvailable = false;
 		_motionAvailable = false;
+		if (cs::render::IsHistoryResetFrame())
+			QueueReset("loading_screen_closed");
 		if (!IsEnabled())
 			return;
 		if (_recompile && !CompileShaders()) {

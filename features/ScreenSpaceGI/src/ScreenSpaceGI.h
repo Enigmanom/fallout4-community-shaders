@@ -28,7 +28,6 @@ namespace cs::features
 		bool Configure(const toml::table&, std::string&) override;
 		void Load() override;
 		void Prepass() override;
-		void OnLoadingMenuClosed() override;
 		void OnEnabledChanged(bool) noexcept override { QueueReset("enabled_changed"); }
 		void OnD3D11Ready(IDXGIAdapter*, ID3D11Device*) override;
 		void DrawSettings() override;

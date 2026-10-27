@@ -4,6 +4,7 @@
 #include "PCH.h"
 #include "Render/Engine.h"
 #include "Render/RenderHooks.h"
+#include "Render/SharedData.h"
 
 #include <cstring>
 #include <mutex>
@@ -22,6 +23,8 @@ namespace cs::engine
 		{
 			std::scoped_lock lock(g_prepassCameraMutex);
 			const auto frame = GetFrameCount();
+			if (g_prepassFrame != frame)
+				render::LatchHistoryResetFrame();
 			if (g_prepassFrame != frame || !g_prepassCamera) {
 				g_prepassCamera = GetWorldCameraRecord();
 				g_prepassFrame = frame;

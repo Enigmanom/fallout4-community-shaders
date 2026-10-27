@@ -213,11 +213,6 @@ namespace cs::features
 		counter.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	void Skylighting::OnLoadingMenuClosed()
-	{
-		QueueReset(kResetLoad);
-	}
-
 	void Skylighting::OnD3D11Ready(IDXGIAdapter*, ID3D11Device* a_device)
 	{
 		// Typed UAV loads are optional in D3D11 and the probe update needs them.
@@ -463,38 +458,31 @@ namespace cs::features
 			LogCaptureSummary(state, changed ? spdlog::level::info : spdlog::level::debug);
 	}
 
+	Skylighting::CaptureState Skylighting::CaptureReadiness() const
+	{
+		if (!IsHealthy() || !IsEnabled() || !_occlusionDSV || !_probesReady.load(std::memory_order_acquire))
+			return CaptureState::kDisabled;
+		return cs::engine::IsInterior() ? CaptureState::kInterior : CaptureState::kCaptured;
+	}
+
 	Skylighting::CaptureState Skylighting::CaptureFrame()
 	{
-		if (!IsHealthy() || !_occlusionDSV || !_probesReady.load(std::memory_order_acquire)) {
-			_counters.skippedDisabled.fetch_add(1, std::memory_order_relaxed);
-			return CaptureState::kDisabled;
-		}
-		if (!IsEnabled()) {
-			_wasEnabled = false;
+		const auto readiness = CaptureReadiness();
+		if (readiness == CaptureState::kDisabled) {
+			if (!IsEnabled())
+				_wasEnabled = false;
 			_counters.skippedDisabled.fetch_add(1, std::memory_order_relaxed);
 			return CaptureState::kDisabled;
 		}
 		// Re-enabling must not show history from before the disabled stretch.
 		if (!std::exchange(_wasEnabled, true))
 			QueueReset(kResetEnable);
-		if (cs::engine::IsInterior()) {
+		if (readiness == CaptureState::kInterior) {
 			_counters.skippedInterior.fetch_add(1, std::memory_order_relaxed);
 			return CaptureState::kInterior;
 		}
 
-		if (const auto reasons = _queuedReset.exchange(0, std::memory_order_acq_rel)) {
-			ResetSkylighting(cs::engine::GetImmediateContext());
-			_probeCounters.resets.fetch_add(1, std::memory_order_relaxed);
-			if (reasons & kResetLoad)
-				_probeCounters.resetsLoad.fetch_add(1, std::memory_order_relaxed);
-			if (reasons & kResetRebuild)
-				_probeCounters.resetsRebuild.fetch_add(1, std::memory_order_relaxed);
-			if (reasons & kResetEnable)
-				_probeCounters.resetsEnable.fetch_add(1, std::memory_order_relaxed);
-			// FO4: capture can fail at load; the update waits for a fresh matrix.
-			_hasOcclusion = false;
-			_summaryPending = true;
-		}
+		ApplyQueuedReset();
 
 		// Clock reads only feed the summary log and telemetry.
 		const bool timed = cs::telemetry::pump::Enabled();
@@ -781,8 +769,31 @@ namespace cs::features
 		a_fo4.EnabledSkylighting = 1u;
 	}
 
+	void Skylighting::ApplyQueuedReset()
+	{
+		if (const auto reasons = _queuedReset.exchange(0, std::memory_order_acq_rel)) {
+			ResetSkylighting(cs::engine::GetImmediateContext());
+			_probeCounters.resets.fetch_add(1, std::memory_order_relaxed);
+			if (reasons & kResetLoad)
+				_probeCounters.resetsLoad.fetch_add(1, std::memory_order_relaxed);
+			if (reasons & kResetRebuild)
+				_probeCounters.resetsRebuild.fetch_add(1, std::memory_order_relaxed);
+			if (reasons & kResetEnable)
+				_probeCounters.resetsEnable.fetch_add(1, std::memory_order_relaxed);
+			// FO4: capture can fail at load; the update waits for a fresh matrix.
+			_hasOcclusion = false;
+			_summaryPending = true;
+		}
+	}
+
 	void Skylighting::Prepass()
 	{
+		// FO4 captures occlusion before the world-frame reset is latched.
+		if (cs::render::IsHistoryResetFrame()) {
+			QueueReset(kResetLoad);
+			if (CaptureReadiness() == CaptureState::kCaptured)
+				ApplyQueuedReset();
+		}
 		auto state = ProbeState::kDispatched;
 		if (!IsEnabled()) {
 			state = ProbeState::kDisabled;

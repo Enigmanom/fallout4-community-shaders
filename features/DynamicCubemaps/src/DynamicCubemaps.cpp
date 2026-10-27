@@ -345,11 +345,6 @@ namespace cs::features
 		return (a_reflections ? _reflections : _environment).srv.get();
 	}
 
-	void DynamicCubemaps::OnLoadingMenuClosed()
-	{
-		_queuedReset.store(true, std::memory_order_release);
-	}
-
 	void DynamicCubemaps::OnD3D11Ready(IDXGIAdapter*, ID3D11Device* a_device)
 	{
 		if (!_registrationsReady.load(std::memory_order_acquire) ||
@@ -817,7 +812,7 @@ namespace cs::features
 		_lastCallbackFrame = state->frameCount;
 		_lastCallbackFrameValid = true;
 
-		if (_queuedReset.exchange(false, std::memory_order_acq_rel)) {
+		if (_queuedReset.exchange(false, std::memory_order_acq_rel) || cs::render::IsHistoryResetFrame()) {
 			ResetCapture();
 		}
 		// Reset capture when game time jumps (wait menu, timescale changes, console commands).

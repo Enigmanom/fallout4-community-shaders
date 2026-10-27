@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <condition_variable>
-#include <deque>
 #include <exception>
+#include <list>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -287,14 +287,14 @@ namespace cs::engine
 
 			void Invalidate() override
 			{
-				std::deque<CompilationTask> invalidated;
+				std::list<CompilationTask> invalidated;
 				{
 					std::scoped_lock lock(_mutex);
 					if (_stopped)
 						return;
 					++_generation;
 					_entries.clear();
-					invalidated.swap(_queue);
+					invalidated = TakeQueuedTasks();
 				}
 				for (auto& task : invalidated) {
 					task.handle->Fail("shader compilation invalidated");
@@ -304,14 +304,14 @@ namespace cs::engine
 
 			void Stop() noexcept override
 			{
-				std::deque<CompilationTask> stopped;
+				std::list<CompilationTask> stopped;
 				{
 					std::scoped_lock lock(_mutex);
 					if (_stopped)
 						return;
 					_stopped = true;
 					_entries.clear();
-					stopped.swap(_queue);
+					stopped = TakeQueuedTasks();
 				}
 				for (auto& task : stopped) {
 					task.handle->Fail("shader compilation stopped");
@@ -323,7 +323,23 @@ namespace cs::engine
 				_workers.clear();
 			}
 
+			void Demand(const std::shared_ptr<ShaderVariantCompilationHandle>& a_handle) override
+			{
+				std::scoped_lock lock(_mutex);
+				const auto task = std::ranges::find(_queue, a_handle, &CompilationTask::handle);
+				if (task != _queue.end())
+					_demandedQueue.splice(_demandedQueue.end(), _queue, task);
+			}
+
 		private:
+			std::list<CompilationTask> TakeQueuedTasks()
+			{
+				std::list<CompilationTask> tasks;
+				tasks.splice(tasks.end(), _demandedQueue);
+				tasks.splice(tasks.end(), _queue);
+				return tasks;
+			}
+
 			void RunWorker(std::stop_token a_stopToken)
 			{
 				// As upstream; Normal starves the BelowNormal loading-screen thread.
@@ -336,12 +352,13 @@ namespace cs::engine
 							lock,
 							a_stopToken,
 							[this] {
-								return _stopped || !_queue.empty();
+								return _stopped || !_demandedQueue.empty() || !_queue.empty();
 							});
 						if (a_stopToken.stop_requested() || _stopped)
 							return;
-						task = std::move(_queue.front());
-						_queue.pop_front();
+						auto& queue = _demandedQueue.empty() ? _queue : _demandedQueue;
+						task = std::move(queue.front());
+						queue.pop_front();
 					}
 
 					ShaderVariantCompilationOutput output;
@@ -375,7 +392,8 @@ namespace cs::engine
 			std::condition_variable_any _condition;
 			std::uint64_t _generation = 1;
 			bool _stopped = false;
-			std::deque<CompilationTask> _queue;
+			std::list<CompilationTask> _queue;
+			std::list<CompilationTask> _demandedQueue;
 			std::unordered_map<
 				CompilationKey,
 				std::shared_ptr<AsyncShaderVariantCompilationHandle>,

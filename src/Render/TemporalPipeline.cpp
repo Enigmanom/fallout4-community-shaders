@@ -993,7 +993,7 @@ namespace cs::render
 		const auto& request = _impl->topology.Request();
 		if (request &&
 			(request->upscalingEligible || request->frameGenerationEligible)) {
-			_impl->renderer.InstallTemporalMenuListener();
+			_impl->renderer.InitializeTemporalState();
 		}
 	}
 

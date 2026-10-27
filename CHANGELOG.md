@@ -2,6 +2,8 @@
 
 ## 0.5.0
 
+- Shader cache: `max_size_mb` in `[shader_cache]` caps the disk cache (default 4096 MiB); least recently used shaders are removed first.
+- Unlocking the weather keeps the current weather instead of picking a new one.
 - Frame annotations: `diagnostics.frame_annotations` (Advanced > Diagnostics, restart required) names engine passes, draws and render targets in GPU captures; RenderDoc captures force it on while installed.
 - Performance Overlay: DeferredComposite timing.
 - Continue, Load, and New Game wait behind the main menu's loading spinner until shaders finish compiling, with a progress window when DearModdingUI is installed; set `background_compilation` in `[shader_cache]` to play while they compile. All shader variants now precompile at startup instead of as the game first draws them.

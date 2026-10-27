@@ -56,7 +56,7 @@ namespace cs::render
 		void CaptureFrameGenerationHudlessDebugSnapshot();
 		void CaptureFrameGenerationFinalDebugSnapshot();
 		void InstallTemporalHooks();
-		void InstallTemporalMenuListener();
+		void InitializeTemporalState();
 		void ClearFrameGenerationCaptureState() noexcept;
 		void QuarantineAfterException(const char* a_where) noexcept;
 		// Decided once per frame at the pre-UI seam; Present reads the latch.
@@ -413,15 +413,6 @@ namespace cs::render
 		{
 			static void thunk(RE::BSGraphics::Renderer* a_this, std::uint32_t a_arg);
 			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
-		class MenuOpenCloseEventHandler : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
-		{
-		public:
-			RE::BSEventNotifyControl ProcessEvent(
-				const RE::MenuOpenCloseEvent& a_event,
-				RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
-			static bool Register();
 		};
 
 		std::atomic_bool _resourcesReady{ false };

@@ -49,7 +49,6 @@ namespace cs::features
 		void Load() override;
 		void OnD3D11Ready(IDXGIAdapter* a_adapter, ID3D11Device* a_device) override;
 		bool ValidateShaderInjections(std::string& a_error) override;
-		void OnLoadingMenuClosed() override;
 		void Prepass() override;
 		void DrawSettings() override;
 		void RestoreDefaultSettings() override;
@@ -80,13 +79,14 @@ namespace cs::features
 			kFailed
 		};
 		CaptureState CaptureFrame();
+		CaptureState CaptureReadiness() const;
 		void CreateOcclusionResources(ID3D11Device* a_device);
 		void CreateProbeResources(ID3D11Device* a_device);
 		void CreateDebugResources();
 		FeatureDebugTexture GetOcclusionDebugTexture() const;
 		void LogCaptureSummary(CaptureState a_state, spdlog::level::level_enum a_level = spdlog::level::info);
 
-		// Reasons accumulate until the next exterior capture consumes them.
+		// Reasons accumulate until render-thread reset handling consumes them.
 		enum ResetReason : std::uint8_t
 		{
 			kResetLoad = 1,
@@ -94,6 +94,7 @@ namespace cs::features
 			kResetEnable = 4
 		};
 		void QueueReset(ResetReason a_reason) noexcept { _queuedReset.fetch_or(a_reason, std::memory_order_acq_rel); }
+		void ApplyQueuedReset();
 		void ResetSkylighting(ID3D11DeviceContext* a_context);
 
 		enum class ProbeState : std::uint8_t

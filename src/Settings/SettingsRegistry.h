@@ -34,10 +34,13 @@ namespace cs::settings
 		struct ShaderCache
 		{
 			bool backgroundCompilation = false;
+			std::uint32_t maxSizeMb = 4096;
 		};
 
 		inline constexpr Schema kShaderCache{
-			std::tuple{ Field{ "background_compilation", "Play while shaders compile instead of holding Continue, Load, and New Game until they finish; shaders not yet compiled render as stock.", &ShaderCache::backgroundCompilation, {}, ApplyTiming::kNextLaunch } }
+			std::tuple{
+				Field{ "background_compilation", "Play while shaders compile instead of holding Continue, Load, and New Game until they finish; shaders not yet compiled render as stock.", &ShaderCache::backgroundCompilation, {}, ApplyTiming::kNextLaunch },
+				Field{ "max_size_mb", "Maximum disk shader cache size in MiB.", &ShaderCache::maxSizeMb, Range{ 512u, 32768u }, ApplyTiming::kNextLaunch } }
 		};
 
 		struct Diagnostics

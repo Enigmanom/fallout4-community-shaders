@@ -33,6 +33,8 @@ namespace cs::render
 	namespace
 	{
 		auto* L = cs::log::Get("cs.render.shareddata");
+		std::atomic_bool g_historyResetRequested{ false };
+		std::atomic_uint64_t g_historyResetFrame{ UINT64_MAX };
 		struct SubstrateData
 		{
 			FrameDataCB frame{};
@@ -271,6 +273,7 @@ namespace cs::render
 				const float clamp = REX::FModule::IsRuntimeOG() ? (std::trunc(size * ratio.x) - 1.0f) / size : ratio.x - 0.5f / size;
 				data.frame = PackFrameData(*camera, ratio, previousRatio, ratio.x - clamp);
 				data.fo4.DeltaTime = delta;
+				data.shared.ResetHistory = IsHistoryResetFrame() ? 1u : 0u;
 				if (!WriteSubstrate(context, data)) {
 					CS_LOG_EVERY_MS(
 						L,
@@ -396,6 +399,25 @@ namespace cs::render
 	ID3D11SamplerState* GetLinearClampSampler() noexcept
 	{
 		return GetSubstrateState().linearClamp.get();
+	}
+
+	void RequestHistoryReset() noexcept
+	{
+		g_historyResetRequested.store(true, std::memory_order_release);
+	}
+
+	void LatchHistoryResetFrame() noexcept
+	{
+		const auto* graphics = engine::GetGraphicsState();
+		if (graphics && !engine::IsMainOrLoadingMenuOpen() &&
+			g_historyResetRequested.exchange(false, std::memory_order_acq_rel))
+			g_historyResetFrame.store(graphics->frameCount, std::memory_order_release);
+	}
+
+	bool IsHistoryResetFrame() noexcept
+	{
+		const auto* graphics = engine::GetGraphicsState();
+		return graphics && g_historyResetFrame.load(std::memory_order_acquire) == graphics->frameCount;
 	}
 
 	bool IsSharedDataReady() noexcept
