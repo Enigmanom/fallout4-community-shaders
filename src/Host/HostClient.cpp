@@ -4,6 +4,8 @@
 #include "Host/HostClientOptions.h"
 #include "Log.h"
 #include "Menu/Menu.h"
+#include "Menu/ProfilingRenderer.h"
+#include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
 #include "Plugin.h"
 #include "Settings/FeatureConfig.h"
@@ -383,6 +385,9 @@ namespace cs::host
 		case HostPageKind::kAdvanced:
 			Menu::Get().DrawAdvanced(_client);
 			break;
+		case HostPageKind::kProfiling:
+			ProfilingRenderer::RenderStatistics();
+			break;
 		case HostPageKind::kPresets:
 			Menu::Get().DrawPresets(_client);
 			break;
@@ -598,6 +603,12 @@ namespace cs::host
 						const dmui::DisabledScope disabled{ comparing };
 						DrawEnabledToggle(a_feature);
 						a_feature.DrawSettings();
+					}
+					const std::string name{ a_feature.GetName() };
+					if (ProfilingRenderer::HasFeatureTimers(name)) {
+						// FO4: a host section stands in for ImGui::SeparatorText.
+						if (const ui::Section section{ "feature-profiling", "Profiling" }; section)
+							ProfilingRenderer::RenderFeatureTimers(name);
 					}
 					a_feature.FlushSettings(true);
 				} catch (const std::exception& error) {

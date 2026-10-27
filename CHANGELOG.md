@@ -4,6 +4,7 @@
 
 - Frame annotations: `diagnostics.frame_annotations` (Advanced > Diagnostics, restart required) names engine passes, draws and render targets in GPU captures; RenderDoc captures force it on while installed.
 - Performance Overlay: DeferredComposite timing.
+- Profiling page and per-feature Profiling sections with Skyrim CS's stacked GPU/CPU pass graph and sortable heat tables; the overlay's CS Render Passes view uses the same graph.
 - Continue, Load, and New Game wait behind the main menu's loading spinner until shaders finish compiling, with a progress window when DearModdingUI is installed; set `background_compilation` in `[shader_cache]` to play while they compile. All shader variants now precompile at startup instead of as the game first draws them.
 - Community Shaders now disables itself with a message when the standalone Dynamic Cubemaps F4 mod is installed; it patches the same draw call.
 - Dynamic Cubemaps: `material_reflections` now defaults to 0.25.

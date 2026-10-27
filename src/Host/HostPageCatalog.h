@@ -13,6 +13,7 @@ namespace cs::host
 	{
 		kHome,
 		kAdvanced,
+		kProfiling,
 		kPresets,
 		kChangelog,
 		kFeature,

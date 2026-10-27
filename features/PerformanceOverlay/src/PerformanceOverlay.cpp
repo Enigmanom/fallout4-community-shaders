@@ -3,6 +3,7 @@
 #include "Host/HostClient.h"
 #include "Log.h"
 #include "Menu/Menu.h"
+#include "Menu/ProfilingRenderer.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
 #include "Render/FrameProfiler.h"
@@ -66,21 +67,23 @@ namespace cs::features
 			}
 		}
 
-		void SortHeader(std::span<const char* const> a_labels, int& a_column, bool& a_descending)
+		// Name columns sort A to Z first and metric columns slowest first.
+		template <std::size_t N>
+		std::array<Util::TableSortColumn, N> SortColumns(const char* const (&a_labels)[N])
 		{
-			dmui::ui::TableNextRow();
-			for (std::size_t i = 0; i < a_labels.size(); ++i) {
-				(void)dmui::ui::TableSetColumnIndex(static_cast<int>(i));
-				if (dmui::ui::Selectable(a_labels[i])) {
-					a_descending = a_column == static_cast<int>(i) ? !a_descending : true;
-					a_column = static_cast<int>(i);
-				}
-			}
+			std::array<Util::TableSortColumn, N> columns{};
+			for (std::size_t i = 0; i < N; ++i)
+				columns[i] = { a_labels[i], i ? dmui::ui::TableColumnFlags::kPreferSortDescending : dmui::ui::TableColumnFlags::kNone };
+			return columns;
 		}
 
 		template <class Row, class Metric>
-		void SortRows(std::vector<Row>& a_rows, int a_column, bool a_descending, Metric a_metric)
+		void SortRows(std::vector<Row>& a_rows, const Util::TableSortSpec& a_sort, Metric a_metric)
 		{
+			if (a_sort.column < 0)
+				return;
+			const int column = a_sort.column;
+			const bool descending = !a_sort.ascending;
 			std::ranges::stable_sort(a_rows, [&](const auto& a, const auto& b) {
 				if constexpr (requires { a.shaderType; }) {
 					if (a.shaderType < 0 || b.shaderType < 0) {
@@ -90,8 +93,8 @@ namespace cs::features
 					}
 				}
 				const auto left = a_metric(a), right = a_metric(b);
-				const int order = a_column == 0 ? a.label.compare(b.label) : (left > right) - (left < right);
-				return a_descending ? order > 0 : order < 0;
+				const int order = column == 0 ? a.label.compare(b.label) : (left > right) - (left < right);
+				return descending ? order > 0 : order < 0;
 			});
 		}
 
@@ -136,46 +139,6 @@ namespace cs::features
 				text += std::format(" ({:+.1f}%)", percent);
 			(void)dmui::DrawStyledText(host::HostClient::Get().Client(), text,
 				{ .tone = ComparisonTone(a_test, a_baseline) });
-		}
-
-		struct TimingRow
-		{
-			std::string label;
-			float average{}, p95{}, p99{}, percent{};
-		};
-
-		void DrawTimingTable(const char* a_id, std::vector<TimingRow> a_rows, int& a_sort, bool& a_descending)
-		{
-			if (!dmui::ui::BeginTable(a_id, 5))
-				return;
-			const char* labels[]{ "Feature / Pass", "Avg", "P95", "P99", "%" };
-			SortHeader(labels, a_sort, a_descending);
-			SortRows(a_rows, a_sort, a_descending, [a_sort](const auto& a_row) {
-				switch (a_sort) {
-				case 2:
-					return a_row.p95;
-				case 3:
-					return a_row.p99;
-				case 4:
-					return a_row.percent;
-				default:
-					return a_row.average;
-				}
-			});
-			for (const auto& row : a_rows) {
-				dmui::ui::TableNextRow();
-				(void)dmui::ui::TableSetColumnIndex(0);
-				dmui::ui::TextUnformatted(row.label.c_str());
-				const float values[]{ row.average, row.p95, row.p99, row.percent };
-				for (int i = 0; i < 4; ++i) {
-					(void)dmui::ui::TableSetColumnIndex(i + 1);
-					if (i == 3)
-						dmui::ui::Text("%.1f%%", values[i]);
-					else
-						DrawMilliseconds(values[i]);
-				}
-			}
-			dmui::ui::EndTable();
 		}
 
 		nlohmann::json SnapshotJson(const std::map<Feature*, toml::table>& a_snapshot)
@@ -510,9 +473,9 @@ namespace cs::features
 		if (!dmui::ui::BeginTable("ShaderTimings", 4))
 			return;
 		const char* labels[]{ "Shader Type", "Draw Calls", "Frame Time", "Cost/Call" };
-		SortHeader(labels, _drawSort, _drawDescending);
-		SortRows(rows, _drawSort, _drawDescending, [this](const auto& a_row) {
-			switch (_drawSort) {
+		const auto sort = Util::TableSortHeaders(SortColumns(labels), _drawSort);
+		SortRows(rows, sort, [&sort](const auto& a_row) {
+			switch (sort.column) {
 			case 1:
 				return static_cast<float>(a_row.drawCalls);
 			case 3:
@@ -541,54 +504,6 @@ namespace cs::features
 				dmui::ui::TextUnformatted("-");
 		}
 		dmui::ui::EndTable();
-	}
-
-	void PerformanceOverlay::DrawPasses()
-	{
-		const auto now = Util::GetNowSecs();
-		if (_statistics.empty() || now - _statisticsTime >= Settings::kStatisticsRefreshSeconds) {
-			_statistics = render::profiling::GetProfiler().GetStatistics();
-			_statisticsTime = now;
-		}
-		const auto& results = _statistics;
-		(void)dmui::ui::Checkbox("CPU timings", &_cpuTimings);
-		if (results.empty()) {
-			dmui::ui::TextDisabled("No timing data available (enter game world)");
-			return;
-		}
-		std::map<std::string, TimingRow> groups;
-		std::vector<TimingRow> passes;
-		float total{};
-		for (const auto& result : results) {
-			if (!result.valid)
-				continue;
-			const auto split = result.name.find("::");
-			const auto name = result.name.substr(0, split == std::string::npos ? result.name.find('/') : split);
-			TimingRow row{ result.name,
-				_cpuTimings ? result.cpuAvgMs : result.avgMs,
-				_cpuTimings ? result.cpuP95Ms : result.p95Ms,
-				_cpuTimings ? result.cpuP99Ms : result.p99Ms };
-			auto& group = groups[name];
-			group.label = name;
-			group.average += row.average;
-			group.p95 += row.p95;
-			group.p99 += row.p99;
-			total += row.average;
-			passes.push_back(std::move(row));
-		}
-		std::vector<TimingRow> summary;
-		for (auto& [name, group] : groups) {
-			(void)name;
-			group.percent = Percentage(group.average, total);
-			summary.push_back(group);
-		}
-		for (auto& row : passes)
-			row.percent = Percentage(row.average, total);
-		DrawTimingTable("CSFeatures", std::move(summary), _groupSort, _groupDescending);
-		DrawTimingTable("CSPasses", std::move(passes), _passSort, _passDescending);
-		dmui::ui::Text("CS total: %.3f GPU ms / %.3f CPU ms",
-			render::profiling::GetProfiler().GetTotalTimeMs(),
-			render::profiling::GetProfiler().GetCpuTotalTimeMs());
 	}
 
 	void PerformanceOverlay::DrawTestResults()
@@ -646,10 +561,10 @@ namespace cs::features
 		if (!dmui::ui::BeginTable("ABResults", 7))
 			return;
 		const char* labels[]{ "Shader Type", "A Avg", "B Avg", "Delta", "A Median", "B Median", "Median Delta" };
-		SortHeader(labels, _testSort, _testDescending);
+		const auto sort = Util::TableSortHeaders(SortColumns(labels), _testSort);
 		auto rows = _aggregator.GetAggregatedResults();
-		SortRows(rows, _testSort, _testDescending, [this](const auto& row) {
-			switch (_testSort) {
+		SortRows(rows, sort, [&sort](const auto& row) {
+			switch (sort.column) {
 			case 1:
 				return row.meanA;
 			case 2:
@@ -729,7 +644,7 @@ namespace cs::features
 			if (settings.ShowDrawCalls)
 				DrawDrawCalls(BuildRows());
 			if (settings.ShowCSPasses)
-				DrawPasses();
+				ProfilingRenderer::RenderStatistics(false, false);
 		}
 		DrawTestResults();
 	}

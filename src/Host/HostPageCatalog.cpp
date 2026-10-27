@@ -23,9 +23,10 @@ namespace cs::host
 			HostPageKind kind;
 		};
 
-		constexpr std::array<BuiltInPage, 4> kBuiltInPages{
+		constexpr std::array<BuiltInPage, 5> kBuiltInPages{
 			BuiltInPage{ "home", "Home", "", 0, HostPageKind::kHome },
 			BuiltInPage{ "advanced", "Advanced", "", 20, HostPageKind::kAdvanced },
+			BuiltInPage{ "profiling", "Profiling", "", 25, HostPageKind::kProfiling },
 			BuiltInPage{ "presets", "Presets", "", 30, HostPageKind::kPresets },
 			BuiltInPage{ "changelog", "Changelog", "", 40, HostPageKind::kChangelog }
 		};

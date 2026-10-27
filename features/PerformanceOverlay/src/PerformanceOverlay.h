@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Feature.h"
+#include "Menu/TableSort.h"
 #include "PerformanceOverlaySettings.h"
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/UI.h>
@@ -46,7 +47,6 @@ namespace cs::features
 		void AbortTest(std::string_view a_reason) noexcept;
 		void UpdateTest(double);
 		void DrawTestResults();
-		void DrawPasses();
 		void DrawDrawCalls(const std::vector<DrawCallRow>&);
 		void DrawGraph(const char*, const char*, const CircularBuffer<float>&, dmui::ui::Vec4 DMUI_ThemeColors::*);
 		static float OverlayContentWidth() noexcept;
@@ -66,12 +66,9 @@ namespace cs::features
 		Snapshot _baseline, _test;
 		ABTestAggregator _aggregator;
 		bool _testing{}, _variantB = true, _restorePending{};
-		int _testInterval{}, _passSort = 1, _drawSort = 2, _groupSort = 1, _testSort = 3;
-		bool _passDescending = true, _drawDescending = true, _groupDescending = true, _testDescending = true;
-		bool _cpuTimings{};
+		int _testInterval{};
+		Util::TableSortSpec _drawSort{ 2, false }, _testSort{ 3, false };
 		std::uint32_t _graphWarmup = Settings::kGraphWarmupFrames;
-		double _statisticsTime{};
-		std::vector<Profiler::TimerResult> _statistics;
 		std::string _testError;
 	};
 }
