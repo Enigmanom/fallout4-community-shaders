@@ -25,6 +25,7 @@
 - Disabling a feature's `enabled` toggle now skips its shader lookups for Skylighting, Screen Space Shadows, Terrain Shadows, Volumetric Shadows, Water Effects, Extended Materials parallax shadows and LOD Blending.
 - Lower CPU cost per injected draw: bindings are cached, Extended Materials skips unchanged target rebinds, draw counters run only with telemetry on, and per-shader timings run only while the Performance Overlay needs them.
 - Fixed an intermittent crash at startup while shaders compile.
+- Remote Control: Nsight Perf GPU counters per render pass ported from Skyrim CS (NVIDIA only, built with `--nvperf_sdk`); adds the `communityshaders.nvperf` tool and a panel on the Remote Control page.
 
 ## 0.4.1
 

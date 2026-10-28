@@ -23,7 +23,8 @@ namespace cs::features::remote_control
 			&kInspectTool,
 			&kShaderCacheTool,
 			&kSettingsTool,
-			&kCaptureTool
+			&kCaptureTool,
+			&kNvPerfTool
 		};
 
 		// No exception may cross the DLL boundary; write the result once.
@@ -83,6 +84,12 @@ namespace cs::features::remote_control
 		Json result{ { "error", std::move(a_message) } };
 		result.update(a_details);
 		return result;
+	}
+
+	std::string PathToUtf8(const std::filesystem::path& a_path)
+	{
+		const auto text = a_path.u8string();
+		return { text.begin(), text.end() };
 	}
 
 	Json OnFrame(std::function<Json()> a_task)

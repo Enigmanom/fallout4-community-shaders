@@ -54,7 +54,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Linear Lighting | N/A | Shared-color compatibility (done), optional calibration controls | N/A: linearization (FO4 is linear), ENB | Substrate | L | S | High |
 | [LOD Blending](deviations/LODBlending.md) | Core | Terrain/object LOD brightness-gamma, terrain/grass vertex-color removal | N/A: snow-LOD | Pt | H | S | High |
 | [Performance Overlay](deviations/PerformanceOverlay.md) | Core | FPS/VRAM/frame/draw diagnostics, A/B comparison, family/total toggles, history plots, FG timing labels | — | Pt | H | M | High |
-| [Remote Control](deviations/RemoteControl.md) | Core | DevBench C-ABI bridge; feature, settings, inspection, shader-cache and RenderDoc capture tools and events; NvPerf tool and screenshot capture pending | — | Pt | H | M | High |
+| [Remote Control](deviations/RemoteControl.md) | Core | DevBench C-ABI bridge; feature, settings, inspection, shader-cache and RenderDoc capture and NvPerf tools and events; screenshot capture pending | — | Pt | H | M | High |
 | [Screen Space GI](deviations/ScreenSpaceGI.md) | Core | AO, GI, temporal, specular GI, vertex AO (relocated), provider wiring | — | Pt | H | M | High |
 | [Screen-Space Shadows](deviations/ScreenSpaceShadows.md) | Core | Bend raymarch, direct/back visibility, tree/alpha/secondary receivers, preview/telemetry | — | Pt | H | M | High |
 | Screenshot | Core | SDR/crop/async/clipboard, temporal source, HDR PNG (needs HDR Display) | — | NS | M | M | High |
@@ -118,7 +118,7 @@ Ordered by user value over effort, respecting dependencies.
    Shadows producer + DFLight (M); Hair Specular opaque slices (M); Grass Collision (M, actor-bounds RE).
 6. **RE-gated:** Interior Sun.
 7. **Providers:** LLF light-limit visualization; then provider adapters in DC/SSGI.
-8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; CS Editor; Screenshot (then Remote Control screenshot capture); Remote Control NvPerf; HDR Display (L).
+8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; CS Editor; Screenshot (then Remote Control screenshot capture); HDR Display (L).
 
 ## Extension slices
 

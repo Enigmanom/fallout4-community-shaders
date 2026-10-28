@@ -10,4 +10,4 @@
 | Divergence | `inspect shadercache` reports the compile set and `currentFailedCount`; `shaderRecompiled` fires when the set ends | Reports the running runtime compile batch and disk-cache counters, no `currentFailedCount`; the event fires per batch | FO4 compiles variants on demand |
 | Divergence | No debug-view selection | `feature debugView` selects a feature debug view live, not persisted | Validation switches views without a restart |
 | N/A | `capture screenshot` | Returns `screenshot feature not available` | FO4 has no Screenshot feature |
-| Pending | `communityshaders.nvperf` tool and `nvperf.completed` event | Not ported | |
+| Divergence | Nsight Perf is a CMake option and loads `nvperf_grfx_host.dll` from `Data/SKSE/Plugins/CommunityShaders/NvPerf` | The xmake option `nvperf_sdk` stages the DLL in `Data/F4SE/Plugins/FO4CommunityShaders/NvPerf` | FO4 plugin layout and build system |
