@@ -6,8 +6,11 @@
 #include <cmath>
 #include <fstream>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <system_error>
+#include <tuple>
+#include <vector>
 
 namespace cs::settings
 {
@@ -204,6 +207,11 @@ namespace cs::feature_config
 			if (!input.bad() && existing == a_text)
 				return { .success = true };
 			input.close();
+			try {
+				std::ignore = toml::parse(a_text);
+			} catch (const toml::parse_error& error) {
+				return WriteError(a_path, "refusing to write an unparseable document: " + std::string(error.description()));
+			}
 			const auto write = WriteText(a_path, a_text);
 			if (!write)
 				return write;
@@ -252,7 +260,11 @@ namespace cs::feature_config
 	std::string RenderDocument(const settings::Registry& a_registry, const toml::table& a_root)
 	{
 		std::string output = "# FO4 Community Shaders settings. Uncomment a line to change it; the in-game menu writes this file.\n";
+		std::set<std::vector<std::string>> rendered;
 		for (const auto& section : a_registry) {
+			// A repeated table header is invalid TOML.
+			if (!rendered.insert(section.path).second)
+				continue;
 			const auto* table = FindTable(a_root, std::span{ section.path });
 			output += "\n[" + FormatPath(section.path) + "]\n";
 			if (!section.description.empty())
@@ -333,6 +345,14 @@ namespace cs::feature_config
 			std::scoped_lock lock(store.mutex);
 			if (a_keepOnFailure && (loaded.status == FileLoadStatus::kParseError || loaded.status == FileLoadStatus::kIoError))
 				return { store.root, loaded.status, loaded.error };
+			std::string duplicate;
+			{
+				std::set<std::vector<std::string>> paths;
+				for (const auto& section : a_registry) {
+					if (!paths.insert(section.path).second)
+						duplicate = FormatPath(section.path);
+				}
+			}
 			store.registry = std::move(a_registry);
 			store.path = a_path;
 			store.readError = loaded.error;
@@ -343,6 +363,8 @@ namespace cs::feature_config
 				const auto written = WriteIfChanged(a_path, document);
 				error = written.error;
 			}
+			if (!duplicate.empty() && error.empty())
+				error = "settings section [" + duplicate + "] is registered more than once";
 			return { store.root, loaded.status, std::move(error) };
 		}
 	}

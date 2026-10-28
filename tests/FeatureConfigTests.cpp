@@ -310,6 +310,43 @@ namespace
 		CHECK(!reloaded.Get("0x2a~dlccoast.esm"));
 	}
 
+	// A section that exists only as hand-written comments must keep one header after a save.
+	void TestCommentedSectionSave(const Registry& a_registry, const std::filesystem::path& a_path)
+	{
+		WriteFile(a_path,
+			"[features.CloudShadows]\nload = true\n# enabled = true\n\n"
+			"[features.CloudShadows.settings]\n# Higher values make cloud shadows darker.\n# Opacity = 0.5\n\n"
+			"[features.LODBlending]\nload = true\n");
+		CHECK(InitializeAt(a_path, a_registry).error.empty());
+		constexpr std::array path{
+			std::string_view("features"), std::string_view("CloudShadows"), std::string_view("settings")
+		};
+		CHECK(UpdateOwnedSettingsAt(a_path, path, toml::parse("Opacity = 2.3\n")));
+		const auto saved = ReadFile(a_path);
+		const std::string header = "[features.CloudShadows.settings]";
+		std::size_t headers = 0;
+		for (auto at = saved.find(header); at != std::string::npos; at = saved.find(header, at + header.size()))
+			++headers;
+		CHECK(headers == 1);
+		CHECK(saved.find("# Opacity\nOpacity = 2.3\n") != std::string::npos);
+		const auto loaded = LoadFile(a_path);
+		CHECK(loaded.status == FileLoadStatus::kParsed);
+		CHECK(loaded.table["features"]["CloudShadows"]["settings"]["Opacity"].value<double>() == 2.3);
+		CHECK(loaded.table["features"]["CloudShadows"]["load"].value<bool>() == true);
+
+		// A section registered twice must neither emit a repeated header nor leave a broken file.
+		auto duplicated = a_registry;
+		const auto settings = std::ranges::find(duplicated, std::vector<std::string>(path.begin(), path.end()), &Section::path);
+		CHECK(settings != duplicated.end());
+		duplicated.push_back(*settings);
+		const auto reloaded = InitializeAt(a_path, duplicated);
+		CHECK(reloaded.error.find("registered more than once") != std::string::npos);
+		CHECK(UpdateOwnedSettingsAt(a_path, path, toml::parse("Opacity = 1.5\n")));
+		const auto repeated = ReadFile(a_path);
+		CHECK(repeated.find(header) != std::string::npos && repeated.find(header) == repeated.rfind(header));
+		CHECK(LoadFile(a_path).table["features"]["CloudShadows"]["settings"]["Opacity"].value<double>() == 1.5);
+	}
+
 	void TestInvalidDocument(const Registry& a_registry, const std::filesystem::path& a_path)
 	{
 		const std::string invalid = "[features.ScreenSpaceShadows\nload = true\n";
@@ -427,6 +464,7 @@ int main()
 		TestRegistry(registry);
 		TestDocument(registry, directory / "settings.toml");
 		TestInvalidDocument(registry, directory / "invalid.toml");
+		TestCommentedSectionSave(registry, directory / "commented.toml");
 		TestWeatherProfiles(registry, directory / "weather.toml");
 		TestLiveSettings();
 		TestLightAuthoring();
