@@ -410,7 +410,7 @@ namespace
 	{
 		namespace slots = cs::features::cloud_shadows_shader;
 		std::string error;
-		// The host binds the face depth for the cloud reject and a third output for the cube.
+		// The host binds the face depth, the cube output and the layer output.
 		const auto sky = Reflect(a_root, "Sky.hlsl", { { "BSSKY_PIXEL_SHADER", "1" }, { "PSHADER", "1" }, { "TEX", "1" }, { "CLOUDS", "1" }, { "CLOUD_SHADOWS", "1" } }, "ps_5_0", error);
 		if (!sky)
 			return error;

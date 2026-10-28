@@ -319,7 +319,7 @@ namespace cs::engine
 
 		thread_local const RE::BSRenderPass* t_skyPass = nullptr;
 
-		// Sky draws follow their pass's SetupGeometry, so the draw hooks can read the pass.
+		// A sky draw follows its SetupGeometry, so draw hooks can read the pass.
 		struct SkySetupGeometryHook
 		{
 			static constexpr std::size_t size = 0x07;

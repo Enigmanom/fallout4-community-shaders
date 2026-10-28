@@ -44,7 +44,7 @@ namespace cs::engine
 	// Start of Render_PreUI, before the world camera or frame targets are set.
 	bool RegisterPreWaterUpdate(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
 
-	// After every ImageSpace effect and the resolve, before the UI: the final scene image.
+	// After the ImageSpace effects and resolve, before the UI.
 	bool RegisterPostImagespace(RenderHookCallback callback, HookPriority priority = HookPriority::Default);
 
 	// After all sky and cloud draws in the main color target, before water and alpha.

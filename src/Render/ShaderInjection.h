@@ -83,7 +83,7 @@ namespace cs::engine
 	void BindInjectionSamplers(ID3D11DeviceContext*, UINT, UINT, ID3D11SamplerState* const*) noexcept;
 	void BindInjectionConstantBuffers(ID3D11DeviceContext*, UINT, UINT, ID3D11Buffer* const*) noexcept;
 	void CaptureShaderInjectionOutputs(ID3D11DeviceContext*) noexcept;
-	// Rebinds a frame-bound PS slot for this draw only; needs the draw scope, which restores it.
+	// Overrides a frame-bound PS slot for one draw; the draw scope restores it.
 	void OverrideInjectionFrameShaderResource(ID3D11DeviceContext*, UINT, ID3D11ShaderResourceView*) noexcept;
 
 	class ScopedShaderInjectionBindings
@@ -94,7 +94,7 @@ namespace cs::engine
 		ScopedShaderInjectionBindings(const ScopedShaderInjectionBindings&) = delete;
 		ScopedShaderInjectionBindings& operator=(const ScopedShaderInjectionBindings&) = delete;
 		ShaderStage GetStage() const noexcept { return _stage; }
-		// a_frameOwned captures a slot the host binds per frame, past the engine range.
+		// a_frameOwned captures a per-frame host slot above the engine range.
 		void Capture(ID3D11DeviceContext* a_context, ShaderResourceType a_type, std::uint32_t a_slot, bool a_frameOwned = false) noexcept;
 		void BindSampler(ID3D11DeviceContext* a_context, std::uint32_t a_slot, ID3D11SamplerState* a_sampler) noexcept;
 

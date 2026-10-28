@@ -22,7 +22,7 @@ namespace cs::engine
 	// Render thread. Null unless all six faces are fresh.
 	[[nodiscard]] ID3D11ShaderResourceView* GetSkyReflectionCubeSRV() noexcept;
 
-	// Render thread. The engine cube texture, for resources that mirror its shape.
+	// Render thread. The engine cube texture, to mirror its shape.
 	[[nodiscard]] ID3D11Texture2D* GetSkyReflectionCubeTexture() noexcept;
 
 	struct SkyReflectionCubeCapture

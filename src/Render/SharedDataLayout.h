@@ -100,7 +100,7 @@ namespace cs::render
 		std::uint32_t pad0 = 0;
 		// Engine DALC rows, so vanilla ambient replays exactly beside the linear SH.
 		DirectX::XMFLOAT4 DirectionalAmbient[3]{};
-		// Unit direction toward the drawn sun disc; the light direction when it is unavailable.
+		// Unit direction to the drawn sun disc; the light's if unavailable.
 		DirectX::XMFLOAT4 SunDiscDirection{};
 	};
 	static_assert(sizeof(FO4SharedDataCB) == 128);

@@ -40,7 +40,7 @@ namespace cs::engine
 		const auto* sky = RE::Sky::GetSingleton();
 		if (!sky || !sky->root || !sky->sun || !sky->sun->root)
 			return false;
-		// The sky root sits at the camera, so the sun root's offset from it is the disc direction.
+		// The sky root sits at the camera; the sun root's offset is the disc.
 		const auto offset = sky->sun->root->world.translate - sky->root->world.translate;
 		const float length = std::sqrt(offset.SqrLength());
 		if (!(length > 0.0f) || !std::isfinite(length))
