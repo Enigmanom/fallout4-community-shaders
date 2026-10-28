@@ -2,6 +2,7 @@
 
 #include "Feature.h"
 #include "PerformanceOverlaySettings.h"
+#include "Utils/GraphSampleGate.h"
 #include <DearModdingUI/API.h>
 #include <DearModdingUI/UI.h>
 #include <Features/PerformanceOverlay/ABTesting/ABTestAggregator.h>
@@ -66,7 +67,8 @@ namespace cs::features
 		ABTestAggregator _aggregator;
 		bool _testing{}, _variantB = true, _restorePending{};
 		int _testInterval{};
-		std::uint32_t _graphWarmup = Settings::kGraphWarmupFrames;
+		Util::GraphSampleGate _graphGate;
+		std::uint64_t _hostTick{};
 		std::string _testError;
 	};
 }

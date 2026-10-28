@@ -3,7 +3,6 @@
 #include "Render/FrameProfiler.h"
 #include "Shared/PerfUtils.h"
 
-#include <DearModdingUI/FontMetrics.h>
 #include <DearModdingUI/UI/Colors.h>
 #include <DearModdingUI/UI/DrawList.h>
 
@@ -61,12 +60,6 @@ namespace cs
 		constexpr float kTimingTablePercentColumnWidth = 45.0f;
 		constexpr double kStatsRefreshSeconds = 1.0;
 
-		// FO4: DmUI has no UI scale query; the font size relative to its baseline is the scale.
-		float GetUIScale()
-		{
-			return dmui::ui::GetFontSize() / DearModdingUI::Theme::kBaselineFontSize;
-		}
-
 		Vec4 DefaultTextColor()
 		{
 			return dmui::ui::GetStyleColor(dmui::ui::Color::kText);
@@ -106,7 +99,7 @@ namespace cs
 
 		GraphLayout GetGraphLayout(float availableWidth, float baseLegendWidth, float baseHeight)
 		{
-			const float uiScale = GetUIScale();
+			const float uiScale = Util::GetUIScale();
 			const float contentWidth = std::max(0.0f, availableWidth);
 			const float minGraphWidth = kMinGraphWidth * uiScale;
 			const float desiredLegendWidth = baseLegendWidth * uiScale;
@@ -198,7 +191,7 @@ namespace cs
 
 	void ProfilingRenderer::SetupTimingTableColumns(bool includePercentColumn)
 	{
-		const float scale = GetUIScale();
+		const float scale = Util::GetUIScale();
 		// Timings sort slowest first on the first click, names A to Z.
 		constexpr auto metricFlags = TableColumnFlags::kWidthFixed | TableColumnFlags::kPreferSortDescending;
 		dmui::ui::TableSetupColumn("Pass", TableColumnFlags::kWidthStretch, 3.0f);

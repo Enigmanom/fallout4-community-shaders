@@ -8,10 +8,10 @@
 
 #include <DearModdingUI/UI.h>
 
-#include "Menu/TableSort.h"
 #include "Profiler.h"
 #include "Utils/GraphSampleGate.h"
 #include "Utils/LegitProfiler.h"
+#include "Utils/UI.h"
 
 namespace cs
 {

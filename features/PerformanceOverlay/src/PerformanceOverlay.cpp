@@ -6,7 +6,6 @@
 #include "Menu/ProfilingRenderer.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
-#include "Menu/TableSort.h"
 #include "Render/FrameProfiler.h"
 #include "Render/RenderHooks.h"
 #include "Render/ShaderSubclassHooks.h"
@@ -14,9 +13,9 @@
 #include "Settings/SettingsPersistence.h"
 #include "Shared/PerfUtils.h"
 #include "Telemetry/Telemetry.h"
+#include "Utils/UI.h"
 
 #include <DearModdingUI/Client.h>
-#include <DearModdingUI/FontMetrics.h>
 #include <RE/B/BSShaderManager.h>
 
 #include <algorithm>
@@ -86,11 +85,8 @@ namespace cs::features
 		template <class Row, class Metric>
 		void SortRows(std::vector<Row>& a_rows, const Util::TableSortSpec& a_sort, Metric a_metric)
 		{
-			if (a_sort.column < 0)
-				return;
 			const int column = a_sort.column;
-			const bool descending = !a_sort.ascending;
-			std::ranges::stable_sort(a_rows, [&](const auto& a, const auto& b) {
+			Util::SortTableRowsWith<Row>(a_rows, a_sort, [&](const Row& a, const Row& b, bool a_ascending) {
 				if constexpr (requires { a.shaderType; }) {
 					if (a.shaderType < 0 || b.shaderType < 0) {
 						if (a.shaderType < 0 && b.shaderType < 0)
@@ -100,7 +96,7 @@ namespace cs::features
 				}
 				const auto left = a_metric(a), right = a_metric(b);
 				const int order = column == 0 ? a.label.compare(b.label) : (left > right) - (left < right);
-				return descending ? order > 0 : order < 0;
+				return a_ascending ? order < 0 : order > 0;
 			});
 		}
 
@@ -347,10 +343,8 @@ namespace cs::features
 		_lastUpdate = counter;
 
 		// The open hitch would dominate the graph scale.
-		if (_graphWarmup > 0) {
-			--_graphWarmup;
+		if (!_graphGate.ShouldSample(++_hostTick))
 			return;
-		}
 
 		const float oldFrame = _history.GetData()[_history.GetHeadIdx()];
 		_history.Push(_frameMs);
@@ -400,7 +394,7 @@ namespace cs::features
 		if (!settings.ShowInOverlay && !_testing) {
 			QueryPerformanceCounter(&_lastFrame);
 			_overlayFrequency = {};
-			_graphWarmup = Settings::kGraphWarmupFrames;
+			_graphGate = {};
 			return;
 		}
 		// FO4: DearModdingUI supplies the native-frame UI cadence independently of the deferred scene.
@@ -459,7 +453,7 @@ namespace cs::features
 				.scaleMinimum = _graphMin,
 				// The host rejects an empty scale range.
 				.scaleMaximum = std::max(_graphMax, _graphMin + 0.001f),
-				.size = { OverlayContentWidth(), 50.0f * dmui::ui::GetFontSize() / DearModdingUI::Theme::kBaselineFontSize * settings.TextSize },
+				.size = { OverlayContentWidth(), 50.0f * Util::GetUIScale() * settings.TextSize },
 				.overlayText = a_overlay,
 				.referenceLines = references.data(),
 				.referenceLineCount = static_cast<std::uint32_t>(references.size()) });

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <DearModdingUI/FontMetrics.h>
 #include <DearModdingUI/UI.h>
 
 #include <algorithm>
@@ -9,6 +10,12 @@
 
 namespace Util
 {
+	// FO4: DmUI has no UI scale query; font size over its baseline is the scale.
+	inline float GetUIScale()
+	{
+		return dmui::ui::GetFontSize() / DearModdingUI::Theme::kBaselineFontSize;
+	}
+
 	/** @brief Row comparator for one column of a sortable table: (a, b, ascending) -> a before b. */
 	template <typename T>
 	using TableRowSortFunc = std::function<bool(const T&, const T&, bool)>;
