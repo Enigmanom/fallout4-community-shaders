@@ -430,6 +430,13 @@ local shader_cache_sources = {
     "src/Utils/ShaderCache/SourceCompile.cpp"
 }
 
+-- Local runs reuse compiles; an explicit FO4CS_SHADER_TEST_CACHE (CI) wins.
+local function use_shader_test_cache()
+    if not os.getenv("FO4CS_SHADER_TEST_CACHE") then
+        set_runenv("FO4CS_SHADER_TEST_CACHE", path.join(os.projectdir(), ".shader-test-cache"))
+    end
+end
+
 -- One gate binary per compiler: d3dcompiler_47.dll resolves from the executable directory.
 -- A nil compiler selects the pinned Windows SDK copy; otherwise it is a project-relative path.
 local function stock_shader_identity_target(name, compiler, tests)
@@ -439,6 +446,7 @@ local function stock_shader_identity_target(name, compiler, tests)
         set_group("shaders")
         set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/" .. name)
         add_deps("ShaderStage")
+        use_shader_test_cache()
         add_files(
             "tests/StockShaderIdentityTests.cpp",
             "tests/ShaderABIChecks.cpp",
@@ -489,6 +497,7 @@ target("RuntimeShaderTests", function()
     set_group("shaders")
     set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/RuntimeShaderTests")
     add_deps("ShaderStage")
+    use_shader_test_cache()
     add_files("tests/RuntimeShaderTests.cpp", "src/Utils/ShaderCompile.cpp")
     add_files(shader_cache_sources)
     add_packages("vcpkg::directxmath")
