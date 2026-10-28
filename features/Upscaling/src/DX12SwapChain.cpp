@@ -1,4 +1,5 @@
 #include "DX12SwapChain.h"
+#include "AntiLag2Latency.h"
 #include "DXGISwapChainFacadeContract.h"
 
 #include "AgilityBootstrap.h"
@@ -362,6 +363,9 @@ namespace cs::features
 			backBuffer = nullptr;
 		}
 		_swapChain = nullptr;
+		if (_antiLag2) {
+			_antiLag2->DetachDevice();
+		}
 		_inputRetirementFence11 = nullptr;
 		_inputRetirementFence12 = nullptr;
 		_presentingCompletionFence = nullptr;
@@ -535,6 +539,11 @@ namespace cs::features
 			L->warn(
 				"Native D3D12 capture target is unavailable; RenderDoc temporal "
 				"captures will remain disabled");
+		}
+		if (_antiLag2) {
+			DXGI_ADAPTER_DESC adapterDesc{};
+			const bool adapterKnown = SUCCEEDED(actualAdapter->GetDesc(&adapterDesc));
+			_antiLag2->AttachDevice(_captureDevice12.get(), adapterKnown ? adapterDesc.VendorId : 0);
 		}
 		cs::render::annotation::SetName(_device12.get(),
 			"Upscaling/FrameGeneration.Device");
@@ -2010,6 +2019,9 @@ namespace cs::features
 			DX::ThrowIfFailed(commandList->Close());
 			ID3D12CommandList* lists[] = { commandList };
 			_queue->ExecuteCommandLists(1, lists);
+			if (_antiLag2) {
+				_antiLag2->MarkEndOfFrameRendering();
+			}
 			_presentSubmissionMayBeInFlight = true;
 			const UINT64 d3d12Done = _nextFenceValue++;
 			DX::ThrowIfFailed(_queue->Signal(_fence12.get(), d3d12Done));
@@ -2027,6 +2039,9 @@ namespace cs::features
 		}
 
 		cs::render::annotation::SetMarker("Upscaling/FrameGeneration/Present");
+		if (_antiLag2) {
+			_antiLag2->PublishFrameTypeTagging(_swapChain.get());
+		}
 		auto& pipeline = render::TemporalPipeline::Get();
 		pipeline.BeginPresentAttempt(a_flags);
 		const HRESULT presentResult = [&] {

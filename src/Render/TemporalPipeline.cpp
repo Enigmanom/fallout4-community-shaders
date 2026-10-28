@@ -1143,6 +1143,7 @@ namespace cs::render
 		const std::string_view providerName =
 			provider ? provider->Name() : "plain D3D12";
 		try {
+			_impl->swapChain.AttachAntiLag2(&_impl->antiLag2);
 			proxyResult = _impl->swapChain.Initialize(
 				a_context.adapter, device, immediateContext, *a_context.swapChainDesc,
 				&_impl->streamline, provider,

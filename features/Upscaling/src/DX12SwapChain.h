@@ -20,6 +20,7 @@
 
 namespace cs::features
 {
+	class AntiLag2Latency;
 	class Streamline;
 
 	struct SharedD3D11D3D12Texture
@@ -65,6 +66,8 @@ namespace cs::features
 			TemporalPresentationCallbacks a_callbacks);
 		[[nodiscard]] HRESULT Rollback() noexcept;
 		[[nodiscard]] HRESULT Drain() noexcept;
+		// Owned by TemporalPipeline; Rollback detaches it unless quarantined.
+		void AttachAntiLag2(AntiLag2Latency* a_antiLag2) noexcept { _antiLag2 = a_antiLag2; }
 
 		[[nodiscard]] IDXGISwapChain* GetProxy() const noexcept;
 		[[nodiscard]] IDXGISwapChain* AcquireProxy() const noexcept;
@@ -236,6 +239,7 @@ namespace cs::features
 		std::array<std::unique_ptr<SharedD3D11D3D12Texture>, 2> _motionBuffers;
 		winrt::com_ptr<DXGISwapChainProxy> _proxy;
 		Streamline* _streamline = nullptr;
+		AntiLag2Latency* _antiLag2 = nullptr;
 		render::temporal::IFrameGenerationProvider* _provider = nullptr;
 		RCAS _rcas;
 		ReShadeRuntime _reshade;
