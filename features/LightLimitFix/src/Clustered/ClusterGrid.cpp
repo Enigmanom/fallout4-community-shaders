@@ -72,7 +72,7 @@ namespace cs::features::light_limit_fix
 		_cones = MakeBuffer<ConeData>("LLF Cones", kMaxLights, true);
 		_clusters = MakeBuffer<ClusterAABB>("LLF Clusters", _capacity, false);
 		_lightIndexCounter = MakeBuffer<std::uint32_t>("LLF Light Index Counter", 1, false);
-		_lightIndexList = MakeBuffer<std::uint32_t>("LLF Light Index List", _capacity * kMaxClusterLights, false);
+		_lightIndexList = MakeBuffer<std::uint32_t>("LLF Light Index List", _capacity * kClusterMaxLights, false);
 		_lightGrid = MakeBuffer<LightGrid>("LLF Light Grid", _capacity, false);
 	}
 
