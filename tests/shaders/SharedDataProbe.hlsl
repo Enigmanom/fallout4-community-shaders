@@ -5,6 +5,9 @@
 #ifdef LIGHT_LIMIT_FIX
 #	include "FO4/LightLimitFixRaster.hlsli"
 #endif
+#ifdef LIGHT_LIMIT_FIX_FORWARD
+#	include "FO4/LightLimitFixForward.hlsli"
+#endif
 #ifdef ABI_SLOT_COLLISION
 cbuffer Collision : register(ABI_SLOT_COLLISION)
 {
@@ -25,6 +28,9 @@ float4 main(float4 position : SV_Position) : SV_Target
 #	endif
 #	ifdef LIGHT_LIMIT_FIX
 	value += FO4LocalLightAttenuation(1.0, 0.5) + LightLimitFixLight.fade;
+#	endif
+#	ifdef LIGHT_LIMIT_FIX_FORWARD
+	value += FO4LightLimitFix::GetConeAttenuation(0, 0.0, position.xyz);
 #	endif
 #	ifdef ABI_SLOT_COLLISION
 	value += CollisionValue;

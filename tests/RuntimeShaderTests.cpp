@@ -58,6 +58,9 @@ namespace
 
 			{ "IBL/DiffuseIBLCS.hlsl", "cs_5_0", { { "FO4CS_SUBSTRATE", "1" } } },
 
+			{ "LightLimitFix/ClusterBuildingCS.hlsl" },
+			{ "LightLimitFix/ClusterCullingCS.hlsl" },
+
 			{ "FrameGeneration/CopyDepthForFrameGenerationCS.hlsl" },
 
 			{ "FO4/ScreenSpaceGI/Prepare.cs.hlsl", "cs_5_0", {}, kScreenSpaceGIAxes },

@@ -1,5 +1,7 @@
 #include "LightLimitFix.h"
 #include "Authoring/LightDerivation.h"
+#include "Clustered/ClusterGrid.h"
+#include "Clustered/LightGather.h"
 #include "Deferred/DeferredLights.h"
 #include "RE/B/BSDFTiledLighting.h"
 #include "Sidecar/InverseSquareMath.h"
@@ -7,13 +9,16 @@
 
 #include <DearModdingUI/Client.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <limits>
 #include <mutex>
 #include <utility>
 
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
+#include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/LocalLights.h"
 #include "Render/RuntimeCallback.h"
@@ -40,6 +45,12 @@ namespace cs::features
 			std::vector<LightDefinition> definitions;
 			std::unordered_map<RE::TESFormID, AuthoredLight> forms, references;
 			DeferredLights deferred;
+			LightGather gather;
+			ClusterGrid grid;
+			std::atomic<bool> gridReady{ false };
+			std::atomic<std::uint64_t> clusterDispatches{ 0 }, clusterSkips{ 0 };
+			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 };
+			std::atomic<std::uint32_t> clusterDropped{ 0 }, clusterX{ 0 }, clusterY{ 0 }, clusterZ{ 0 };
 			std::atomic<bool> resources{ false }, validated{ false }, hooks{ false }, dataLoaded{ false };
 			std::atomic<std::uint64_t> authored{ 0 }, created{ 0 }, removed{ 0 };
 			std::atomic<std::uint64_t> removedLights{ 0 }, orphaned{ 0 };
@@ -433,6 +444,10 @@ namespace cs::features
 			target[form->GetFormID()].Apply(entry.data);
 			++g_state.authored;
 		}
+		if (auto* setting = RE::GameSettingCollection::GetSingleton()->GetSetting("iMagicLightMaxCount")) {
+			setting->SetInt(std::numeric_limits<std::int32_t>::max());
+			Log()->info("[LLF] Unlocked magic light limit");
+		}
 		g_state.dataLoaded = true;
 	}
 	void LightLimitFix::OnPostPostLoad()
@@ -458,14 +473,45 @@ namespace cs::features
 		g_state.sidecar.RestoreNativeRadii();
 		g_state.deferred.Clear();
 	}
-	void LightLimitFix::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
+	void LightLimitFix::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4)
 	{
 		a_fo4.EnabledLightLimitFix = Enabled() ? 1u : 0u;
+		if (g_state.gridReady.load()) {
+			const auto size = ClusterGrid::ActiveDimensions();
+			std::ranges::copy(size, std::begin(a_feature.lightLimitFixSettings.ClusterSize));
+		}
 	}
 	void LightLimitFix::OnD3D11Ready(IDXGIAdapter*, ID3D11Device*)
 	{
 		g_state.deferred.Create();
 		g_state.resources = true;
+		g_state.grid.Create();
+		g_state.gridReady = true;
+	}
+	void LightLimitFix::Prepass()
+	{
+		if (!Enabled() || !g_state.gridReady.load())
+			return;
+		const auto* graphics = engine::GetGraphicsState();
+		auto* scene = engine::GetWorldShadowSceneNode();
+		const auto camera = graphics ? engine::GetCapturedWorldCameraRecord(graphics->frameCount) : std::nullopt;
+		if (!scene || !camera)
+			return;
+		g_state.gather.Gather(*scene, camera->PosAdjust, &Snapshot);
+		if (!g_state.grid.Build(g_state.gather, *camera)) {
+			++g_state.clusterSkips;
+			return;
+		}
+		const auto& stats = g_state.gather.Stats();
+		const auto size = ClusterGrid::ActiveDimensions();
+		g_state.clusterLights = stats.lights;
+		g_state.clusterShadowLights = stats.shadowLights;
+		g_state.clusterConeLights = stats.coneLights;
+		g_state.clusterDropped = stats.dropped;
+		g_state.clusterX = size[0];
+		g_state.clusterY = size[1];
+		g_state.clusterZ = size[2];
+		++g_state.clusterDispatches;
 	}
 	bool LightLimitFix::ValidateShaderInjections(std::string& a_error)
 	{
@@ -508,6 +554,15 @@ namespace cs::features
 			.Field("raster_draws", g_state.rasterDraws.load())
 			.Field("luminance_queries", g_state.luminance.load())
 			.Field("upload_failures", g_state.uploadFailures.load())
+			.Field("cluster_lights", g_state.clusterLights.load())
+			.Field("cluster_shadow_lights", g_state.clusterShadowLights.load())
+			.Field("cluster_cone_lights", g_state.clusterConeLights.load())
+			.Field("cluster_dropped_lights", g_state.clusterDropped.load())
+			.Field("cluster_dim_x", g_state.clusterX.load())
+			.Field("cluster_dim_y", g_state.clusterY.load())
+			.Field("cluster_dim_z", g_state.clusterZ.load())
+			.Field("cluster_dispatches", g_state.clusterDispatches.load())
+			.Field("cluster_skipped_frames", g_state.clusterSkips.load())
 			.Field("last_join_reference", g_state.lastReference.load())
 			.Field("last_join_form", g_state.lastForm.load())
 			.Field("last_join_ni_light", g_state.lastNiLight.load())

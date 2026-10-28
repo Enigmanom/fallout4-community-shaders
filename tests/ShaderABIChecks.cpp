@@ -443,6 +443,50 @@ namespace
 			return "LightLimitFixDraw: ABI buffer size mismatch";
 		if (auto layout = CheckStructLayout(cb->GetVariableByName("LightLimitFixLight")->GetType(), fields); !layout.empty())
 			return "LightLimitFixDraw: " + layout;
+		const auto forward = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "LIGHT_LIMIT_FIX_FORWARD", "1" } }, "ps_5_0", error);
+		if (!forward)
+			return error;
+		if (BindPoint(forward.Get(), "Cones") != 34)
+			return "FO4LightLimitFix::Cones: ABI slot mismatch";
+		D3D11_SHADER_DESC forwardDesc{};
+		forward->GetDesc(&forwardDesc);
+		for (UINT i = 0; i < forwardDesc.BoundResources; ++i) {
+			D3D11_SHADER_INPUT_BIND_DESC cones{};
+			if (SUCCEEDED(forward->GetResourceBindingDesc(i, &cones)) && std::string_view(cones.Name).ends_with("Cones") &&
+				cones.NumSamples != sizeof(cs::features::light_limit_fix::ConeData))
+				return "FO4LightLimitFix::Cones: ABI structure stride mismatch";
+		}
+		using cs::features::light_limit_fix::LightBuildingCB;
+		using cs::features::light_limit_fix::LightCullingCB;
+		const ABIField building[]{ ABI(LightBuildingCB, LightsNear), ABI(LightBuildingCB, LightsFar),
+			ABI(LightBuildingCB, pad0), ABI(LightBuildingCB, ClusterSize) };
+		const ABIField culling[]{ ABI(LightCullingCB, LightCount), ABI(LightCullingCB, pad0), ABI(LightCullingCB, ClusterSize) };
+		const struct
+		{
+			const char* file;
+			std::span<const ABIField> fields;
+			std::size_t size;
+		} computes[]{
+			{ "LightLimitFix/ClusterBuildingCS.hlsl", building, sizeof(LightBuildingCB) },
+			{ "LightLimitFix/ClusterCullingCS.hlsl", culling, sizeof(LightCullingCB) }
+		};
+		for (const auto& compute : computes) {
+			const auto reflection = Reflect(a_root, compute.file, {}, "cs_5_0", error);
+			if (!reflection)
+				return error;
+			D3D11_SHADER_INPUT_BIND_DESC buffer{};
+			if (FAILED(reflection->GetResourceBindingDescByName("PerFrame", &buffer)) || buffer.BindPoint != 0)
+				return std::string(compute.file) + ": PerFrame ABI slot mismatch";
+			auto* constants = reflection->GetConstantBufferByName("PerFrame");
+			D3D11_SHADER_BUFFER_DESC bufferDesc{};
+			if (FAILED(constants->GetDesc(&bufferDesc)) || bufferDesc.Size != compute.size || bufferDesc.Variables != compute.fields.size())
+				return std::string(compute.file) + ": PerFrame ABI buffer size/member count mismatch";
+			for (const auto& field : compute.fields) {
+				D3D11_SHADER_VARIABLE_DESC value{};
+				if (FAILED(constants->GetVariableByName(field.name)->GetDesc(&value)) || value.StartOffset != field.offset || value.Size != field.size)
+					return std::string(compute.file) + "." + field.name + ": ABI offset/size mismatch";
+			}
+		}
 		return {};
 	}
 #undef ABI

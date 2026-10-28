@@ -55,4 +55,44 @@ namespace cs::features::light_limit_fix
 	static_assert(offsetof(LightData, shadowMaskIndex) == 68);
 	static_assert(offsetof(LightData, localShadowIndex) == 72);
 	static_assert(offsetof(LightData, pad1) == 76);
+
+	// FO4: spot cone beside each gathered light; exponent 0 means no cone.
+	struct alignas(16) ConeData
+	{
+		DirectX::XMFLOAT3 direction{};
+		float cosHalfAngle = 0;
+		float exponent = 0;
+		std::array<std::uint32_t, 3> pad{};
+	};
+	static_assert(sizeof(ConeData) == 32);
+	static_assert(offsetof(ConeData, cosHalfAngle) == 12);
+	static_assert(offsetof(ConeData, exponent) == 16);
+
+	// Per-cluster cap in the index list; matches MAX_CLUSTER_LIGHTS in Common.hlsli.
+	inline constexpr std::uint32_t kMaxClusterLights = 256;
+
+	// Mirror ClusterAABB, LightGrid and the PerFrame buffers of the cluster shaders.
+	struct ClusterAABB
+	{
+		DirectX::XMFLOAT4 minPoint, maxPoint;
+	};
+	struct LightGrid
+	{
+		std::uint32_t offset, lightCount, pad0[2];
+	};
+	struct LightBuildingCB
+	{
+		float LightsNear, LightsFar;
+		std::uint32_t pad0[2];
+		std::uint32_t ClusterSize[4];
+	};
+	struct LightCullingCB
+	{
+		std::uint32_t LightCount, pad0[3];
+		std::uint32_t ClusterSize[4];
+	};
+	static_assert(sizeof(ClusterAABB) == 32);
+	static_assert(sizeof(LightGrid) == 16);
+	static_assert(sizeof(LightBuildingCB) == 32);
+	static_assert(sizeof(LightCullingCB) == 32);
 }
