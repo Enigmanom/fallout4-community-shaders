@@ -127,7 +127,8 @@ namespace cs::features
 		std::atomic<const RE::TESWorldSpace*> _currentWorldspace{ nullptr };
 		std::atomic_bool _worldspaceDisabled{ false };  // read by the game thread; the list is not
 		bool _active = false;                           // the last Update steered the light
-		float _currentSkyRotation = FLT_MAX;
+		static constexpr float kNoSkyRotation = FLT_MAX;
+		float _currentSkyRotation = kNoSkyRotation;
 		float _lastGameHour = -1.0f;
 		bool _immediateTransitionReady = false;
 
@@ -181,7 +182,6 @@ namespace cs::features
 		RE::NiPoint3 GetSunDirectionAtHour(const engine::climate::Timing& a_timing, float a_hour) const;
 		float GetSunAngle() const;
 		void SetSkyRotation(const RE::Sky& a_sky, RE::TESObjectCELL* a_cell);
-		void RestoreSkyRotation(const RE::Sky& a_sky);
 		// Whether the editor ID is in the disabled list.
 		bool IsWorldspaceListed(const RE::TESWorldSpace* a_worldspace) const;
 		// Recomputes the cached flag; the Locked form needs _worldspaceMutex held.

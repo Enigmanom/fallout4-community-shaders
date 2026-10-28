@@ -40,9 +40,9 @@ namespace cs::engine::moon
 		}
 	};
 
-	// Base colour of Masser (the larger, reddish moon).
+	// Base color of Masser (the larger, reddish moon).
 	inline constexpr LightColor kMasserBaseColor{ .color = { 142.0f / 255.0f, 96.0f / 255.0f, 90.0f / 255.0f }, .intensity = 0.5f };
-	// Base colour of Secunda (the smaller, greyish moon).
+	// Base color of Secunda (the smaller, greyish moon).
 	inline constexpr LightColor kSecundaBaseColor{ .color = { 117.0f / 255.0f, 115.0f / 255.0f, 109.0f / 255.0f }, .intensity = 0.25f };
 
 	// Crescent to full intensity by distance from new moon.

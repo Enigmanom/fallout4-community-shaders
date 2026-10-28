@@ -53,7 +53,6 @@ namespace cs::features
 		constexpr float kSouthernSunAngle = 90.0f - 35.0f;
 		constexpr float kNorthernSunAngle = 90.0f + 35.0f;
 		constexpr float kVanillaSunAngle = 90.0f + 5.0f;
-		constexpr float kNoSkyRotation = FLT_MAX;
 		constexpr RE::NiPoint3 kZenithDirection{ 0.0f, 0.0f, 1.0f };
 
 		bool IsValidDirection(const RE::NiPoint3& a_dir)
@@ -209,7 +208,7 @@ namespace cs::features
 		_telemetry.elevationDegrees.store(DirectX::XMConvertToDegrees(std::asin(std::clamp(dir.z, -1.0f, 1.0f))), std::memory_order_relaxed);
 		_telemetry.headingDegrees.store(DirectX::XMConvertToDegrees(std::atan2(dir.x, dir.y)), std::memory_order_relaxed);
 		_telemetry.dim.store(_currentDim, std::memory_order_relaxed);
-		_telemetry.skyRotationDegrees.store(_currentSkyRotation == FLT_MAX ? 0.0f : DirectX::XMConvertToDegrees(_currentSkyRotation), std::memory_order_relaxed);
+		_telemetry.skyRotationDegrees.store(_currentSkyRotation == kNoSkyRotation ? 0.0f : DirectX::XMConvertToDegrees(_currentSkyRotation), std::memory_order_relaxed);
 		_telemetry.updates.fetch_add(1, std::memory_order_relaxed);
 		if (a_completedTransition)
 			_telemetry.completedTransitions.fetch_add(1, std::memory_order_relaxed);
@@ -337,11 +336,8 @@ namespace cs::features
 		_active = false;
 		_currentDim = 1.0f;
 
-		if (!IsEnabled()) {
-			if (a_sky)
-				RestoreSkyRotation(*a_sky);
+		if (!IsEnabled())
 			return std::exchange(_immediateTransitionReady, false);
-		}
 
 		if (!a_sky)
 			return false;
@@ -570,23 +566,10 @@ namespace cs::features
 		const float sine = std::sin(-rotation);
 		// FO4: rotations are stored transposed (vectors map as local * rotation)
 		a_sky.root->local.rotate = RE::NiMatrix3{
-			cosine, sine, 0.0f, 0.0f,
-			-sine, cosine, 0.0f, 0.0f,
+			cosine, -sine, 0.0f, 0.0f,
+			sine, cosine, 0.0f, 0.0f,
 			0.0f, 0.0f, 1.0f, 0.0f
 		};
-		RE::NiUpdateData updateData;
-		a_sky.root->Update(updateData);
-	}
-
-	void SkySync::RestoreSkyRotation(const RE::Sky& a_sky)
-	{
-		if (_currentSkyRotation == kNoSkyRotation)
-			return;
-
-		// Disabled, vanilla expects an unrotated sky root
-		_currentSkyRotation = kNoSkyRotation;
-		_currentCell = nullptr;
-		a_sky.root->local.rotate = RE::NiMatrix3::IDENTITY;
 		RE::NiUpdateData updateData;
 		a_sky.root->Update(updateData);
 	}
@@ -746,7 +729,7 @@ namespace cs::features
 			immediateTransitionRemaining = 0.0f;
 		}
 
-		// The zenith is a stand-in: dim by the real caster; startDir backs up a hidden one
+		// Zenith is a stand-in: dim by the real caster; startDir covers a hidden one
 		if (target == Caster::kZenith) {
 			const RE::NiPoint3 sourceDir = casterDir(source);
 			dimDir = IsValidDirection(sourceDir) ? sourceDir : startDir;
