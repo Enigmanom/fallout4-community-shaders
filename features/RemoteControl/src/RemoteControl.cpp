@@ -4,6 +4,7 @@
 
 #include "Host/HostClient.h"
 #include "Log.h"
+#include "Render/Annotation.h"
 #include "Render/FrameBoundary.h"
 
 #include <DearModdingUI/Client.h>
@@ -48,6 +49,7 @@ namespace cs::features
 				NvPerf::OnPresentEnd();
 			}))
 			L->warn("Nsight Perf frame boundary callback was not registered");
+		render::annotation::SetRangeSink({ &NvPerf::RangesActive, &NvPerf::PushRange, &NvPerf::PopRange });
 #endif
 	}
 
