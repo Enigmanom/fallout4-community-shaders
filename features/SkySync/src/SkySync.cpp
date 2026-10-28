@@ -568,9 +568,10 @@ namespace cs::features
 		_currentSkyRotation = rotation;
 		const float cosine = std::cos(-rotation);
 		const float sine = std::sin(-rotation);
+		// FO4: rotations are stored transposed (vectors map as local * rotation)
 		a_sky.root->local.rotate = RE::NiMatrix3{
-			cosine, -sine, 0.0f, 0.0f,
-			sine, cosine, 0.0f, 0.0f,
+			cosine, sine, 0.0f, 0.0f,
+			-sine, cosine, 0.0f, 0.0f,
 			0.0f, 0.0f, 1.0f, 0.0f
 		};
 		RE::NiUpdateData updateData;
