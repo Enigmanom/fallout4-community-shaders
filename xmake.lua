@@ -62,6 +62,12 @@ option("tracy", function()
     set_description("Enable Tracy profiler instrumentation")
 end)
 
+option("nvperf_sdk", function()
+    set_default("")
+    set_showmenu(true)
+    set_description("Nsight Perf SDK folder holding include/nvperf_host.h; empty disables the GPU counter profiler")
+end)
+
 option("release_identity", function()
     set_default("")
     set_showmenu(true)
@@ -248,6 +254,22 @@ target(plugin_name, function()
     add_includedirs(generated_include, "src", "extern")
     on_load(function(target)
         import("xmake.shared", { rootdir = os.projectdir() }).main(target)
+        local sdk = get_config("nvperf_sdk")
+        if not sdk or sdk == "" then
+            return
+        end
+        -- The SDK is a login-gated download; its DLL is staged next to the plugin data.
+        local library = path.join(sdk, "bin", "x64", "nvperf_grfx_host.lib")
+        local runtime = path.join(sdk, "bin", "x64", "nvperf_grfx_host.dll")
+        assert(os.isfile(path.join(sdk, "include", "nvperf_host.h")) and os.isfile(library) and os.isfile(runtime),
+            "nvperf_sdk lacks include/nvperf_host.h or bin/x64/nvperf_grfx_host.{lib,dll}: " .. sdk)
+        target:add("defines", "NVPERF_ENABLED")
+        target:add("sysincludedirs", path.join(sdk, "include"))
+        target:add("linkdirs", path.directory(library))
+        target:add("links", "nvperf_grfx_host")
+        target:add("syslinks", "delayimp")
+        target:add("shflags", "/DELAYLOAD:nvperf_grfx_host.dll", { force = true })
+        target:add("installfiles", runtime, { prefixdir = "F4SE/Plugins/FO4CommunityShaders/NvPerf" })
     end)
     for _, feature in ipairs(features) do
         add_includedirs(path.join("features", feature, "src"))

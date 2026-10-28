@@ -60,6 +60,12 @@ using uint = uint32_t;
 namespace logger
 {
 	template <class... Args>
+	void info(spdlog::format_string_t<Args...> a_format, Args&&... a_args)
+	{
+		cs::log::Get("cs.hooks")->info(a_format, std::forward<Args>(a_args)...);
+	}
+
+	template <class... Args>
 	void warn(spdlog::format_string_t<Args...> a_format, Args&&... a_args)
 	{
 		cs::log::Get("cs.hooks")->warn(a_format, std::forward<Args>(a_args)...);
