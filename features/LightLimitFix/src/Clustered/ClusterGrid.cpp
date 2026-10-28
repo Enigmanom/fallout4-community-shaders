@@ -93,8 +93,7 @@ namespace cs::features::light_limit_fix
 		}
 
 		const auto depth = engine::GetCameraDepthParameters(a_camera);
-		const LightBuildingCB building{ .LightsNear = depth.y, .LightsFar = depth.x,
-			.ClusterSize = { clusterSize[0], clusterSize[1], clusterSize[2], 0 } };
+		const LightBuildingCB building{ .LightsNear = depth.y, .LightsFar = depth.x, .ClusterSize = { clusterSize[0], clusterSize[1], clusterSize[2], 0 } };
 		const LightCullingCB culling{ .LightCount = lightCount,
 			.ClusterSize = { clusterSize[0], clusterSize[1], clusterSize[2], 0 } };
 		_buildCB->Update(building);
