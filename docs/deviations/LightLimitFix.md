@@ -16,6 +16,7 @@
 | N/A | ACEScg and color-mode cache key | | FO4 has no color management |
 | N/A | Local shadow cache and scheduler | | FO4 has no shadow-caster cap |
 | N/A | Surface clustered shading | | Opaque lighting is native tiled |
+| N/A | Light Limit and Strict Lights Count visualizations | | They visualize surface clustered shading, which FO4 does not use; opaque keeps native tiled lighting |
 | N/A | Shadow Mask visualization | | No FO4 shadow mask |
 | Forced | CPU-decoded light color, `BRDFScale` 1/pi after `PointLight` | Applied to inverse-square radiance; unflagged color decodes with power 2.2 in deferred and forward consumers | Native local BRDF has no 1/pi and light color is `pow(diffuse, 2.2)` |
 | Forced | 256-entry cluster list | Native 127-index tile appends are guarded so enlarged radii cannot spill into adjacent tiles | Native tile list size |

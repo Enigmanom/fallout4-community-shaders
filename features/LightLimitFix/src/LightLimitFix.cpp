@@ -41,10 +41,9 @@ namespace cs::features
 		constexpr std::uint32_t kStrictSlot = 3;
 		constexpr std::uint32_t kForwardSlot = 34;
 		constexpr auto kDirectory = "Data\\F4SE\\Plugins\\FO4CommunityShaders\\Lights";
-		// FO4: upstream's Shadow Mask mode has no shadow-mask source here.
-		constexpr std::array<FeatureDebugView, 3> kDebugViews{ { { "light_limit", "Light Limit", FeatureDebugViewKind::kFullscreen },
-			{ "strict_lights", "Strict Lights Count", FeatureDebugViewKind::kFullscreen },
-			{ "clustered_lights", "Clustered Lights Count", FeatureDebugViewKind::kFullscreen } } };
+		// FO4: only the clustered view has a source.
+		constexpr std::array<FeatureDebugView, 1> kDebugViews{ { { "clustered_lights", "Clustered Lights Count", FeatureDebugViewKind::kFullscreen } } };
+		constexpr std::uint32_t kClusteredLightsMode = 2;
 
 		struct State
 		{
@@ -56,7 +55,7 @@ namespace cs::features
 			LightGather gather;
 			ClusterGrid grid;
 			buffer::CachedConstantBuffer<StrictLightDataCB> strict;
-			std::atomic<bool> gridReady{ false }, gridBuilt{ false };
+			std::atomic<bool> gridBuilt{ false };
 			std::atomic<std::uint32_t> debugView{ 0 };
 			std::atomic<std::uint64_t> clusterDispatches{ 0 }, clusterSkips{ 0 };
 			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 }, clusterStrictLights{ 0 };
@@ -325,7 +324,7 @@ namespace cs::features
 
 		void OnForwardDraw(const render::forward_draw::Draw& a_draw)
 		{
-			if (!Enabled() || !g_state.gridReady.load() || !a_draw.pass)
+			if (!Enabled() || !g_state.resources.load() || !a_draw.pass)
 				return;
 			StrictLightDataCB data;
 			data.roomIndex = g_state.gather.Strict().RoomIndex(*a_draw.pass);
@@ -531,9 +530,9 @@ namespace cs::features
 	{
 		const auto view = g_state.debugView.load(std::memory_order_acquire);
 		a_feature.lightLimitFixSettings.EnableLightsVisualisation = view != 0 ? 1u : 0u;
-		a_feature.lightLimitFixSettings.LightsVisualisationMode = view != 0 ? view - 1 : 0u;
+		a_feature.lightLimitFixSettings.LightsVisualisationMode = view != 0 ? kClusteredLightsMode : 0u;
 		a_fo4.EnabledLightLimitFix = Enabled() && g_state.gridBuilt.load() ? 1u : 0u;
-		if (g_state.gridReady.load()) {
+		if (g_state.resources.load()) {
 			const auto size = ClusterGrid::ActiveDimensions();
 			std::ranges::copy(size, std::begin(a_feature.lightLimitFixSettings.ClusterSize));
 		}
@@ -541,15 +540,14 @@ namespace cs::features
 	void LightLimitFix::OnD3D11Ready(IDXGIAdapter*, ID3D11Device*)
 	{
 		g_state.deferred.Create();
-		g_state.resources = true;
 		g_state.grid.Create();
 		g_state.strict.Create("LLF StrictLightData");
-		g_state.gridReady = true;
+		g_state.resources = true;
 	}
 	void LightLimitFix::Prepass()
 	{
 		g_state.gridBuilt = false;
-		if (!Enabled() || !g_state.gridReady.load())
+		if (!Enabled() || !g_state.resources.load())
 			return;
 		const auto* graphics = engine::GetGraphicsState();
 		auto* scene = engine::GetWorldShadowSceneNode();

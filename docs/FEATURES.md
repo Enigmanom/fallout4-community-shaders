@@ -49,7 +49,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | HorizonFix | N/A | — | Integration with a Skyrim-only companion DLL | — | L | — | High |
 | [IBL](deviations/IBL.md) | Core | Environment SH, sky SH*, ambient/fog/effect consumers, occlusion integration, specular IBL | N/A: static IBL, world-map toggle, ENB | Pt | H | L | Med |
 | Interior Sun | Core (provisional) | Native sun gating*, portal culling, double-sided/distance, gameplay sun | N/A: plain interior directional light | NS | H | L | Low |
-| [Light Limit Fix](deviations/LightLimitFix.md) | Mixed | Forward cluster grid, strict lights, ISL attenuation, radius/lifetime, gameplay luminance, effect and water consumers, light-limit visualization, TOML authoring (relocated LIGH fields), editor, diagnostics; local shadow copy pending | Ext: derivation of unauthored lights from native falloff. N/A: surface clustered shading (native tiled), particle lights (no FO4 content), local shadow cache/scheduler (no FO4 shadow-caster cap), Shadow Mask view (no FO4 shadow mask) | Pt | H | M | High |
+| [Light Limit Fix](deviations/LightLimitFix.md) | Mixed | Forward cluster grid, strict lights, ISL attenuation, radius/lifetime, gameplay luminance, effect and water consumers, clustered light count visualization, TOML authoring (relocated LIGH fields), editor, diagnostics; local shadow copy pending | Ext: derivation of unauthored lights from native falloff. N/A: surface clustered shading (native tiled) and its Light Limit and Strict Lights Count views, particle lights (no FO4 content), local shadow cache/scheduler (no FO4 shadow-caster cap), Shadow Mask view (no FO4 shadow mask) | Pt | H | M | High |
 | Linear Lighting | N/A | Shared-color compatibility (done), optional calibration controls | N/A: linearization (FO4 is linear), ENB | Substrate | L | S | High |
 | [LOD Blending](deviations/LODBlending.md) | Core | Terrain/object LOD brightness-gamma, terrain/grass vertex-color removal | N/A: snow-LOD | Pt | H | S | High |
 | [Performance Overlay](deviations/PerformanceOverlay.md) | Core | FPS/VRAM/frame/draw diagnostics, A/B comparison, family/total toggles, history plots, FG timing labels | — | Pt | H | M | High |
@@ -90,7 +90,7 @@ are FO4-only rule-4 core features.
   consumers (Effect, Water; Rain Refraction pending) read a clustered grid of every nearby light, with
   portal-strict lights bound to rooms. Particle lights are N/A: upstream lights only texture stems listed in
   `Data\ParticleLights\*.ini`, which no FO4 content ships; lighting vanilla glow cards by shader flags would be
-  an FO4-original extension. Debug views: light limit, strict light count, clustered light count.
+  an FO4-original extension. Debug view: clustered light count.
 - **Extended Translucency.** Forward BSLightingShader draws only Interface3D and cube captures. Blended
   lit world geometry renders only when decal-flagged, through the `DFPrepass` BLEND variant; material alpha
   below 1 becomes a 4×4 dither. Vanilla skinned blended content is hair/lash head parts (upstream excludes

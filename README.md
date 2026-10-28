@@ -66,7 +66,7 @@ Report problems through [Issues](https://github.com/northaxosky/fallout4-communi
 | **LOD Blending** | LOD terrain and object brightness and gamma matching, optional terrain vertex-color removal. |
 | **Screen Space GI** | Ambient occlusion and indirect lighting. |
 | **Skylighting** | Scales ambient light and reflections by how much sky a surface can see. |
-| **Light Limit Fix** | Smoke, fire, glow, rain and water receive every nearby light, with portal-strict lights bound to rooms and light-limit debug views; physically based inverse-square falloff for lights authored in [light TOML files](features/LightLimitFix/README.md), with converting unauthored lights opt-in. |
+| **Light Limit Fix** | Smoke, fire, glow, rain and water receive every nearby light, with portal-strict lights bound to rooms and a clustered light count debug view; physically based inverse-square falloff for lights authored in [light TOML files](features/LightLimitFix/README.md), with converting unauthored lights opt-in. |
 | **Dynamic Cubemaps** | Reflections that respond to the surrounding scene. |
 | **Image Based Lighting** | Ambient light and fog tint from environment and sky cubemaps; requires Dynamic Cubemaps. |
 | **Water Effects** | Water parallax and sunlight caustics on submerged surfaces. |
