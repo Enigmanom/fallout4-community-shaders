@@ -42,10 +42,12 @@ namespace cs::features
 	void RemoteControl::Load()
 	{
 #ifdef NVPERF_ENABLED
-		// Passes span one frame's rendering: ended before Present, begun after it.
-		if (!render::RegisterPreSwap(*this, [] { NvPerf::OnPresentBegin(); }) ||
-			!render::RegisterPostSwap(*this, [] { NvPerf::OnPresentEnd(); }))
-			L->warn("Nsight Perf frame boundary callbacks were not registered");
+		// Main::Swap renders and presents, so both Present edges sit after it.
+		if (!render::RegisterPostSwap(*this, [] {
+				NvPerf::OnPresentBegin();
+				NvPerf::OnPresentEnd();
+			}))
+			L->warn("Nsight Perf frame boundary callback was not registered");
 #endif
 	}
 
