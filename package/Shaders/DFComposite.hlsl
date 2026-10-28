@@ -3,9 +3,6 @@
 #ifdef TERRAIN_SHADOWS
 #	include "FO4/TerrainShadowsConsumer.hlsli"
 #endif
-#ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-#	include "FO4/CloudShadowsDebug.hlsli"
-#endif
 #ifdef WATER_EFFECTS
 #	include "FO4/WaterEffectsConsumer.hlsli"
 #endif
@@ -211,13 +208,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(positionView, terrainDebugColor)) {
 		output.color = terrainDebugColor;
-		return output;
-	}
-#	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
 		return output;
 	}
 #	endif
@@ -570,13 +560,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(positionView, terrainDebugColor)) {
 		output.color = terrainDebugColor;
-		return output;
-	}
-#	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
 		return output;
 	}
 #	endif
@@ -1039,12 +1022,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 		return terrainDebugColor;
 	}
 #		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
-	}
-#		endif
 #		ifdef WATER_EFFECTS
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
@@ -1323,12 +1300,6 @@ float4 main(float4 svpos : SV_POSITION) : SV_Target
 		return terrainDebugColor;
 	}
 #	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(svpos.xy, cloudDebugColor)) {
-		return cloudDebugColor;
-	}
-#	endif
 #	ifdef WATER_EFFECTS
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
@@ -1508,12 +1479,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromScreenPosition(position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
-	}
-#	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
 	}
 #	endif
 #	ifdef WATER_EFFECTS_FULLSCREEN_DEBUG
@@ -1836,13 +1801,6 @@ PS_OUTPUT main(PS_INPUT input)
 		return output;
 	}
 #		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
-		return output;
-	}
-#		endif
 #		ifdef WATER_EFFECTS
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromViewPosition(
@@ -2135,13 +2093,6 @@ PS_OUTPUT main(PS_INPUT input)
 		return output;
 	}
 #	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
-		return output;
-	}
-#	endif
 #	ifdef WATER_EFFECTS_FULLSCREEN_DEBUG
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromScreenPosition(
@@ -2210,13 +2161,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		output.color = terrainDebugColor;
-		return output;
-	}
-#	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
 		return output;
 	}
 #	endif
@@ -2425,12 +2369,6 @@ float4 main(PSInput input) : SV_Target0
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(terrainViewPosition, terrainDebugColor)) {
 		return terrainDebugColor;
-	}
-#		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
 	}
 #		endif
 #		ifdef WATER_EFFECTS
@@ -2763,12 +2701,6 @@ float4 main(PS_INPUT input) : SV_Target0
 		return terrainDebugColor;
 	}
 #		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
-	}
-#		endif
 #		ifdef WATER_EFFECTS_FULLSCREEN_DEBUG
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromScreenPosition(
@@ -2840,12 +2772,6 @@ float4 main(PS_INPUT input) : SV_Target0
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
-	}
-#		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
 	}
 #		endif
 #		ifdef WATER_EFFECTS_FULLSCREEN_DEBUG
@@ -2927,12 +2853,6 @@ float4 main(PS_INPUT input) : SV_Target0
 		return terrainDebugColor;
 	}
 #		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
-	}
-#		endif
 #		ifdef WATER_EFFECTS_FULLSCREEN_DEBUG
 	float4 waterDebugColor;
 	if (WaterEffects::TryGetDebugColorFromScreenPosition(
@@ -3008,12 +2928,6 @@ float4 main(PS_INPUT input) : SV_Target0
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromScreenPosition(input.position.xy, terrainDebugColor)) {
 		return terrainDebugColor;
-	}
-#		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
 	}
 #		endif
 #		ifdef WATER_EFFECTS_FULLSCREEN_DEBUG
@@ -3214,12 +3128,6 @@ float4 main(float4 position : SV_POSITION) : SV_Target0
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(terrainReconstructed.xyz, terrainDebugColor)) {
 		return terrainDebugColor;
-	}
-#		endif
-#		ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(position.xy, cloudDebugColor)) {
-		return cloudDebugColor;
 	}
 #		endif
 #		ifdef WATER_EFFECTS
@@ -3533,16 +3441,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(reconstructedPosition.xyz, terrainDebugColor)) {
 		output.color = terrainDebugColor;
-		output.normal = 0.0;
-		output.material = 0.0;
-		output.auxiliary = 0.0;
-		return output;
-	}
-#	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
 		output.normal = 0.0;
 		output.material = 0.0;
 		output.auxiliary = 0.0;
@@ -3873,16 +3771,6 @@ PS_OUTPUT main(PS_INPUT input)
 	float4 terrainDebugColor;
 	if (TerrainShadows::TryGetDebugColorFromViewPosition(reconstructedPosition.xyz, terrainDebugColor)) {
 		output.color = terrainDebugColor;
-		output.normal = 0.0;
-		output.material = 0.0;
-		output.auxiliary = 0.0;
-		return output;
-	}
-#	endif
-#	ifdef CLOUD_SHADOWS_FULLSCREEN_DEBUG
-	float4 cloudDebugColor;
-	if (CloudShadowsDebug::TryGetDebugColorFromScreenPosition(input.position.xy, cloudDebugColor)) {
-		output.color = cloudDebugColor;
 		output.normal = 0.0;
 		output.material = 0.0;
 		output.auxiliary = 0.0;

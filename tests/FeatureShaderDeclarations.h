@@ -18,9 +18,6 @@
 #include "../features/WaterEffects/src/ShaderDefines.h"
 #include "Render/FeatureShaderBindings.h"
 
-#include <memory>
-#include <vector>
-
 namespace cs::engine
 {
 	inline const std::vector<ShaderReplacementRegistration>& GetFeatureShaderContributions()
@@ -49,26 +46,6 @@ namespace cs::engine
 			};
 			for (const auto& [name, feature] : features) {
 				result.append_range(DescribeFeatureShaderBindings(name, *feature));
-			}
-			return result;
-		}();
-		return contributions;
-	}
-
-	// The same contributions with every fullscreen debug define selected.
-	inline const std::vector<ShaderReplacementRegistration>& GetFeatureDebugShaderContributions()
-	{
-		static const auto contributions = [] {
-			static std::vector<std::unique_ptr<ShaderDefineDeclaration>> debugCopies;
-			auto result = GetFeatureShaderContributions();
-			for (auto& contribution : result) {
-				const auto* declaration = dynamic_cast<const ShaderDefineDeclaration*>(contribution.feature);
-				if (!declaration || declaration->debug.empty())
-					continue;
-				auto& copy = debugCopies.emplace_back(std::make_unique<ShaderDefineDeclaration>(declaration->name, std::initializer_list<ShaderInjectionTarget>{}, declaration->debug, declaration->pair, declaration->stages));
-				copy->targets = declaration->targets;
-				copy->SetFullscreenDebugSelected(true);
-				contribution.feature = copy.get();
 			}
 			return result;
 		}();

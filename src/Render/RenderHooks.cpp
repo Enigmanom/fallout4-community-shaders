@@ -45,6 +45,7 @@ namespace cs::engine
 		std::vector<PrioritizedCallback> g_preFullscreenDeferredLightDraw;
 		std::vector<PrioritizedCallback> g_postForwardSky;
 		std::vector<PrioritizedCallback> g_postPrecipitationOcclusion;
+		std::vector<PrioritizedCallback> g_postImagespace;
 		std::vector<PrioritizedCallback> g_postSunShadowRender;
 		std::vector<PrioritizedCallback> g_preWaterUpdate;
 		std::vector<PrioritizedCallback> g_postResetState;
@@ -74,6 +75,7 @@ namespace cs::engine
 		bool g_drawFlushInstalled = false;
 		bool g_forwardSkyInstalled = false;
 		bool g_precipitationOcclusionInstalled = false;
+		bool g_imagespaceInstalled = false;
 		bool g_sunShadowRenderInstalled = false;
 		bool g_waterUpdateInstalled = false;
 		bool g_resetStateInstalled = false;
@@ -317,6 +319,17 @@ namespace cs::engine
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
+		struct Imagespace_Hook
+		{
+			static void thunk(void* a_this)
+			{
+				MarkRegistrationClosed();
+				func(a_this);
+				DispatchGuarded(g_postImagespace, "Imagespace");
+			}
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
 		struct PrecipitationOcclusion_Hook
 		{
 			static void thunk()
@@ -506,6 +519,12 @@ namespace cs::engine
 				RE::ID::DrawWorld::Forward.address() + offsets[runtimeIdx]);
 			g_forwardSkyInstalled = true;
 			L->info("Hook installed on DrawWorld::Forward cloud group call (post-sky boundary)");
+		}
+
+		bool EnsureImagespaceInstalled()
+		{
+			return EnsureDetourInstalled<Imagespace_Hook>(
+				g_imagespaceInstalled, RE::ID::DrawWorld::Imagespace, "DrawWorld::Imagespace");
 		}
 
 		bool EnsurePrecipitationOcclusionInstalled()
@@ -841,6 +860,14 @@ namespace cs::engine
 		InsertByPriority(g_postForwardSky, PrioritizedCallback{ priority, std::move(callback) });
 		EnsureForwardSkyInstalled();
 		return true;
+	}
+
+	bool RegisterPostImagespace(RenderHookCallback callback, HookPriority priority)
+	{
+		if (!RegistrationAllowed("PostImagespace"))
+			return false;
+		InsertByPriority(g_postImagespace, PrioritizedCallback{ priority, std::move(callback) });
+		return EnsureImagespaceInstalled();
 	}
 
 	bool RegisterPostSunShadowRender(RenderHookCallback callback, HookPriority priority)

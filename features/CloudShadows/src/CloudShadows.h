@@ -8,6 +8,7 @@
 #include "ShaderDefines.h"
 
 #include <d3d11.h>
+#include <d3d11_1.h>
 
 #include <array>
 #include <atomic>
@@ -47,7 +48,6 @@ namespace cs::features
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
 		std::span<const FeatureDebugView> GetDebugViews() const noexcept override;
 		void SetDebugView(std::string_view a_view) noexcept override;
-		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
 		cs::render::CloudShadowsSettings GetCommonBufferData() const;
 
@@ -74,6 +74,9 @@ namespace cs::features
 		void UnbindExtraTarget(ID3D11DeviceContext* a_context);
 
 		void RenderDebugPreview(ID3D11DeviceContext* a_context);
+		// Draws the selected fullscreen view over the final scene image.
+		void RenderOverlay();
+		void BuildOverlayResources(ID3D11Device* a_device);
 		FeatureDebugTexture GetOcclusionDebugTexture() const;
 
 		Settings _settings;
@@ -91,8 +94,14 @@ namespace cs::features
 		cs::render::RgbaPreview _preview;
 		winrt::com_ptr<ID3D11ComputeShader> _previewCS;
 		std::atomic_bool _previewSelected{ false };
-		// A CloudShadowsDebugMode value; zero is off.
-		std::atomic<std::uint32_t> _fullscreenMode{ 0 };
+		// 0 off, 1 sky overlay, 2 shadow term.
+		std::atomic<std::uint32_t> _overlayMode{ 0 };
+		winrt::com_ptr<ID3DDeviceContextState> _overlayState;
+		winrt::com_ptr<ID3D11VertexShader> _overlayVS;
+		std::array<winrt::com_ptr<ID3D11PixelShader>, 2> _overlayPS;
+		winrt::com_ptr<ID3D11BlendState> _overlayBlend;
+		winrt::com_ptr<ID3D11RasterizerState> _overlayRasterizer;
+		std::atomic_bool _overlayReady{ false };
 
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _injectionsOperational{ false };
@@ -107,6 +116,8 @@ namespace cs::features
 			std::atomic<std::uint64_t> extraTargetsUnbound{ 0 };
 			std::atomic<std::uint64_t> skippedNoCube{ 0 };
 			std::atomic<std::uint64_t> skippedNoDepth{ 0 };
+			std::atomic<std::uint64_t> overlayFrames{ 0 };
+			std::atomic<std::uint64_t> overlaySkipped{ 0 };
 			std::atomic<std::uint32_t> cubeSize{ 0 };
 			std::atomic<std::uint32_t> cubeMips{ 0 };
 		} _counters;

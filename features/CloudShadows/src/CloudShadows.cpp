@@ -4,8 +4,10 @@
 
 #include <array>
 #include <format>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <toml++/toml.hpp>
 
@@ -13,13 +15,17 @@
 #include "Menu/Menu.h"
 #include "Menu/SettingsEdit.h"
 #include "Render/Annotation.h"
+#include "Render/CanonicalDepth.h"
 #include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/FrameBindings.h"
 #include "Render/FrameProfiler.h"
+#include "Render/RenderHooks.h"
+#include "Render/ScopedContextState.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedData.h"
 #include "Render/SkyReflectionCube.h"
+#include "Render/SubstrateSlots.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/CSUtil.h"
@@ -31,6 +37,7 @@ namespace cs::features
 		auto* L = cs::log::Get("cs.feature.cloudshadows");
 
 		constexpr const wchar_t* kPreviewPath = L"Data\\Shaders\\FO4\\CubemapPreviewCS.hlsl";
+		constexpr const wchar_t* kOverlayPath = L"Data\\Shaders\\FO4\\CloudShadows\\DebugOverlay.hlsl";
 		constexpr std::string_view kPreviewUnavailable = "Cloud occlusion preview not populated.";
 		// RT0 color, RT1 motion; the capture cube takes the next free slot.
 		constexpr std::uint32_t kCaptureTargetSlot = 2;
@@ -71,6 +78,8 @@ namespace cs::features
 			FailLoad("Cloud Shadows needs the sky reflection cube");
 			return;
 		}
+		if (!cs::engine::RegisterPostImagespace([this] { RenderOverlay(); }))
+			L->warn("The fullscreen debug views need the post-imagespace hook.");
 		_registrationsReady.store(true, std::memory_order_release);
 	}
 
@@ -110,6 +119,11 @@ namespace cs::features
 		_previewCS.attach(static_cast<ID3D11ComputeShader*>(cs::util::CompileShader(kPreviewPath, { { "SINGLE_CHANNEL", "1" } }, "cs_5_0")));
 		if (!_previewCS)
 			L->warn("The occlusion preview shader failed to compile.");
+		try {
+			BuildOverlayResources(a_device);
+		} catch (const std::exception& e) {
+			L->warn("Fullscreen debug resources unavailable: {}", e.what());
+		}
 	}
 
 	bool CloudShadows::EnsureCube(ID3D11DeviceContext* a_context)
@@ -286,6 +300,92 @@ namespace cs::features
 		RenderDebugPreview(context);
 	}
 
+	void CloudShadows::BuildOverlayResources(ID3D11Device* a_device)
+	{
+		winrt::com_ptr<ID3D11Device1> device;
+		DX::ThrowIfFailed(a_device->QueryInterface(IID_PPV_ARGS(device.put())));
+		const auto level = a_device->GetFeatureLevel();
+		D3D_FEATURE_LEVEL selected{};
+		DX::ThrowIfFailed(device->CreateDeviceContextState(
+			0, &level, 1, D3D11_SDK_VERSION, __uuidof(ID3D11Device), &selected, _overlayState.put()));
+		_overlayVS.attach(static_cast<ID3D11VertexShader*>(cs::util::CompileShader(kOverlayPath, {}, "vs_5_0")));
+		for (std::size_t index = 0; index < _overlayPS.size(); ++index) {
+			std::vector<std::pair<const char*, const char*>> defines{ { "FO4CS_SUBSTRATE", "1" }, { "CLOUD_SHADOWS", "1" } };
+			if (index == 0)
+				defines.emplace_back("CLOUD_SKY_OVERLAY", "1");
+			_overlayPS[index].attach(static_cast<ID3D11PixelShader*>(cs::util::CompileShader(kOverlayPath, defines, "ps_5_0")));
+		}
+
+		D3D11_BLEND_DESC blendDesc{};
+		auto& target = blendDesc.RenderTarget[0];
+		target.BlendEnable = TRUE;
+		target.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		target.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		target.BlendOp = D3D11_BLEND_OP_ADD;
+		target.SrcBlendAlpha = D3D11_BLEND_ZERO;
+		target.DestBlendAlpha = D3D11_BLEND_ONE;
+		target.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		target.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_RED | D3D11_COLOR_WRITE_ENABLE_GREEN | D3D11_COLOR_WRITE_ENABLE_BLUE;
+		DX::ThrowIfFailed(a_device->CreateBlendState(&blendDesc, _overlayBlend.put()));
+
+		D3D11_RASTERIZER_DESC rasterizer{};
+		rasterizer.FillMode = D3D11_FILL_SOLID;
+		rasterizer.CullMode = D3D11_CULL_NONE;
+		rasterizer.DepthClipEnable = TRUE;
+		DX::ThrowIfFailed(a_device->CreateRasterizerState(&rasterizer, _overlayRasterizer.put()));
+		_overlayReady.store(_overlayVS && _overlayPS[0] && _overlayPS[1], std::memory_order_release);
+	}
+
+	void CloudShadows::RenderOverlay()
+	{
+		const auto mode = _overlayMode.load(std::memory_order_acquire);
+		if (mode == 0 || !_overlayReady.load(std::memory_order_acquire) || !_injectionsOperational.load(std::memory_order_acquire))
+			return;
+		auto* context = cs::engine::GetImmediateContext();
+		const auto* graphics = cs::engine::GetGraphicsState();
+		const auto camera = graphics ? cs::engine::GetCapturedWorldCameraRecord(graphics->frameCount) : std::nullopt;
+		auto* frameBuffer = cs::engine::GetRenderTargetRTV(RE::BSGraphics::RenderTargetID::kFrameBuffer);
+		if (!context || !camera || !frameBuffer || !_cubeSRV) {
+			_counters.overlaySkipped.fetch_add(1, std::memory_order_relaxed);
+			return;
+		}
+		// The output depth matches the final image; the scene depth is render-sized.
+		auto* depth = cs::render::UpdateOutputCanonicalDepth(context, *camera);
+		winrt::com_ptr<ID3D11Resource> resource;
+		frameBuffer->GetResource(resource.put());
+		winrt::com_ptr<ID3D11Texture2D> texture;
+		if (!depth || !resource || FAILED(resource->QueryInterface(IID_PPV_ARGS(texture.put())))) {
+			_counters.overlaySkipped.fetch_add(1, std::memory_order_relaxed);
+			return;
+		}
+		D3D11_TEXTURE2D_DESC desc{};
+		texture->GetDesc(&desc);
+
+		// The engine caches its bindings, so the pass runs in an isolated context state.
+		cs::render::ScopedContextState state(context, _overlayState.get());
+		if (!state.IsActive())
+			return;
+		cs::render::annotation::ScopedEvent timing("CloudShadows/Overlay");
+		context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		context->VSSetShader(_overlayVS.get(), nullptr, 0);
+		context->PSSetShader(_overlayPS[mode == 1 ? 0 : 1].get(), nullptr, 0);
+		context->RSSetState(_overlayRasterizer.get());
+		const D3D11_VIEWPORT viewport{ 0, 0, static_cast<float>(desc.Width), static_cast<float>(desc.Height), 0, 1 };
+		context->RSSetViewports(1, &viewport);
+		context->OMSetRenderTargets(1, &frameBuffer, nullptr);
+		constexpr float kBlendFactor[4]{};
+		context->OMSetBlendState(_overlayBlend.get(), kBlendFactor, 0xFFFFFFFFu);
+		cs::render::BindSharedData(context, cs::engine::ShaderStage::kPixel);
+		ID3D11ShaderResourceView* const views[]{ depth };
+		context->PSSetShaderResources(cloud_shadows_shader::kCloudDepthSlot, 1, views);
+		ID3D11ShaderResourceView* const cube = _cubeSRV.get();
+		context->PSSetShaderResources(cloud_shadows_shader::kCloudShadowsSlot, 1, &cube);
+		ID3D11SamplerState* const sampler = cs::render::GetLinearClampSampler();
+		context->PSSetSamplers(cs::render::kLinearClampSamplerSlot, 1, &sampler);
+		context->Draw(3, 0);
+		_counters.overlayFrames.fetch_add(1, std::memory_order_relaxed);
+	}
+
 	void CloudShadows::RenderDebugPreview(ID3D11DeviceContext* a_context)
 	{
 		if (!_previewSelected.load(std::memory_order_acquire) || !_previewCS || !_cubeSRV)
@@ -309,7 +409,7 @@ namespace cs::features
 				.textureProvider = [](const Feature& a_feature) {
 					return static_cast<const CloudShadows&>(a_feature).GetOcclusionDebugTexture();
 				} },
-			FeatureDebugView{ .id = "cloud_sky_overlay", .label = "Cloud occlusion along the view ray", .kind = FeatureDebugViewKind::kFullscreen }, FeatureDebugView{ .id = "cloud_shadow_term", .label = "Cloud shadow term", .kind = FeatureDebugViewKind::kFullscreen }
+			FeatureDebugView{ .id = "cloud_sky_overlay", .label = "Cloud occlusion over the final image", .kind = FeatureDebugViewKind::kFullscreen }, FeatureDebugView{ .id = "cloud_shadow_term", .label = "Cloud shadow term", .kind = FeatureDebugViewKind::kFullscreen }
 		};
 		return views;
 	}
@@ -318,19 +418,9 @@ namespace cs::features
 	{
 		_preview.Invalidate();
 		_previewSelected.store(a_view == "cloud_occlusion", std::memory_order_release);
-		_fullscreenMode.store(
-			a_view == "cloud_sky_overlay" ? CloudShadowsDebugMode::SkyOverlay :
-			a_view == "cloud_shadow_term" ? CloudShadowsDebugMode::ShadowTerm :
-											0u,
+		_overlayMode.store(a_view == "cloud_sky_overlay" ? 1u : a_view == "cloud_shadow_term" ? 2u :
+																								0u,
 			std::memory_order_release);
-	}
-
-	FullscreenDebugData CloudShadows::GetFullscreenDebugData() const noexcept
-	{
-		const auto mode = _fullscreenMode.load(std::memory_order_acquire);
-		if (mode == 0 || !_injectionsOperational.load(std::memory_order_acquire))
-			return {};
-		return { .owner = FullscreenDebugOwner::CloudShadows, .mode = mode };
 	}
 
 	FeatureDebugTexture CloudShadows::GetOcclusionDebugTexture() const
@@ -370,6 +460,8 @@ namespace cs::features
 			.Field("extra_targets_unbound", count(_counters.extraTargetsUnbound))
 			.Field("skipped_no_cube", count(_counters.skippedNoCube))
 			.Field("skipped_no_depth", count(_counters.skippedNoDepth))
+			.Field("overlay_frames", count(_counters.overlayFrames))
+			.Field("overlay_skipped", count(_counters.overlaySkipped))
 			.Dimensions("cube", size, size)
 			.Field("cube_mips", _counters.cubeMips.load(std::memory_order_relaxed));
 		cs::render::profiling::CollectPassTimings(a_sink, "CloudShadows/");

@@ -38,8 +38,11 @@ namespace TerrainShadows
 
 	bool TryGetDebugColorFromScreenPosition(float2 pixelPosition, out float4 color)
 	{
-		float depth;
-		return TryGetDebugColorFromViewPosition(WorldShadow::ViewPositionFromScreenPosition(pixelPosition, depth), color);
+		float2 uv = pixelPosition * SharedData::BufferDim.zw;
+		uv = FrameBuffer::GetDynamicResolutionUnadjustedScreenPosition(uv);
+		float4 view = mul(FrameBuffer::CameraProjInverse,
+			float4(uv * float2(2.0, -2.0) + float2(-1.0, 1.0), SharedData::GetDepth(uv), 1.0));
+		return TryGetDebugColorFromViewPosition(view.xyz / view.w, color);
 	}
 #else
 	bool TryGetDebugColorFromViewPosition(float3 viewPosition, out float4 color)

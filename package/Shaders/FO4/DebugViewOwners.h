@@ -16,8 +16,7 @@ namespace FullscreenDebugOwner
 		TerrainShadows = 3,
 		WaterEffects = 4,
 		Skylighting = 5,
-		DynamicCubemaps = 6,
-		CloudShadows = 7;
+		DynamicCubemaps = 6;
 }
 
 namespace DynamicCubemapsDebugMode
@@ -29,16 +28,5 @@ namespace DynamicCubemapsDebugMode
 #endif
 		DirectionCube = 1,
 		EngineCube = 2;
-}
-
-namespace CloudShadowsDebugMode
-{
-#ifdef __cplusplus
-	inline constexpr std::uint32_t
-#else
-	static const uint
-#endif
-		SkyOverlay = 1,
-		ShadowTerm = 2;
 }
 #endif

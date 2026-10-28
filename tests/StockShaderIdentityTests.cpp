@@ -250,9 +250,6 @@ namespace
 	{
 		const auto compiled = CompileStage(a_row.family, a_shaderRoot, AllContributions(a_featuresOn), a_runtime);
 		if (a_featuresOn) {
-			// Fullscreen debug views recompile only the composite.
-			if (a_row.family.target == cs::engine::ShaderInjectionTarget::kBsdfComposite)
-				CompileStage(a_row.family, a_shaderRoot, cs::engine::GetFeatureDebugShaderContributions(), a_runtime);
 			if (a_row.family.stage != cs::engine::ShaderStage::kCompute &&
 				std::ranges::any_of(cs::engine::GetFeatureShaderContributions(), [&](const auto& contribution) {
 					return contribution.targetId == a_row.family.target && contribution.requiresGraphicsPair;
