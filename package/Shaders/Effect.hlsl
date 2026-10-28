@@ -762,10 +762,10 @@ PSOutput main(PSInput input)
 #				endif
 	);
 #				if defined(LIGHT_LIMIT_FIX)
+	uint lightCount = 0;
 	[branch] if (FO4LightLimitFix::UseClusteredLights())
 	{
 		float3 viewPosition = FO4Forward::ViewPosition(input.Position.xyz);
-		uint lightCount;
 		propertyColor += FO4LightLimitFix::GetEffectLighting(viewPosition, FrameBuffer::ViewToWorld(viewPosition), lightCount);
 	}
 #				endif
@@ -871,6 +871,17 @@ PSOutput main(PSInput input)
 	output.Color = finalColor;
 #		elif defined(PIPBOY_SCREEN)
 	output.Color = finalColor;
+#		endif
+#		if defined(LIGHTING) && defined(LIGHT_LIMIT_FIX) && defined(LLFDEBUG) && !defined(MEMBRANE)
+	if (SharedData::lightLimitFixSettings.EnableLightsVisualisation) {
+		if (SharedData::lightLimitFixSettings.LightsVisualisationMode == 0) {
+			output.Color.xyz = Color::TurboColormap(0.0);
+		} else if (SharedData::lightLimitFixSettings.LightsVisualisationMode == 1) {
+			output.Color.xyz = Color::TurboColormap(0.0);
+		} else {
+			output.Color.xyz = Color::TurboColormap((float)lightCount / MAX_CLUSTER_LIGHTS);
+		}
+	}
 #		endif
 #	endif
 	return output;

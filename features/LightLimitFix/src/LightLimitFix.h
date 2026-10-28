@@ -27,6 +27,9 @@ namespace cs::features
 		void WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4) override;
 		void OnD3D11Ready(IDXGIAdapter*, ID3D11Device*) override;
 		bool ValidateShaderInjections(std::string& a_error) override;
+		std::span<const FeatureDebugView> GetDebugViews() const noexcept override;
+		void SetDebugView(std::string_view a_view) noexcept override;
+		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 		void DrawSettings() override;
 		bool SaveSettings() override;
 		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(light_limit_fix::kSchema, _settings); }

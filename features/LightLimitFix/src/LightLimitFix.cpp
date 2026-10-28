@@ -41,6 +41,10 @@ namespace cs::features
 		constexpr std::uint32_t kStrictSlot = 3;
 		constexpr std::uint32_t kForwardSlot = 34;
 		constexpr auto kDirectory = "Data\\F4SE\\Plugins\\FO4CommunityShaders\\Lights";
+		// FO4: upstream's Shadow Mask mode has no shadow-mask source here.
+		constexpr std::array<FeatureDebugView, 3> kDebugViews{ { { "light_limit", "Light Limit", FeatureDebugViewKind::kFullscreen },
+			{ "strict_lights", "Strict Lights Count", FeatureDebugViewKind::kFullscreen },
+			{ "clustered_lights", "Clustered Lights Count", FeatureDebugViewKind::kFullscreen } } };
 
 		struct State
 		{
@@ -53,6 +57,7 @@ namespace cs::features
 			ClusterGrid grid;
 			buffer::CachedConstantBuffer<StrictLightDataCB> strict;
 			std::atomic<bool> gridReady{ false }, gridBuilt{ false };
+			std::atomic<std::uint32_t> debugView{ 0 };
 			std::atomic<std::uint64_t> clusterDispatches{ 0 }, clusterSkips{ 0 };
 			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 }, clusterStrictLights{ 0 };
 			std::atomic<std::uint32_t> clusterDropped{ 0 }, clusterX{ 0 }, clusterY{ 0 }, clusterZ{ 0 };
@@ -509,8 +514,24 @@ namespace cs::features
 		g_state.sidecar.RestoreNativeRadii();
 		g_state.deferred.Clear();
 	}
+	std::span<const FeatureDebugView> LightLimitFix::GetDebugViews() const noexcept
+	{
+		return kDebugViews;
+	}
+	void LightLimitFix::SetDebugView(std::string_view a_view) noexcept
+	{
+		const auto it = std::ranges::find(kDebugViews, a_view, &FeatureDebugView::id);
+		g_state.debugView.store(it == kDebugViews.end() ? 0u : static_cast<std::uint32_t>(it - kDebugViews.begin()) + 1, std::memory_order_release);
+	}
+	FullscreenDebugData LightLimitFix::GetFullscreenDebugData() const noexcept
+	{
+		return { .owner = FullscreenDebugOwner::LightLimitFix, .mode = g_state.debugView.load(std::memory_order_acquire) };
+	}
 	void LightLimitFix::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4)
 	{
+		const auto view = g_state.debugView.load(std::memory_order_acquire);
+		a_feature.lightLimitFixSettings.EnableLightsVisualisation = view != 0 ? 1u : 0u;
+		a_feature.lightLimitFixSettings.LightsVisualisationMode = view != 0 ? view - 1 : 0u;
 		a_fo4.EnabledLightLimitFix = Enabled() && g_state.gridBuilt.load() ? 1u : 0u;
 		if (g_state.gridReady.load()) {
 			const auto size = ClusterGrid::ActiveDimensions();
