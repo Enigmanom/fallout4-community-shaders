@@ -216,7 +216,7 @@ namespace
 			ABI(FO4SharedDataCB, EnabledWaterParallax), ABI(FO4SharedDataCB, EnabledTerrainVariation),
 			ABI(FO4SharedDataCB, EnabledSkylighting), ABI(FO4SharedDataCB, EnabledScreenSpaceGI),
 			ABI(FO4SharedDataCB, EnabledUnifiedWater), ABI(FO4SharedDataCB, pad0),
-			ABI(FO4SharedDataCB, DirectionalAmbient)
+			ABI(FO4SharedDataCB, DirectionalAmbient), ABI(FO4SharedDataCB, SunDiscDirection)
 		};
 		struct Buffer
 		{

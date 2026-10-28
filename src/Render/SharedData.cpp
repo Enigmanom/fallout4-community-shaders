@@ -132,6 +132,10 @@ namespace cs::render
 				data.DirLightDirection = { -sunX, -sunY, -sunZ, 0.0f };
 				data.SunDirection = data.DirLightDirection;
 			}
+			// FO4: the light is held above a minimum elevation; clouds follow the drawn disc.
+			a_fo4.SunDiscDirection = data.DirLightDirection;
+			if (float discX, discY, discZ; engine::TryGetSunDiscDirectionWS(discX, discY, discZ))
+				a_fo4.SunDiscDirection = { discX, discY, discZ, 0.0f };
 
 			DirectX::XMFLOAT3 sunColor{};
 			if (engine::TryGetSunLightColor(sunColor))

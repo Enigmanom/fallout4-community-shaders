@@ -100,8 +100,10 @@ namespace cs::render
 		std::uint32_t pad0 = 0;
 		// Engine DALC rows, so vanilla ambient replays exactly beside the linear SH.
 		DirectX::XMFLOAT4 DirectionalAmbient[3]{};
+		// Unit direction toward the drawn sun disc; the light direction when it is unavailable.
+		DirectX::XMFLOAT4 SunDiscDirection{};
 	};
-	static_assert(sizeof(FO4SharedDataCB) == 112);
+	static_assert(sizeof(FO4SharedDataCB) == 128);
 	static_assert(offsetof(FO4SharedDataCB, DebugOwner) == 0);
 	static_assert(offsetof(FO4SharedDataCB, DebugMode) == 4);
 	static_assert(offsetof(FO4SharedDataCB, EnabledSSR) == 8);
@@ -116,6 +118,7 @@ namespace cs::render
 	static_assert(offsetof(FO4SharedDataCB, EnabledUnifiedWater) == 56);
 	static_assert(offsetof(FO4SharedDataCB, pad0) == 60);
 	static_assert(offsetof(FO4SharedDataCB, DirectionalAmbient) == 64);
+	static_assert(offsetof(FO4SharedDataCB, SunDiscDirection) == 112);
 
 	[[nodiscard]] inline FrameDataCB PackFrameData(
 		const engine::WorldCameraRecord& a_camera, DirectX::XMFLOAT2 a_ratio,

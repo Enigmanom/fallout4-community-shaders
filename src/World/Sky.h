@@ -7,6 +7,9 @@ namespace cs::engine
 	// Normalized light propagation direction, away from the sun.
 	bool TryGetSunDirectionWS(float& outX, float& outY, float& outZ) noexcept;
 
+	// Unit direction from the camera to the drawn sun disc.
+	bool TryGetSunDiscDirectionWS(float& outX, float& outY, float& outZ) noexcept;
+
 	// Linear sun radiance as the deferred sun pass receives it.
 	bool TryGetSunLightColor(DirectX::XMFLOAT3& a_color) noexcept;
 

@@ -32,6 +32,7 @@
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/CSUtil.h"
+#include "World/Sky.h"
 
 #include "RE/B/BSGeometry.h"
 #include "RE/B/BSRenderPass.h"
@@ -370,18 +371,7 @@ namespace cs::features
 	void CloudShadows::UpdateOverlayConstants(ID3D11DeviceContext* a_context)
 	{
 		float sun[4]{};
-		const auto* sky = RE::Sky::GetSingleton();
-		if (sky && sky->root && sky->sun && sky->sun->root) {
-			// The sky root sits at the camera, so the sun root's offset from it is the disc direction.
-			const auto offset = sky->sun->root->world.translate - sky->root->world.translate;
-			const float length = std::sqrt(offset.SqrLength());
-			if (length > 0.0f && std::isfinite(length)) {
-				sun[0] = offset.x / length;
-				sun[1] = offset.y / length;
-				sun[2] = offset.z / length;
-				sun[3] = 1.0f;
-			}
-		}
+		sun[3] = cs::engine::TryGetSunDiscDirectionWS(sun[0], sun[1], sun[2]) ? 1.0f : 0.0f;
 		D3D11_MAPPED_SUBRESOURCE mapped{};
 		if (FAILED(a_context->Map(_overlayConstants.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
 			return;

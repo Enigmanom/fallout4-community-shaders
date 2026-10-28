@@ -8,3 +8,4 @@
 | N/A | Legacy volumetric-lighting consumer | | FO4 godrays are native GFSDK |
 | N/A | `BSParticleShader` receiver | | FO4 never draws the particle shader |
 | Divergence | Every cloud layer is captured | Layers centered at or below the cloud node's horizon are not: `Clouds.nif`'s opaque FogRing fill is not cloud | FO4 ships a below-horizon fill layer that would shadow every low-sun receiver |
+| Forced | Cloud lookup follows the directional light direction | It follows the drawn sun disc; lighting keeps the light direction | FO4 holds the light at least 27.6 degrees above the horizon while the disc sets |

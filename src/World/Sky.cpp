@@ -6,6 +6,7 @@
 #include "RE/I/ImageSpaceManager.h"
 #include "RE/N/NiAVObject.h"
 #include "RE/N/NiLight.h"
+#include "RE/N/NiNode.h"
 #include "RE/S/Sky.h"
 #include "RE/S/Sun.h"
 #include "RE/T/TES.h"
@@ -31,6 +32,22 @@ namespace cs::engine
 		outX = x * invLen;
 		outY = y * invLen;
 		outZ = z * invLen;
+		return true;
+	}
+
+	bool TryGetSunDiscDirectionWS(float& outX, float& outY, float& outZ) noexcept
+	{
+		const auto* sky = RE::Sky::GetSingleton();
+		if (!sky || !sky->root || !sky->sun || !sky->sun->root)
+			return false;
+		// The sky root sits at the camera, so the sun root's offset from it is the disc direction.
+		const auto offset = sky->sun->root->world.translate - sky->root->world.translate;
+		const float length = std::sqrt(offset.SqrLength());
+		if (!(length > 0.0f) || !std::isfinite(length))
+			return false;
+		outX = offset.x / length;
+		outY = offset.y / length;
+		outZ = offset.z / length;
 		return true;
 	}
 
