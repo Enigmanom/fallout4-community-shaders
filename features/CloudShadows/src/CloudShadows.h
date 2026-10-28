@@ -47,6 +47,7 @@ namespace cs::features
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
 		std::span<const FeatureDebugView> GetDebugViews() const noexcept override;
 		void SetDebugView(std::string_view a_view) noexcept override;
+		FullscreenDebugData GetFullscreenDebugData() const noexcept override;
 
 		cs::render::CloudShadowsSettings GetCommonBufferData() const;
 
@@ -90,6 +91,8 @@ namespace cs::features
 		cs::render::RgbaPreview _preview;
 		winrt::com_ptr<ID3D11ComputeShader> _previewCS;
 		std::atomic_bool _previewSelected{ false };
+		// A CloudShadowsDebugMode value; zero is off.
+		std::atomic<std::uint32_t> _fullscreenMode{ 0 };
 
 		std::atomic_bool _registrationsReady{ false };
 		std::atomic_bool _injectionsOperational{ false };

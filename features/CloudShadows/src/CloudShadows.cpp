@@ -308,7 +308,8 @@ namespace cs::features
 				.kind = FeatureDebugViewKind::kTexturePreview,
 				.textureProvider = [](const Feature& a_feature) {
 					return static_cast<const CloudShadows&>(a_feature).GetOcclusionDebugTexture();
-				} }
+				} },
+			FeatureDebugView{ .id = "cloud_sky_overlay", .label = "Cloud occlusion along the view ray", .kind = FeatureDebugViewKind::kFullscreen }, FeatureDebugView{ .id = "cloud_shadow_term", .label = "Cloud shadow term", .kind = FeatureDebugViewKind::kFullscreen }
 		};
 		return views;
 	}
@@ -317,6 +318,19 @@ namespace cs::features
 	{
 		_preview.Invalidate();
 		_previewSelected.store(a_view == "cloud_occlusion", std::memory_order_release);
+		_fullscreenMode.store(
+			a_view == "cloud_sky_overlay" ? CloudShadowsDebugMode::SkyOverlay :
+			a_view == "cloud_shadow_term" ? CloudShadowsDebugMode::ShadowTerm :
+											0u,
+			std::memory_order_release);
+	}
+
+	FullscreenDebugData CloudShadows::GetFullscreenDebugData() const noexcept
+	{
+		const auto mode = _fullscreenMode.load(std::memory_order_acquire);
+		if (mode == 0 || !_injectionsOperational.load(std::memory_order_acquire))
+			return {};
+		return { .owner = FullscreenDebugOwner::CloudShadows, .mode = mode };
 	}
 
 	FeatureDebugTexture CloudShadows::GetOcclusionDebugTexture() const
