@@ -189,7 +189,6 @@ target(plugin_name .. "Version", function()
                 "release_identity must be a stable or dev release tag")
             describe = identity
         end
-        local content = io.readfile("xmake/Plugin.h.in")
         local variables = {
             BUILD_DESCRIBE = describe,
             BUILD_GIT_SHA = sha,
@@ -199,14 +198,18 @@ target(plugin_name .. "Version", function()
             PROJECT_VERSION_PATCH = plugin_version_patch
         }
 
-        for name, value in pairs(variables) do
-            content = content:gsub("@" .. name .. "@", value)
-        end
+        -- BuildIdentity.h changes every commit; only the TUs that print it include it.
+        for _, header in ipairs({ "Plugin.h", "BuildIdentity.h" }) do
+            local content = io.readfile(path.join("xmake", header .. ".in"))
+            for name, value in pairs(variables) do
+                content = content:gsub("@" .. name .. "@", value)
+            end
 
-        local output = path.join(generated_include, "Plugin.h")
-        if not os.isfile(output) or io.readfile(output) ~= content then
-            os.mkdir(path.directory(output))
-            io.writefile(output, content)
+            local output = path.join(generated_include, header)
+            if not os.isfile(output) or io.readfile(output) ~= content then
+                os.mkdir(path.directory(output))
+                io.writefile(output, content)
+            end
         end
     end)
 end)

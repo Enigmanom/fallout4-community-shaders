@@ -1,5 +1,6 @@
 #include "Menu/Menu.h"
 
+#include "BuildIdentity.h"
 #include "Feature.h"
 #include "Host/HostClient.h"
 #include "Log.h"
