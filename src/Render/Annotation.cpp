@@ -7,6 +7,10 @@
 
 #include <winrt/base.h>
 
+#ifdef NVPERF_ENABLED
+#	include "Features/RemoteControl/NvPerf.h"
+#endif
+
 namespace cs::render::annotation
 {
 	namespace
@@ -66,12 +70,22 @@ namespace cs::render::annotation
 
 	bool EventsConsumed() noexcept
 	{
+#ifdef NVPERF_ENABLED
+		if (NvPerf::RangesActive())
+			return true;
+#endif
 		return annotation != nullptr;
 	}
 
 	ScopedEvent::ScopedEvent(std::string_view a_name, bool a_profile) noexcept
 	{
 		_profile = a_profile && beginPass && endPass && beginPass(a_name);
+#ifdef NVPERF_ENABLED
+		if (NvPerf::RangesActive()) {
+			NvPerf::PushRange(a_name);
+			_nvperf = true;
+		}
+#endif
 		if (!annotation)
 			return;
 
@@ -103,6 +117,10 @@ namespace cs::render::annotation
 	{
 		if (_profile)
 			endPass();
+#ifdef NVPERF_ENABLED
+		if (_nvperf)
+			NvPerf::PopRange();
+#endif
 		if (_d3d11)
 			_d3d11->EndEvent();
 		if (_d3d12)
