@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../features/CloudShadows/src/ShaderDefines.h"
 #include "../features/DynamicCubemaps/src/ShaderDefines.h"
 #include "../features/ExtendedMaterials/src/ShaderDefines.h"
 #include "../features/IBL/src/ShaderDefines.h"
@@ -33,6 +34,7 @@ namespace cs::engine
 				{ "ImageBasedLighting", &ibl_shader::kShaderDefines },
 				{ "TerrainShadows", &terrain_shader::kShaderDefines },
 				{ "VolumetricShadows", &volumetric_shadows_shader::kShaderDefines },
+				{ "CloudShadows", &cloud_shadows_shader::kShaderDefines },
 				{ "LODBlending", &lod_blending_shader::kShaderDefines },
 				{ "TerrainVariation", &terrain_variation_shader::kShaderDefines },
 				{ "TerrainBlending", &terrain_blending_shader::kShaderDefines },

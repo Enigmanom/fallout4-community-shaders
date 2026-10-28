@@ -20,6 +20,7 @@ local features = {
     "TerrainShadows",
     "SkySync",
     "VolumetricShadows",
+    "CloudShadows",
     "LODBlending",
     "TerrainVariation",
     "TerrainBlending",

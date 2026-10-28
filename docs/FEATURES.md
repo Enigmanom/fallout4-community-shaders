@@ -35,7 +35,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Feature | Verdict | Core slices | Extension / N/A slices | Status | Payoff | Effort | Conf. |
 |---|---|---|---|---|---|---|---|
 | [CS Editor](deviations/CSEditor.md) | Core | Weather picker, lock, time controls, weather panels and per-weather feature overrides; template/imagespace/godray editors, light editor and shell pending | N/A: Skyrim VL noise fields | Pt | H | L | High |
-| Cloud Shadows | Mixed | Layer-cube producer, DFLight directional receivers, Water sun specular | Ext: Effect/particle sun term (FO4 Effect lighting has none). N/A: legacy VL consumer, BSParticleShader (never drawn) | NS | H | L | Med |
+| [Cloud Shadows](deviations/CloudShadows.md) | Mixed | Layer-cube producer, DFLight directional receivers, Water sun specular; cloud self-shadowing pending | Ext: Effect/particle sun term. N/A: legacy VL consumer, BSParticleShader (never drawn) | Pt | H | L | High |
 | [Dynamic Cubemaps](deviations/DynamicCubemaps.md) | Mixed | Capture/filter/inference, water, native envmap materials, Skylighting/IBL-specular providers, Creator tool | Ext: authored sentinel/reflectance selection, FO4 material workflow | Pt | H | S/M | High |
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |
 | Exponential Height Fog | Core | Deferred until upstream releases it | — | NS | — | — | — |
@@ -87,8 +87,6 @@ are FO4-only rule-4 core features.
   BGSM flag is recovered. Terrain shares Terrain Variation's UV offsets.
 - **Subsurface Scattering.** Replace FO4's fixed second-composite blur with upstream separable/Burley on
   native class-5 eligibility; never stack both.
-- **Cloud Shadows.** Prior art on branch `cloud-shadows` (`3314d567`) maps material pointers to layers;
-  replace with typed layer order.
 - **Light Limit Fix.** FO4 tiled lighting (625 lights, 127 per tile) replaces surface clustering. Particle
   lights are N/A: upstream lights only texture stems listed in `Data\ParticleLights\*.ini`, which no FO4
   content ships; lighting vanilla glow cards by shader flags would be an FO4-original extension. The
@@ -114,7 +112,7 @@ Ordered by user value over effort, respecting dependencies.
 2. **Finish ported features:** DC provider adapters (S/M); Water Effects caustics proof (S).
 3. **Cheap new features:** LOD Blending (S); Unified Water optical blend and terrain tiles (M); Terrain Variation (M).
 4. **Parallax:** Extended Materials object/terrain POM + TruePBR surface POM, reading `_s` alpha (M).
-5. **Mid-size, few dependencies:** Cloud Shadows (L); Subsurface Scattering (M); Volumetric
+5. **Mid-size, few dependencies:** Subsurface Scattering (M); Volumetric
    Shadows producer + DFLight (M); Hair Specular opaque slices (M); Grass Collision (M, actor-bounds RE).
 6. **RE-gated:** Interior Sun.
 7. **Providers:** LLF light-limit visualization; then provider adapters in DC/SSGI.
@@ -126,5 +124,5 @@ Planned: Volumetric Lighting as an FO4 extension over native GFSDK godrays: enab
 a resolution fix for pixelated godrays and night-time (moon) godrays; RE first (GFSDK grid/quality/upsample
 parameters, night gating). Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
 full materials; Extended Materials complex materials (envmask-alpha height, RGB metal/colour); Grass Optimizations renderer;
-Terrain Helper ESP; Skin RFAOS; SSS profiles; Hair Kajiya-Kay and blended hair; LLF capacity/shadow
+Terrain Helper ESP; Cloud Shadows Effect/particle sun term; Skin RFAOS; SSS profiles; Hair Kajiya-Kay and blended hair; LLF capacity/shadow
 redesign; full raymarched Volumetric Lighting renderer.

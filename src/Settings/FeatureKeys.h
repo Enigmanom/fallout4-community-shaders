@@ -18,6 +18,7 @@ namespace cs::feature_config
 		"TerrainShadows",
 		"SkySync",
 		"VolumetricShadows",
+		"CloudShadows",
 		"LODBlending",
 		"TerrainVariation",
 		"TerrainBlending",
