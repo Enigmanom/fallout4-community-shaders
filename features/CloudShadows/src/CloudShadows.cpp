@@ -335,7 +335,8 @@ namespace cs::features
 		}
 
 		// The draw scope restores the targets, blend state and depth slot.
-		cs::engine::CaptureShaderInjectionOutputs(a_context);
+		cs::engine::CaptureShaderInjectionRenderTargets(a_context);
+		cs::engine::CaptureShaderInjectionBlendState(a_context);
 		ID3D11RenderTargetView* targets[kCaptureTargetSlot + 2]{};
 		a_context->OMGetRenderTargets(kCaptureTargetSlot, targets, nullptr);
 		targets[kCaptureTargetSlot] = a_skirt ? nullptr : _faceRTV[capture->face].get();
@@ -362,7 +363,7 @@ namespace cs::features
 		ID3D11DepthStencilView* depth = nullptr;
 		a_context->OMGetRenderTargets(kTargetSlots, targets, &depth);
 		if (targets[kCaptureTargetSlot] || targets[kCaptureTargetSlot + 1]) {
-			cs::engine::CaptureShaderInjectionOutputs(a_context);
+			cs::engine::CaptureShaderInjectionRenderTargets(a_context);
 			for (auto slot : { kCaptureTargetSlot, kCaptureTargetSlot + 1 }) {
 				if (targets[slot])
 					targets[slot]->Release();
@@ -619,9 +620,9 @@ namespace cs::features
 		_preview.Convert(a_context, _previewCS.get(), _cubeSRV.get(), cs::render::GetLinearClampSampler());
 	}
 
-	cs::render::CloudShadowsSettings CloudShadows::GetCommonBufferData() const
+	void CloudShadows::WriteSharedData(cs::render::SharedFeatureDataCB& a_feature, cs::render::FO4SharedDataCB&)
 	{
-		return { .Opacity = _settings.Opacity };
+		a_feature.cloudShadowsSettings = { .Opacity = _settings.Opacity };
 	}
 
 	std::span<const FeatureDebugView> CloudShadows::GetDebugViews() const noexcept

@@ -1,4 +1,5 @@
 #include "WaterEffects.h"
+#include "Render/SharedDataLayout.h"
 
 #include <DearModdingUI/Client.h>
 #include <DirectXTex.h>
@@ -13,6 +14,7 @@
 #include <toml++/toml.hpp>
 
 #include "Log.h"
+#include "LogThrottle.h"
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
 #include "Render/Annotation.h"
@@ -104,6 +106,7 @@ namespace cs::features
 		_registrationsReady.store(true, std::memory_order_release);
 
 		if (!cs::engine::RegisterPreDeferredComposite(
+				*this,
 				[this] {
 					if (auto* context = GetImmediateContext())
 						RenderDebug(context);
@@ -256,9 +259,9 @@ namespace cs::features
 		const auto extent = cs::render::GetActiveExtent(graphics->screenWidth, graphics->screenHeight);
 		if (!extent.width || !extent.height)
 			return;
-		try {
-			if (!_debugTexture || _debugTexture->desc.Width != graphics->screenWidth ||
-				_debugTexture->desc.Height != graphics->screenHeight) {
+		if (!_debugTexture || _debugTexture->desc.Width != graphics->screenWidth ||
+			_debugTexture->desc.Height != graphics->screenHeight) {
+			try {
 				D3D11_TEXTURE2D_DESC desc{};
 				desc.Width = graphics->screenWidth;
 				desc.Height = graphics->screenHeight;
@@ -277,27 +280,30 @@ namespace cs::features
 					texture->resource.get(), nullptr, texture->rtv.put()));
 				texture->SetName("WaterEffects/Debug.Texture", "WaterEffects/Debug.SRV", "", "WaterEffects/Debug.RTV");
 				_debugTexture = std::move(texture);
-			}
-			// FO4: restore the complete context because native bindings are shadow-cached.
-			auto* target = _debugTexture->rtv.get();
-			const cs::render::FullscreenPass::Scope pass(_debugPass, a_context, target, extent.width, extent.height);
-			if (!pass.IsActive())
+			} catch (const std::exception& e) {
+				CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Water debug target unavailable: {}", e.what());
 				return;
-			cs::render::annotation::ScopedEvent annotation("WaterEffects/Debug");
-			const float clear[4]{ 0, 0, 0, 1 };
-			a_context->ClearRenderTargetView(target, clear);
-			cs::render::BindSharedData(a_context, cs::engine::ShaderStage::kPixel);
-			auto* texture = _causticsSrv.get();
-			auto* sampler = _causticsSampler.get();
-			a_context->PSSetShaderResources(kCausticsPSSlot, 1, &texture);
-			a_context->PSSetSamplers(kCausticsSamplerPSSlot, 1, &sampler);
-			pass.Draw(_debugPS[mode == DebugVisualization::kSubmersion ? 1 : 0].get());
-			_debugFrameReady = true;
-			cs::render::InvalidateFullscreenDebugData();
-			_debugFrames.fetch_add(1, std::memory_order_relaxed);
-		} catch (const std::exception& e) {
-			L->warn("Water debug rendering failed: {}", e.what());
+			} catch (...) {
+				CS_LOG_EVERY_MS(L, 2000, spdlog::level::warn, "Water debug target unavailable.");
+				return;
+			}
 		}
+		auto* target = _debugTexture->rtv.get();
+		const cs::render::FullscreenPass::Scope pass(_debugPass, a_context, target, extent.width, extent.height);
+		if (!pass.IsActive())
+			return;
+		cs::render::annotation::ScopedEvent annotation("WaterEffects::Debug");
+		const float clear[4]{ 0, 0, 0, 1 };
+		a_context->ClearRenderTargetView(target, clear);
+		cs::render::BindSharedData(a_context, cs::engine::ShaderStage::kPixel);
+		auto* texture = _causticsSrv.get();
+		auto* sampler = _causticsSampler.get();
+		a_context->PSSetShaderResources(kCausticsPSSlot, 1, &texture);
+		a_context->PSSetSamplers(kCausticsSamplerPSSlot, 1, &sampler);
+		pass.Draw(_debugPS[mode == DebugVisualization::kSubmersion ? 1 : 0].get());
+		_debugFrameReady = true;
+		cs::render::InvalidateFullscreenDebugData();
+		_debugFrames.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	void WaterEffects::SetValidationDetail(std::string a_detail)
@@ -373,11 +379,9 @@ namespace cs::features
 		_binds.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	cs::WaterEffectsFeatureData WaterEffects::GetCommonBufferData() const
+	void WaterEffects::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		cs::WaterEffectsFeatureData data{};
-		data.EnabledParallax = _injectionsOperational.load(std::memory_order_acquire) && IsEnabled() ? 1u : 0u;
-		return data;
+		a_fo4.EnabledWaterEffects = _injectionsOperational.load(std::memory_order_acquire) ? 1u : 0u;
 	}
 
 	FullscreenDebugData WaterEffects::GetFullscreenDebugData() const noexcept
@@ -417,7 +421,6 @@ namespace cs::features
 			.Field(
 				"injection_operational",
 				_injectionsOperational.load(std::memory_order_relaxed))
-			.Field("injection_requested", lightSnapshot.requested)
 			.Field("injection_published", lightSnapshot.published)
 			.Field(
 				"injection_publication_error",

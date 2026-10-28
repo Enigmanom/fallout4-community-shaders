@@ -52,7 +52,7 @@ namespace cs::features
 		std::span<const FeatureDebugView> GetDebugViews() const noexcept override;
 		void SetDebugView(std::string_view a_view) noexcept override;
 
-		cs::render::CloudShadowsSettings GetCommonBufferData() const;
+		void WriteSharedData(cs::render::SharedFeatureDataCB& a_feature, cs::render::FO4SharedDataCB&) override;
 
 	private:
 		CloudShadows() = default;

@@ -11,10 +11,24 @@
 namespace WorldShadow
 {
 	// Upstream's GetWorldShadow: terrain and cloud shadows of the sun.
+	float GetMultFromWorldPosition(float3 worldPosition)
+	{
+		// FO4: a disabled feature writes no settings, so the lookup skips its cost.
+		bool active = false;
+#	ifdef TERRAIN_SHADOWS
+		active = SharedData::terraOccSettings.EnableTerrainShadow != 0;
+#	endif
+#	ifdef CLOUD_SHADOWS
+		active = active || SharedData::cloudShadowsSettings.Opacity > 0.0;
+#	endif
+		[branch] if (!active) return 1.0;
+		// FO4: b4 supplies the absolute origin for upstream heightfield sampling.
+		return ShadowSampling::GetWorldShadow(worldPosition, FrameBuffer::CameraPosAdjust.xyz);
+	}
+
 	float GetMultFromViewPosition(float3 viewPosition)
 	{
-		// FO4: b4 supplies the absolute origin for upstream heightfield sampling.
-		return ShadowSampling::GetWorldShadow(FrameBuffer::ViewToWorld(viewPosition), FrameBuffer::CameraPosAdjust.xyz);
+		return GetMultFromWorldPosition(FrameBuffer::ViewToWorld(viewPosition));
 	}
 }
 #endif

@@ -13,18 +13,16 @@
 #include <memory>
 #include <system_error>
 
-#include "F4SE/API.h"
 #include "Host/HostClient.h"
 #include "Log.h"
 #include "Menu/Menu.h"
 #include "Menu/Section.h"
 #include "Menu/SettingsEdit.h"
 #include "REX/CONVERT.h"
-#include "REX/W32/OLE32.h"
-#include "REX/W32/SHELL32.h"
 #include "Render/FrameBoundary.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
+#include "Utils/F4SEUserDirectory.h"
 
 namespace cs::features
 {
@@ -173,25 +171,11 @@ namespace cs::features
 				return ExpandCaptureFolderEnvironment(a_configured);
 			}
 
-			auto saveFolderName = F4SE::GetSaveFolderName();
-			if (saveFolderName.empty()) {
-				saveFolderName = "Fallout4";
-			}
-
-			wchar_t* knownBuffer = nullptr;
-			const auto knownResult = REX::W32::SHGetKnownFolderPath(
-				REX::W32::FOLDERID_Documents,
-				REX::W32::KF_FLAG_DEFAULT,
-				nullptr,
-				std::addressof(knownBuffer));
-			std::unique_ptr<wchar_t[], decltype(&REX::W32::CoTaskMemFree)> knownPath(
-				knownBuffer, REX::W32::CoTaskMemFree);
-			if (!knownPath || knownResult != 0) {
+			auto path = cs::util::F4SEUserDirectory();
+			if (path.empty()) {
 				return std::nullopt;
 			}
-
-			std::filesystem::path path = knownPath.get();
-			path /= std::format("My Games/{}/F4SE/FO4CommunityShaders/captures", saveFolderName);
+			path /= "FO4CommunityShaders/captures";
 			return path;
 		}
 
@@ -222,10 +206,7 @@ namespace cs::features
 		if (!TryLoadRuntime(error))
 			FailLoad(std::move(error));
 
-		if (!render::RegisterPostSwap([this] {
-				FeatureManager::Get().RunRuntimeCallback(
-					*this, "FrameBoundary::OnFrameBoundary", [this] { OnFrameBoundary(); });
-			}))
+		if (!render::RegisterPostSwap(*this, [this] { OnFrameBoundary(); }))
 			L->error("RenderDoc frame boundary registration failed; captures unavailable");
 	}
 
@@ -466,6 +447,7 @@ namespace cs::features
 		}
 		const auto id = ++_lastRequestId;
 		_active = ActiveCapture{ .id = id, .request = a_request, .binding = std::move(binding) };
+		_annotationForce.emplace();
 		return id;
 	}
 
@@ -481,6 +463,7 @@ namespace cs::features
 		{
 			std::scoped_lock lock(_captureMutex);
 			observers = _observers;
+			_annotationForce.reset();
 		}
 		if (a_completion.error.empty())
 			L->info("Capture {} finished: {} files", a_completion.id, a_completion.captures.size());
