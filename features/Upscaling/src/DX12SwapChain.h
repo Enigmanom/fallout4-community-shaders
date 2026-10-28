@@ -70,6 +70,7 @@ namespace cs::features
 		[[nodiscard]] IDXGISwapChain* AcquireProxy() const noexcept;
 		[[nodiscard]] bool Owns(IDXGISwapChain* a_swapChain) const noexcept;
 		[[nodiscard]] bool IsReady() const noexcept;
+		[[nodiscard]] bool IsQuarantined() const noexcept;
 		[[nodiscard]] bool IsBridgeReady() const noexcept;
 		[[nodiscard]] bool IsFrameGenerationReady() const noexcept;
 		[[nodiscard]] render::temporal::IFrameGenerationProvider*

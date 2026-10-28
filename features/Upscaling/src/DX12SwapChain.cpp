@@ -982,6 +982,11 @@ namespace cs::features
 		       _backBuffers[0] && _backBuffers[1];
 	}
 
+	bool DX12SwapChain::IsQuarantined() const noexcept
+	{
+		return _quarantined;
+	}
+
 	bool DX12SwapChain::IsBridgeReady() const noexcept
 	{
 		return IsReady();
