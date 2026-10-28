@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "RE/B/BSGeometry.h"
+#include "RE/B/BSSkyShaderProperty.h"
 #include "RE/I/ImageSpaceManager.h"
 #include "RE/N/NiAVObject.h"
 #include "RE/N/NiLight.h"
@@ -32,6 +34,16 @@ namespace cs::engine
 		outY = y * invLen;
 		outZ = z * invLen;
 		return true;
+	}
+
+	RE::BSSkyShaderProperty* GetSkyShaderProperty(RE::BSGeometry* a_geometry)
+	{
+		return a_geometry ? netimmerse_cast<RE::BSSkyShaderProperty*>(a_geometry->properties[1].get()) : nullptr;
+	}
+
+	const RE::BSSkyShaderProperty* GetSkyShaderProperty(const RE::BSGeometry* a_geometry)
+	{
+		return GetSkyShaderProperty(const_cast<RE::BSGeometry*>(a_geometry));
 	}
 
 	bool TryGetSunLightColor(DirectX::XMFLOAT3& a_color) noexcept

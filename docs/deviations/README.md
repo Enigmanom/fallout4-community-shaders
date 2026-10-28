@@ -53,6 +53,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 - [Screen Space GI](ScreenSpaceGI.md)
 - [Screen Space Shadows](ScreenSpaceShadows.md)
 - [Skylighting](Skylighting.md)
+- [Sky Sync](SkySync.md)
 - [Volumetric Shadows](VolumetricShadows.md)
 - [CS Editor](CSEditor.md)
 

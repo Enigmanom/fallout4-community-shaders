@@ -2,6 +2,12 @@
 
 #include <DirectXMath.h>
 
+namespace RE
+{
+	class BSGeometry;
+	class BSSkyShaderProperty;
+}
+
 namespace cs::engine
 {
 	// Normalized light propagation direction, away from the sun.
@@ -9,6 +15,10 @@ namespace cs::engine
 
 	// Linear sun radiance as the deferred sun pass receives it.
 	bool TryGetSunLightColor(DirectX::XMFLOAT3& a_color) noexcept;
+
+	// The geometry's sky shader property; null for any other.
+	RE::BSSkyShaderProperty* GetSkyShaderProperty(RE::BSGeometry* a_geometry);
+	const RE::BSSkyShaderProperty* GetSkyShaderProperty(const RE::BSGeometry* a_geometry);
 
 	// Sky::Flags::kHideSky: the sky is not rendered this frame.
 	bool IsSkyHidden() noexcept;
