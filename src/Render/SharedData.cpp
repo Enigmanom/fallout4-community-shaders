@@ -6,6 +6,7 @@
 #include "Render/Annotation.h"
 #include "Render/CanonicalDepth.h"
 #include "Render/Engine.h"
+#include "Render/ForwardDraw.h"
 #include "Render/RenderHooks.h"
 #include "Render/ShaderInjection.h"
 #include "Render/SharedDataLayout.h"
@@ -377,6 +378,7 @@ namespace cs::render
 			annotation::SetName(state.buffers[index].get(), names[index]);
 		}
 		InitializeCanonicalDepth(a_device);
+		forward_draw::Initialize(a_device);
 
 		D3D11_SAMPLER_DESC samplerDesc{};
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;

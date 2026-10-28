@@ -27,13 +27,12 @@ namespace cs::render::forward_draw
 			Observer observer;
 		};
 
-		// 16 bytes, matching cbuffer PerShader in FO4\Permutation.hlsli.
 		struct alignas(16) Descriptor
 		{
 			std::uint32_t extraShaderDescriptor = 0;
 			std::uint32_t pad[3]{};
 		};
-		static_assert(sizeof(Descriptor) == 16);
+		static_assert(sizeof(Descriptor) == kDescriptorSize);
 
 		std::vector<Subscription> g_subscriptions;
 		thread_local Draw t_draw;
@@ -43,7 +42,7 @@ namespace cs::render::forward_draw
 		Descriptor g_uploaded;
 		bool g_hasUploaded = false;
 
-		// MainRenderSetup stores 13 instead of 24 on the world accumulators in some modes.
+		// MainRenderSetup may store 13 on the world accumulators.
 		[[nodiscard]] bool IsWorldAccumulator(const RE::BSShaderAccumulator* a_accumulator) noexcept
 		{
 			using Mode = RE::BSShaderManager::etRenderMode;
@@ -84,8 +83,17 @@ namespace cs::render::forward_draw
 
 	void Install()
 	{
-		for (const auto target : { engine::ShaderInjectionTarget::kEffect, engine::ShaderInjectionTarget::kBsWater })
+		for (const auto target : kTargets)
 			engine::ObserveShaderGeometry(target, { &SetupGeometry, &RestoreGeometry });
+	}
+
+	void Initialize(ID3D11Device* a_device)
+	{
+		if (!a_device)
+			return;
+		g_buffer = std::make_unique<buffer::ConstantBuffer>(buffer::ConstantBufferDesc<Descriptor>());
+		g_buffer->SetName("Render/ForwardDraw.Descriptor");
+		g_hasUploaded = false;
 	}
 
 	void BindDescriptor(ID3D11DeviceContext* a_context) noexcept
@@ -96,7 +104,7 @@ namespace cs::render::forward_draw
 			if (t_active && t_draw.inWorld)
 				next.extraShaderDescriptor |= kInWorld;
 			if (!g_buffer)
-				g_buffer = std::make_unique<buffer::ConstantBuffer>(buffer::ConstantBufferDesc<Descriptor>());
+				return;
 			if (!g_hasUploaded || g_uploaded.extraShaderDescriptor != next.extraShaderDescriptor) {
 				g_hasUploaded = false;
 				g_buffer->Update(next);
@@ -105,7 +113,6 @@ namespace cs::render::forward_draw
 			}
 			bound = g_buffer->CB();
 		});
-		// A failed upload binds nothing, which reads as not in world.
 		engine::BindInjectionConstantBuffers(a_context, kForwardDrawSlot, 1, &bound);
 	}
 }

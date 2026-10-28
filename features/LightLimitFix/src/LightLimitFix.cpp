@@ -316,7 +316,6 @@ namespace cs::features
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		// Effect and water draws pick their room before the engine sets up the pass.
 		void OnForwardDraw(const render::forward_draw::Draw& a_draw)
 		{
 			if (!Enabled() || !g_state.gridReady.load() || !a_draw.pass)

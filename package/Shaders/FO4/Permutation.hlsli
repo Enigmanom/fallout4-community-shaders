@@ -1,7 +1,7 @@
 #ifndef FO4_PERMUTATION_HLSLI
 #define FO4_PERMUTATION_HLSLI
 
-// FO4: per-draw forward descriptor; b4 is the frame buffer, so PerShader moves to b8.
+// FO4: b4 is PerFrame, so the per-draw descriptor uses b8.
 namespace Permutation
 {
 	namespace ExtraFlags

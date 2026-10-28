@@ -1850,7 +1850,7 @@ namespace cs::engine
 			auto* sampler = render::GetLinearClampSampler();
 			BindInjectionSamplers(a_context, render::kLinearClampSamplerSlot, 1, &sampler);
 		}
-		if (a_target == ShaderInjectionTarget::kEffect || a_target == ShaderInjectionTarget::kBsWater)
+		if (render::forward_draw::Covers(a_target))
 			render::forward_draw::BindDescriptor(a_context);
 		DispatchPublishedTarget(*target, ShaderStage::kPixel, a_context);
 		t_samplerMask = previousMask;

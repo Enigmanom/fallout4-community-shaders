@@ -9,7 +9,7 @@ namespace cs::render
 	inline constexpr std::uint32_t kFeatureDataSlot = 6;
 	inline constexpr std::uint32_t kFO4SharedDataSlot = 7;
 	inline constexpr std::uint32_t kSubstrateBufferCount = 4;
-	// Per-draw PS descriptor; ShaderInjection binds it for forward effect and water draws.
+	// Per-draw; TerrainBlending reuses b8 in a disjoint PS.
 	inline constexpr std::uint32_t kForwardDrawSlot = 8;
 	inline constexpr std::uint32_t kCanonicalDepthSlot = 17;
 	// Engine owns s0-s15; ShaderInjection binds this per draw, never per frame.

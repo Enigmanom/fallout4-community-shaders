@@ -84,8 +84,8 @@ namespace cs::engine
 		if (std::exchange(entry.hooked, true))
 			return;
 		switch (a_target) {
-#define CS_HOOK_GEOMETRY(klass, target)        \
-	case ShaderInjectionTarget::target:        \
+#define CS_HOOK_GEOMETRY(klass, target)                   \
+	case ShaderInjectionTarget::target:                   \
 		Hook<RE::klass, ShaderInjectionTarget::target>(); \
 		break
 			CS_SHADER_SUBCLASSES(CS_HOOK_GEOMETRY);

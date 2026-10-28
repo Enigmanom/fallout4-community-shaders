@@ -54,8 +54,10 @@ namespace cs::features::light_limit_fix
 	{
 		if (IsGlobalLight(a_light))
 			return false;
+		// List of BSMultiBoundRooms affected by a light
 		for (const auto* room : a_light.rooms)
 			AddRoom(room, a_data);
+		// List of BSPortals affected by a light
 		for (const auto* portal : a_light.portals) {
 			if (portal)
 				AddRoom(portal->sharedGeometry.get(), a_data);

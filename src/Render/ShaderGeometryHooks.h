@@ -10,7 +10,7 @@ namespace RE
 
 namespace cs::engine
 {
-	// The engine runs SetupGeometry, the draw flush, then RestoreGeometry for each pass.
+	// Engine order per pass: SetupGeometry, draw flush, RestoreGeometry.
 	struct GeometryObserver
 	{
 		void (*setup)(RE::BSShader*, RE::BSRenderPass*) noexcept;    // before SetupGeometry

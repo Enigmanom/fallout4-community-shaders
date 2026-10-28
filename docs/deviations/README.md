@@ -24,7 +24,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 | Forced | `Util::IsInterior()`: interior cell, or `kNoSky`/`kFixedDimensions` worldspace | `engine::IsInterior()`: interior cell, `kNoSky`, or `Sky::mode != kFull`; shared by Skylighting, Dynamic Cubemaps | FO4 sets `kFixedDimensions` on open-sky worldspaces such as Diamond City |
 | Pending | FrameParams (except y), celestial/HDR/map/shadow fields | Zero or absent; FrameParams.y is 1 | No FO4 source is consumed yet |
 | Divergence | Water refraction samples the offset texel | Shore blend falls back to the mask-accepted sample above the water plane | Stock reads the unmasked texel, fringing first-person hands and weapons into water |
-| Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; only `InWorld` is carried per draw, by a host constant buffer | FO4 `BSEffect` PS has no world position or per-draw flags |
+| Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; only `InWorld` is carried per draw | FO4 `BSEffect` PS has no world position or per-draw flags |
 | Forced | Skyrim point-light term in `Effect.hlsl` | FO4's four-light term stays | FO4 `PerGeometry` layout |
 | Pending | Effect-lighting `EffectRadius` shadow filter, `CLOUD_SHADOWS`, `LIGHT_LIMIT_FIX`, Interior Sun | Compiled out | Features not ported |
 | Divergence | Stock shader families | Effect and DistantTree are replaced for feature consumers; Utility, Sky, Particle, BloodSplatter and Lighting stay stock | No current feature consumes the stock ones |
