@@ -10,8 +10,7 @@
 
 namespace cs::render
 {
-	// A fullscreen triangle drawn in an isolated context state, so the engine's cached
-	// bindings survive. The caller owns pixel shaders, blend state and resources.
+	// Fullscreen triangle in an isolated context state; engine caches survive.
 	class FullscreenPass
 	{
 	public:

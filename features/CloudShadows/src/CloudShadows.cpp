@@ -146,11 +146,11 @@ namespace cs::features
 			FailLoad("Cloud Shadows shader contribution registration failed.");
 			return;
 		}
-		if (!cs::engine::RegisterSkyReflectionCubeConsumer("CloudShadows", [this] { return IsEnabled() && IsHealthy(); })) {
+		if (!cs::engine::RegisterSkyReflectionCubeConsumer(*this, "CloudShadows", [this] { return IsEnabled() && IsHealthy(); })) {
 			FailLoad("Cloud Shadows needs the sky reflection cube");
 			return;
 		}
-		if (!cs::engine::RegisterPostImagespace([this] { RenderOverlay(); }))
+		if (!cs::engine::RegisterPostImagespace(*this, [this] { RenderOverlay(); }))
 			L->warn("The fullscreen debug views need the post-imagespace hook.");
 		_registrationsReady.store(true, std::memory_order_release);
 	}
@@ -290,9 +290,15 @@ namespace cs::features
 	{
 		if (!a_context || !cs::engine::ActiveShaderInjectionVariantHasDefine(cs::engine::ShaderInjectionTarget::kBsSky, "CLOUDS"))
 			return;
+		const bool inCube = cs::engine::GetSkyReflectionCubeCapture().has_value();
+		// The depth reject reads t17, so every cube cloud draw needs face depth.
+		if (inCube) {
+			if (auto* depth = cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kCubemapReflections))
+				cs::engine::OverrideInjectionFrameShaderResource(a_context, cloud_shadows_shader::kCloudDepthSlot, depth);
+		}
 		const bool capturing = IsHealthy() && IsEnabled() && _injectionsOperational.load(std::memory_order_acquire);
 		const auto* pass = cs::engine::GetCurrentSkyPass();
-		const bool skirt = capturing && cs::engine::GetSkyReflectionCubeCapture() && pass && IsHorizonFill(pass->geometry);
+		const bool skirt = capturing && inCube && pass && IsHorizonFill(pass->geometry);
 		if (skirt)
 			_counters.horizonFillSkipped.fetch_add(1, std::memory_order_relaxed);
 		// The layers view shows the skirt; occlusion never takes it.
@@ -311,8 +317,7 @@ namespace cs::features
 			_counters.skippedNoCube.fetch_add(1, std::memory_order_relaxed);
 			return false;
 		}
-		auto* depth = cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kCubemapReflections);
-		if (!depth) {
+		if (!cs::engine::GetDepthStencilDepthSRV(RE::BSGraphics::DepthStencilTargetID::kCubemapReflections)) {
 			_counters.skippedNoDepth.fetch_add(1, std::memory_order_relaxed);
 			return false;
 		}
@@ -351,7 +356,6 @@ namespace cs::features
 		const auto layerColor = a_skirt ? kSkirtColor : LayerColor(cs::engine::GetCurrentSkyPass());
 		const float blendFactor[4]{ layerColor[0], layerColor[1], layerColor[2], 1.0f };
 		a_context->OMSetBlendState(layers ? _layerBlend.get() : _blend.get(), blendFactor, 0xFFFFFFFFu);
-		cs::engine::OverrideInjectionFrameShaderResource(a_context, cloud_shadows_shader::kCloudDepthSlot, depth);
 		_counters.cloudDraws.fetch_add(1, std::memory_order_relaxed);
 		return true;
 	}
