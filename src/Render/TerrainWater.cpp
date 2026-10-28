@@ -242,6 +242,9 @@ namespace cs::engine::water
 			else
 				RemoveWater(child.get());
 		}
+		// FO4: RemoveLODWater may leave the water node under the LOD root.
+		if (root)
+			root->DetachChild(a_chunk->water.get());
 	}
 
 	void ConfigureTileProperty(RE::BSGeometry* a_shape)
@@ -259,18 +262,12 @@ namespace cs::engine::water
 			system->RemoveWater(a_shape);
 	}
 
-	void EnableWaterSystem()
-	{
-		if (const auto system = RE::TESWaterSystem::GetSingleton())
-			system->Enable();
-	}
-
-	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles, bool a_hideTiles, bool a_interior)
+	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles, bool a_hideTiles)
 	{
 		if (!a_node || !a_parent)
 			return;
 		const auto tes = RE::TES::GetSingleton();
-		const bool intersects = tes && !a_interior && a_node->IsInLoadedRange();
+		const bool intersects = tes && a_node->IsInLoadedRange();
 		RE::BSScrapArray<RE::TESObjectCELL*> cells;
 		if (intersects) {
 			a_node->BuildCellCache(cells);
