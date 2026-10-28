@@ -49,7 +49,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | HorizonFix | N/A | — | Integration with a Skyrim-only companion DLL | — | L | — | High |
 | [IBL](deviations/IBL.md) | Core | Environment SH, sky SH*, ambient/fog/effect consumers, occlusion integration, specular IBL | N/A: static IBL, world-map toggle, ENB | Pt | H | L | Med |
 | Interior Sun | Core (provisional) | Native sun gating*, portal culling, double-sided/distance, gameplay sun | N/A: plain interior directional light | NS | H | L | Low |
-| [Inverse Square Lighting](deviations/InverseSquareLighting.md) | Mixed | Attenuation, radius/lifetime, gameplay luminance, TOML authoring (relocated LIGH fields), editor, diagnostics | Ext: derivation of unauthored lights from native falloff | Pt | H | M | High |
+| [Light Limit Fix](deviations/LightLimitFix.md) | Mixed | Attenuation, radius/lifetime, gameplay luminance, TOML authoring (relocated LIGH fields), editor, diagnostics | Ext: derivation of unauthored lights from native falloff | Pt | H | M | High |
 | Light Limit Fix | Mixed | Light-limit visualization | Ext: capacity/shadow-limit redesign. N/A: surface clustered culling (native tiled), strict lights, contact shadows, particle lights (no FO4 content) | NS | H | M | Med |
 | Linear Lighting | N/A | Shared-color compatibility (done), optional calibration controls | N/A: linearization (FO4 is linear), ENB | Substrate | L | S | High |
 | [LOD Blending](deviations/LODBlending.md) | Core | Terrain/object LOD brightness-gamma, terrain/grass vertex-color removal | N/A: snow-LOD | Pt | H | S | High |

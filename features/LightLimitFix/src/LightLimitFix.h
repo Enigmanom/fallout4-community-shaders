@@ -1,22 +1,22 @@
 #pragma once
 
 #include "Feature.h"
-#include "InverseSquareLightingSettings.h"
+#include "LightLimitFixSettings.h"
 #include "ShaderDefines.h"
 
 namespace cs::features
 {
-	class InverseSquareLighting : public ShaderFeature<isl::kShaderDefines>
+	class LightLimitFix : public ShaderFeature<light_limit_fix::kShaderDefines>
 	{
 	public:
-		static InverseSquareLighting* GetSingleton();
-		std::string_view GetName() const override { return "InverseSquareLighting"; }
-		std::string_view GetDisplayName() const override { return "Inverse Square Lighting"; }
+		static LightLimitFix* GetSingleton();
+		std::string_view GetName() const override { return "LightLimitFix"; }
+		std::string_view GetDisplayName() const override { return "Light Limit Fix"; }
 		bool SupportsEnableToggle() const override { return false; }
 		std::string GetCategory() const override { return FeatureCategories::kLighting; }
 		std::string GetFeatureSummary() const override
 		{
-			return "Physically accurate inverse-square light falloff.";
+			return "Inverse-square light falloff; clustered forward lighting follows.";
 		}
 		bool Configure(const toml::table& a_config, std::string& a_error) override;
 		void Load() override;
@@ -28,7 +28,7 @@ namespace cs::features
 		bool ValidateShaderInjections(std::string& a_error) override;
 		void DrawSettings() override;
 		bool SaveSettings() override;
-		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(inverse_square_lighting::kSchema, _settings); }
+		settings::SettingsBinding GetSettingsBinding() const override { return settings::BindSettings(light_limit_fix::kSchema, _settings); }
 		std::vector<std::string_view> GetRestartSettings() const override;
 		void RestoreDefaultSettings() override;
 		// Applies at the next launch: the boot value gates light creation.
@@ -38,9 +38,9 @@ namespace cs::features
 		void CollectTelemetry(cs::telemetry::Sink& a_sink) const override;
 
 	private:
-		InverseSquareLighting() = default;
+		LightLimitFix() = default;
 
-		inverse_square_lighting::Settings _settings;
-		inverse_square_lighting::Settings _bootSettings;
+		light_limit_fix::Settings _settings;
+		light_limit_fix::Settings _bootSettings;
 	};
 }

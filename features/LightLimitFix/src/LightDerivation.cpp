@@ -1,12 +1,12 @@
 #include "LightDerivation.h"
 
-#include "InverseSquareLightingMath.h"
+#include "InverseSquareMath.h"
 #include "Render/LocalLights.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	namespace
 	{
@@ -57,7 +57,7 @@ namespace cs::features::inverse_square_lighting
 		const double nativeEnergy = WeightedEnergy(nativeCurve);
 		if (!(a_light.fade * nativeEnergy > 0))
 			return std::nullopt;
-		// ISL halves at d = sqrt(K * size^2 / 2); match the native half-value distance.
+		// Inverse-square halves at d = sqrt(K * size^2 / 2); match the native half-value distance.
 		const float size = std::clamp(
 			static_cast<float>(HalfValuePoint(nativeCurve) * a_light.radius * std::sqrt(2.0 / kScaledUnitsSq)),
 			kMinSize, kMaxSize);

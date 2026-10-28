@@ -4,7 +4,7 @@
 
 #include <optional>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	// Native falloff of one light instance: radiance = fade * pow(1 - saturate(a + b * x^c), 2.2).
 	struct NativeLight
@@ -12,7 +12,7 @@ namespace cs::features::inverse_square_lighting
 		float radius = 0;
 		float fade = 0;
 		float a = 0, b = 0, c = 0;
-		// ISL's pow(abs) color path would lose the negated sign.
+		// LLF's pow(abs) color path would lose the negated sign.
 		bool negatedColor = false;
 	};
 

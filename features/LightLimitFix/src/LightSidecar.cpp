@@ -1,10 +1,10 @@
-#include "InverseSquareLightingData.h"
+#include "LightSidecar.h"
 
-#include "InverseSquareLightingMath.h"
+#include "InverseSquareMath.h"
 
 #include <algorithm>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	namespace
 	{

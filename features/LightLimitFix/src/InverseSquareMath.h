@@ -4,7 +4,7 @@
 #include <cmath>
 #include <numbers>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	inline constexpr float kScaledUnitsSq = 0.8f * 70.0f * 70.0f;
 	inline constexpr float kFadeZoneBase = 4.5f * 0.8f * 70.0f;

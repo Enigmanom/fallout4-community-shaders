@@ -3,8 +3,8 @@
 #include "../features/DynamicCubemaps/src/ShaderDefines.h"
 #include "../features/ExtendedMaterials/src/ShaderDefines.h"
 #include "../features/IBL/src/ShaderDefines.h"
-#include "../features/InverseSquareLighting/src/ShaderDefines.h"
 #include "../features/LODBlending/src/ShaderDefines.h"
+#include "../features/LightLimitFix/src/ShaderDefines.h"
 #include "../features/ScreenSpaceGI/src/ShaderDefines.h"
 #include "../features/ScreenSpaceShadows/src/ShaderDefines.h"
 #include "../features/Skylighting/src/ShaderDefines.h"
@@ -28,7 +28,7 @@ namespace cs::engine
 				{ "ScreenSpaceShadows", &sss::kShaderDefines },
 				{ "ScreenSpaceGI", &ssgi::kShaderDefines },
 				{ "Skylighting", &skylighting_shader::kShaderDefines },
-				{ "InverseSquareLighting", &isl::kShaderDefines },
+				{ "LightLimitFix", &light_limit_fix::kShaderDefines },
 				{ "DynamicCubemaps", &dc::kShaderDefines },
 				{ "ImageBasedLighting", &ibl_shader::kShaderDefines },
 				{ "TerrainShadows", &terrain_shader::kShaderDefines },

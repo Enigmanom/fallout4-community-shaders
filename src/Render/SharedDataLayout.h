@@ -100,7 +100,7 @@ namespace cs::render
 		// Engine DALC rows, so vanilla ambient replays exactly beside the linear SH.
 		DirectX::XMFLOAT4 DirectionalAmbient[3]{};
 		std::uint32_t EnabledVolumetricShadows = 0, EnabledLODBlending = 0;
-		std::uint32_t EnabledInverseSquareLighting = 0;
+		std::uint32_t EnabledLightLimitFix = 0;
 		std::uint32_t pad0 = 0;
 	};
 	static_assert(sizeof(FO4SharedDataCB) == 128);
@@ -120,7 +120,7 @@ namespace cs::render
 	static_assert(offsetof(FO4SharedDataCB, DirectionalAmbient) == 64);
 	static_assert(offsetof(FO4SharedDataCB, EnabledVolumetricShadows) == 112);
 	static_assert(offsetof(FO4SharedDataCB, EnabledLODBlending) == 116);
-	static_assert(offsetof(FO4SharedDataCB, EnabledInverseSquareLighting) == 120);
+	static_assert(offsetof(FO4SharedDataCB, EnabledLightLimitFix) == 120);
 	static_assert(offsetof(FO4SharedDataCB, pad0) == 124);
 
 	[[nodiscard]] inline FrameDataCB PackFrameData(

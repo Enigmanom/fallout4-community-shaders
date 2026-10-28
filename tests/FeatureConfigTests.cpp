@@ -2,9 +2,9 @@
 #include "ExtendedMaterialsSettings.h"
 #include "FrameGenerationSettings.h"
 #include "ImageBasedLightingSettings.h"
-#include "InverseSquareLightingSettings.h"
 #include "LODBlendingSettings.h"
 #include "LightAuthoring.h"
+#include "LightLimitFixSettings.h"
 #include "PerformanceOverlaySettings.h"
 #include "Render/TemporalRenderSettings.h"
 #include "RenderDocSettings.h"
@@ -69,7 +69,7 @@ namespace
 		const std::array features{
 			std::pair{ "ScreenSpaceGI", MakeSchemaView(ssgi_settings::kSchema) },
 			std::pair{ "Skylighting", MakeSchemaView(skylighting::kSchema) },
-			std::pair{ "InverseSquareLighting", MakeSchemaView(inverse_square_lighting::kSchema) },
+			std::pair{ "LightLimitFix", MakeSchemaView(light_limit_fix::kSchema) },
 			std::pair{ "DynamicCubemaps", MakeSchemaView(dynamic_cubemaps::kSchema) },
 			std::pair{ "ImageBasedLighting", MakeSchemaView(image_based_lighting::kSchema) },
 			std::pair{ "WaterEffects", SchemaView{} },
@@ -92,7 +92,7 @@ namespace
 		CHECK(features.size() == kAllFeatureKeys.size());
 		// Mirrors Feature::SupportsEnableToggle and DefaultEnabled.
 		const auto enabledDefault = [](std::string_view a_key) -> std::optional<bool> {
-			for (const auto optOut : { "InverseSquareLighting", "Upscaling", "FrameGeneration", "PerformanceOverlay", "RenderDoc", "CSEditor" }) {
+			for (const auto optOut : { "LightLimitFix", "Upscaling", "FrameGeneration", "PerformanceOverlay", "RenderDoc", "CSEditor" }) {
 				if (a_key == optOut)
 					return std::nullopt;
 			}
@@ -358,7 +358,7 @@ namespace
 
 	void TestLightAuthoring()
 	{
-		using namespace cs::features::inverse_square_lighting;
+		using namespace cs::features::light_limit_fix;
 		std::vector<LightDefinition> definitions;
 		std::string error;
 		CHECK(ParseLightDefinitions(toml::parse(R"(

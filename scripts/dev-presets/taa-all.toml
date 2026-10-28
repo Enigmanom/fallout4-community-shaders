@@ -9,7 +9,7 @@ load = true
 [features.Skylighting]
 load = true
 
-[features.InverseSquareLighting]
+[features.LightLimitFix]
 load = true
 
 [features.DynamicCubemaps]

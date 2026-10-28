@@ -2,11 +2,11 @@
 
 #include "Settings/SettingsSchema.h"
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	struct Settings
 	{
-		bool deriveUnauthoredLights = true;
+		bool deriveUnauthoredLights = false;
 	};
 
 	inline constexpr settings::Schema kSchema{

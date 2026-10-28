@@ -1,7 +1,7 @@
-#include "InverseSquareLighting.h"
-#include "InverseSquareLightingData.h"
-#include "InverseSquareLightingMath.h"
+#include "LightLimitFix.h"
+#include "InverseSquareMath.h"
 #include "LightDerivation.h"
+#include "LightSidecar.h"
 #include "RE/B/BSDFTiledLighting.h"
 
 #include <DearModdingUI/Client.h>
@@ -26,7 +26,7 @@ namespace cs::features
 {
 	namespace
 	{
-		using namespace inverse_square_lighting;
+		using namespace light_limit_fix;
 		using Flag = RE::OBJ_LIGH::Flag;
 		namespace native = engine::local_lights;
 		constexpr std::uint32_t kRasterSlot = 11;
@@ -62,7 +62,7 @@ namespace cs::features
 		bool Enabled()
 		{
 			return g_state.validated.load() && g_state.dataLoaded.load() &&
-			       InverseSquareLighting::GetSingleton()->IsActive();
+			       LightLimitFix::GetSingleton()->IsActive();
 		}
 		bool IsInverseSquare(const PerLightData& a_data)
 		{
@@ -98,7 +98,7 @@ namespace cs::features
 				auto* wrapper = std::exchange(g_createdLight, previous);
 				if (!light || !a_form || !a_root || !Enabled())
 					return light;
-				const bool derive = InverseSquareLighting::GetSingleton()->DeriveUnauthoredLights();
+				const bool derive = LightLimitFix::GetSingleton()->DeriveUnauthoredLights();
 				// GetFade locks the reference's ExtraDataList; keep it outside our mutex.
 				const float fade = derive && a_reference ? a_reference->GetFade(a_form->fade) : a_form->fade;
 				std::scoped_lock lock(g_state.mutex);
@@ -290,8 +290,8 @@ namespace cs::features
 			D3D11_MAPPED_SUBRESOURCE mapped{};
 			if (FAILED(a_context->Map(a_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
 				++g_state.uploadFailures;
-				FeatureManager::Get().QuarantineRuntimeCallback(*InverseSquareLighting::GetSingleton(),
-					"ISL metadata upload", "D3D11 Map failed");
+				FeatureManager::Get().QuarantineRuntimeCallback(*LightLimitFix::GetSingleton(),
+					"LLF metadata upload", "D3D11 Map failed");
 				return false;
 			}
 			std::memcpy(mapped.pData, a_data, a_size);
@@ -380,45 +380,45 @@ namespace cs::features
 		{
 			stl::detour_thunk<T>(a_id);
 			if (!T::func.address())
-				throw std::runtime_error("Unable to install ISL native hook");
+				throw std::runtime_error("Unable to install LLF native hook");
 		}
 	}
 
-	InverseSquareLighting* InverseSquareLighting::GetSingleton()
+	LightLimitFix* LightLimitFix::GetSingleton()
 	{
-		static InverseSquareLighting instance;
+		static LightLimitFix instance;
 		return &instance;
 	}
-	bool InverseSquareLighting::Configure(const toml::table& a_config, std::string& a_error)
+	bool LightLimitFix::Configure(const toml::table& a_config, std::string& a_error)
 	{
 		auto candidate = _settings;
-		if (!settings::Parse(inverse_square_lighting::kSchema, a_config, candidate, a_error))
+		if (!settings::Parse(light_limit_fix::kSchema, a_config, candidate, a_error))
 			return false;
 		_settings = candidate;
 		_bootSettings = candidate;
 		return true;
 	}
-	bool InverseSquareLighting::SaveSettings()
+	bool LightLimitFix::SaveSettings()
 	{
-		return settings::SaveDelta(inverse_square_lighting::kSchema, GetConfigKey(), _settings, *Log());
+		return settings::SaveDelta(light_limit_fix::kSchema, GetConfigKey(), _settings, *Log());
 	}
-	std::vector<std::string_view> InverseSquareLighting::GetRestartSettings() const
+	std::vector<std::string_view> LightLimitFix::GetRestartSettings() const
 	{
-		return settings::RestartRequired(inverse_square_lighting::kSchema, _bootSettings, _settings);
+		return settings::RestartRequired(light_limit_fix::kSchema, _bootSettings, _settings);
 	}
-	void InverseSquareLighting::RestoreDefaultSettings()
+	void LightLimitFix::RestoreDefaultSettings()
 	{
 		_settings = {};
 		SaveSettings();
 	}
-	void InverseSquareLighting::Load()
+	void LightLimitFix::Load()
 	{
 		std::string error;
 		if (!LoadLightDefinitions(kDirectory, g_state.definitions, error)) {
 			FailLoad(error);
 			return;
 		}
-		if (!engine::RegisterFeatureShaderBindings("InverseSquareLighting", *this, [](engine::ShaderReplacementRegistration& registration) {
+		if (!engine::RegisterFeatureShaderBindings("LightLimitFix", *this, [](engine::ShaderReplacementRegistration& registration) {
 				const bool compute = registration.targetId == engine::ShaderInjectionTarget::kDfTiledLighting;
 				registration.bind = [compute](ID3D11DeviceContext* context) {
 						if (compute) {
@@ -439,18 +439,18 @@ namespace cs::features
 							}
 						} };
 			})) {
-			FailLoad("Unable to register the ISL consumers");
+			FailLoad("Unable to register the LLF consumers");
 			return;
 		}
 	}
-	void InverseSquareLighting::OnDataLoaded()
+	void LightLimitFix::OnDataLoaded()
 	{
 		auto* handler = RE::TESDataHandler::GetSingleton();
 		std::scoped_lock lock(g_state.mutex);
 		for (const auto& entry : g_state.definitions) {
 			auto* form = handler->LookupForm(entry.identity.formID, entry.identity.plugin);
 			if (!form || (entry.reference ? !form->As<RE::TESObjectREFR>() : !form->As<RE::TESObjectLIGH>())) {
-				Log()->warn("Ignoring ISL identity {}:{:06X}: missing or wrong form type",
+				Log()->warn("Ignoring LLF identity {}:{:06X}: missing or wrong form type",
 					entry.identity.plugin, entry.identity.formID);
 				continue;
 			}
@@ -460,7 +460,7 @@ namespace cs::features
 		}
 		g_state.dataLoaded = true;
 	}
-	void InverseSquareLighting::OnPostPostLoad()
+	void LightLimitFix::OnPostPostLoad()
 	{
 		InstallHook<CreateLight>(RE::ID::TESObjectLIGH::GenDynamic);
 		InstallHook<AddLight>(RE::ID::ShadowSceneNode::AddLight);
@@ -476,18 +476,18 @@ namespace cs::features
 		InstallHook<Luminance>(RE::ID::BSLight::GetLuminanceAtPoint);
 		g_state.hooks = true;
 	}
-	void InverseSquareLighting::OnRuntimeQuarantined(std::string_view, std::string_view) noexcept
+	void LightLimitFix::OnRuntimeQuarantined(std::string_view, std::string_view) noexcept
 	{
 		g_state.validated = false;
 		std::scoped_lock lock(g_state.mutex);
 		g_state.sidecar.RestoreNativeRadii();
 		g_state.snapshots = {};
 	}
-	void InverseSquareLighting::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
+	void LightLimitFix::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
-		a_fo4.EnabledInverseSquareLighting = Enabled() ? 1u : 0u;
+		a_fo4.EnabledLightLimitFix = Enabled() ? 1u : 0u;
 	}
-	void InverseSquareLighting::OnD3D11Ready(IDXGIAdapter*, ID3D11Device* a_device)
+	void LightLimitFix::OnD3D11Ready(IDXGIAdapter*, ID3D11Device* a_device)
 	{
 		a_device->GetImmediateContext(g_state.context.put());
 		D3D11_BUFFER_DESC desc{};
@@ -502,7 +502,7 @@ namespace cs::features
 			if (FAILED(a_device->CreateBuffer(&desc, &initial, g_state.buffers[side].put())) ||
 				FAILED(a_device->CreateShaderResourceView(g_state.buffers[side].get(),
 					nullptr, g_state.views[side].put())))
-				throw std::runtime_error("Unable to create ISL tiled metadata resources");
+				throw std::runtime_error("Unable to create LLF tiled metadata resources");
 		}
 		desc.ByteWidth = sizeof(PerLightData);
 		g_state.uploadedRaster.reset();
@@ -510,10 +510,10 @@ namespace cs::features
 		desc.MiscFlags = 0;
 		desc.StructureByteStride = 0;
 		if (FAILED(a_device->CreateBuffer(&desc, nullptr, g_state.raster.put())))
-			throw std::runtime_error("Unable to create ISL raster metadata buffer");
+			throw std::runtime_error("Unable to create LLF raster metadata buffer");
 		g_state.resources = true;
 	}
-	bool InverseSquareLighting::ValidateShaderInjections(std::string& a_error)
+	bool LightLimitFix::ValidateShaderInjections(std::string& a_error)
 	{
 		std::vector<engine::ShaderFamilyDescriptor> variants;
 		for (std::uint32_t descriptor = 1; descriptor <= 18; ++descriptor)
@@ -525,18 +525,19 @@ namespace cs::features
 		                    engine::PrepareShaderInjectionVariants(variants, a_error);
 		return g_state.validated;
 	}
-	void InverseSquareLighting::DrawSettings()
+	void LightLimitFix::DrawSettings()
 	{
 		settings::SettingsEdit edit{ *this };
-		if (const ui::Section section{ "isl-general", "General" }; section) {
+		if (const ui::Section section{ "llf-general", "General" }; section) {
 			edit.Discrete(dmui::ui::Checkbox("Derive Unauthored Lights", &_settings.deriveUnauthoredLights));
 			dmui::ui::TextWrapped(
-				"Lights without a %s\\*.toml entry convert from their native falloff; "
-				"an entry is authoritative and never merged. Changes require a restart.",
+				"Off: only lights authored in %s\\*.toml are inverse-square. On: lights "
+				"without an entry convert from their native falloff; an entry is "
+				"authoritative and never merged. Changes require a restart.",
 				kDirectory);
 		}
 	}
-	void InverseSquareLighting::CollectTelemetry(cs::telemetry::Sink& a_sink) const
+	void LightLimitFix::CollectTelemetry(cs::telemetry::Sink& a_sink) const
 	{
 		a_sink.Field("injection_operational", g_state.validated.load() && g_state.resources.load() &&
 												  g_state.hooks.load() && g_state.dataLoaded.load())
@@ -564,7 +565,7 @@ namespace cs::features
 	{
 		struct AutoRegister
 		{
-			AutoRegister() { FeatureManager::Get().Register(InverseSquareLighting::GetSingleton()); }
+			AutoRegister() { FeatureManager::Get().Register(LightLimitFix::GetSingleton()); }
 		};
 		static AutoRegister _autoRegister;
 	}

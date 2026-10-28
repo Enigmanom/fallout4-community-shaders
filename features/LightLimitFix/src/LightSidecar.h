@@ -9,10 +9,15 @@
 #include <cstddef>
 #include <unordered_map>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	enum class LightFlags : std::uint32_t
 	{
+		kPortalStrict = 1 << 0,
+		kShadow = 1 << 1,
+		kSimple = 1 << 2,
+		kShadowCaster = 1 << 3,
+		kLocalShadow = 1 << 4,
 		kInitialised = 1 << 8,
 		kDisabled = 1 << 9,
 		kInverseSquare = 1 << 10,

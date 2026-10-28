@@ -25,7 +25,7 @@ local features = {
     "ExtendedMaterials",
     "ScreenSpaceGI",
     "Skylighting",
-    "InverseSquareLighting",
+    "LightLimitFix",
     "DynamicCubemaps",
     "IBL",
     "WaterEffects",
@@ -318,7 +318,7 @@ target("FeatureConfigTests", function()
     set_group("unit")
     add_files(
         "tests/FeatureConfigTests.cpp",
-        "features/InverseSquareLighting/src/LightAuthoring.cpp",
+        "features/LightLimitFix/src/LightAuthoring.cpp",
         "src/Settings/FeatureConfig.cpp"
     )
     add_headerfiles(

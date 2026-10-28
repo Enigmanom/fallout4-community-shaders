@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	// FO4: occupied LIGH bits and spot fields require external per-form authoring.
 	void AuthoredLight::Apply(const AuthoredLight& a_override)

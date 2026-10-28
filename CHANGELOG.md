@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Light Limit Fix: replaces Inverse Square Lighting; the config section is now `[features.LightLimitFix]` and `derive_unauthored_lights` now defaults to off, so converting unauthored lights to inverse-square falloff needs opting in.
+
 ## 0.5.0
 
 - Terrain Blending: new feature ported from Skyrim CS; blends terrain into objects that sink into it by depth, removing the hard seam; no per-mesh opt-out yet.

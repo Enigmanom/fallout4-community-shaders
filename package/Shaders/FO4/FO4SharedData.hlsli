@@ -23,7 +23,7 @@ namespace FO4SharedData
 		float4 DirectionalAmbient[3];
 		uint EnabledVolumetricShadows;
 		uint EnabledLODBlending;
-		uint EnabledInverseSquareLighting;
+		uint EnabledLightLimitFix;
 		uint pad0;
 	};
 #if defined(FO4CS_SUBSTRATE) && (defined(TERRAIN_SHADOWS_FULLSCREEN_DEBUG) || defined(WATER_EFFECTS_FULLSCREEN_DEBUG) || defined(SKYLIGHTING_FULLSCREEN_DEBUG))

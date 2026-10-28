@@ -1,0 +1,9 @@
+#pragma once
+#include "Render/ShaderDefineProvider.h"
+
+namespace cs::features::light_limit_fix
+{
+	inline const engine::ShaderDefineDeclaration kShaderDefines{
+		"LIGHT_LIMIT_FIX", { engine::ShaderInjectionTarget::kBsdfLight, engine::ShaderInjectionTarget::kDfTiledLighting }
+	};
+}

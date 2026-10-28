@@ -8,7 +8,7 @@
 
 #include <toml++/toml.hpp>
 
-namespace cs::features::inverse_square_lighting
+namespace cs::features::light_limit_fix
 {
 	struct FormIdentity
 	{

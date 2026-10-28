@@ -13,7 +13,7 @@
 #include "FO4/AmbientConsumer.hlsli"
 #include "FO4/SoftSunShadow.hlsli"
 
-#include "FO4/InverseSquareLightingRaster.hlsli"
+#include "FO4/LightLimitFixRaster.hlsli"
 
 #if defined(DIRECTIONAL) && defined(WATER_EFFECTS)
 // FO4: directional RGB accumulators carry upstream's chromatic multiplier.
