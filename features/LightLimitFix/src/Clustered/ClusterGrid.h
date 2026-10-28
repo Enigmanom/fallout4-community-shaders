@@ -12,7 +12,6 @@ namespace cs::features::light_limit_fix
 {
 	using ClusterDimensions = std::array<std::uint32_t, 3>;
 
-	// Clustered forward grid: 64 px tiles by 32 log-depth slices.
 	class ClusterGrid
 	{
 	public:
@@ -20,12 +19,11 @@ namespace cs::features::light_limit_fix
 		static constexpr std::uint32_t kSlices = 32;
 
 		static ClusterDimensions Dimensions(std::uint32_t a_width, std::uint32_t a_height) noexcept;
-		// Dimensions of the active render region under dynamic resolution.
 		static ClusterDimensions ActiveDimensions() noexcept;
 
 		// Throws when a shader or resource cannot be created.
 		void Create();
-		// Throws when an upload fails; returns false when the grid cannot hold the frame.
+		// Throws on upload failure; false when the grid cannot hold the frame.
 		bool Build(const LightGather& a_gather, const engine::WorldCameraRecord& a_camera);
 
 		ID3D11ShaderResourceView* LightsView() const { return _lights->SRV(); }

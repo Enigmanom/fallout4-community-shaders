@@ -68,10 +68,10 @@ namespace cs::features::light_limit_fix
 	static_assert(offsetof(ConeData, cosHalfAngle) == 12);
 	static_assert(offsetof(ConeData, exponent) == 16);
 
-	// Per-cluster cap in the index list; matches MAX_CLUSTER_LIGHTS in Common.hlsli.
+	// Matches MAX_CLUSTER_LIGHTS in LightLimitFix/Common.hlsli.
 	inline constexpr std::uint32_t kMaxClusterLights = 256;
 
-	// Mirror ClusterAABB, LightGrid and the PerFrame buffers of the cluster shaders.
+	// Mirrors of the cluster compute shader structs and PerFrame CBs.
 	struct ClusterAABB
 	{
 		DirectX::XMFLOAT4 minPoint, maxPoint;

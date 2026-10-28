@@ -1,5 +1,7 @@
 #include "LightGather.h"
 
+#include "Sidecar/LightSidecar.h"
+
 #include <mutex>
 
 namespace cs::features::light_limit_fix
@@ -34,14 +36,9 @@ namespace cs::features::light_limit_fix
 
 			LightData light = a_snapshot(a_light, true);
 			if ((light.lightFlags & kInitialised) == 0) {
-				light = {};
-				light.color = { niLight->diff.r, niLight->diff.g, niLight->diff.b };
-				light.fade = niLight->dimmer * a_light->currentFade;
-				light.radius = niLight->GetRadius();
-				light.invRadius = light.radius > 0 ? 1.0f / light.radius : 0;
-				light.lightFlags = kInitialised;
+				light = NativeLightData(*niLight, niLight->GetRadius());
+				light.fade *= a_light->currentFade;
 			}
-			// FO4: shadow lights enter unflagged; no forward shadow-mask path.
 			const auto& position = niLight->world.translate;
 			light.positionWS.data = { position.x - a_posAdjust.x, position.y - a_posAdjust.y, position.z - a_posAdjust.z };
 
@@ -70,6 +67,7 @@ namespace cs::features::light_limit_fix
 		std::scoped_lock lock(a_scene.lightLock);
 		for (auto& light : a_scene.nonShadowLights)
 			add(light.get(), false);
+		// FO4: shadow lights enter unflagged; no forward shadow-mask path.
 		for (auto& light : a_scene.shadowLights)
 			add(light.get(), true);
 		_stats.lights = static_cast<std::uint32_t>(_lights.size());

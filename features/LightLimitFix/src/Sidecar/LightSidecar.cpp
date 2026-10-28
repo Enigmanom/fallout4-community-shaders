@@ -8,12 +8,18 @@ namespace cs::features::light_limit_fix
 {
 	namespace
 	{
+		void ApplyNativeTerms(LightData& a_light, const RE::NiLight& a_source, float a_radius)
+		{
+			a_light.color = { a_source.diff.r, a_source.diff.g, a_source.diff.b };
+			a_light.radius = a_radius;
+			a_light.fade = a_source.dimmer;
+			a_light.invRadius = 1.0f / a_radius;
+		}
+
 		void UpdateShaderData(RuntimeLightData& a_data, const RE::NiLight& a_light)
 		{
 			auto& light = a_data.shaderData;
-			light.color = { a_light.diff.r, a_light.diff.g, a_light.diff.b };
-			light.radius = a_data.nativeRadius;
-			light.fade = a_light.dimmer;
+			ApplyNativeTerms(light, a_light, a_data.nativeRadius);
 			if ((light.lightFlags & static_cast<std::uint32_t>(LightFlags::kInverseSquare)) != 0) {
 				light.fade *= 4 * a_data.intensityScale;
 				// FO4: native Update animates only dimmer, so derived reach stays fixed.
@@ -24,10 +30,16 @@ namespace cs::features::light_limit_fix
 				light.fadeZone = 1.0f /
 				                 (light.radius * std::clamp(kFadeZoneBase * light.invRadius, 0.0f, 1.0f));
 				light.sizeBias = kScaledUnitsSq * a_data.size * a_data.size * 0.5f;
-			} else {
-				light.invRadius = 1.0f / light.radius;
 			}
 		}
+	}
+
+	LightData NativeLightData(const RE::NiLight& a_light, float a_radius)
+	{
+		LightData light{};
+		ApplyNativeTerms(light, a_light, a_radius);
+		light.lightFlags = static_cast<std::uint32_t>(LightFlags::kInitialised);
+		return light;
 	}
 
 	const RuntimeLightData* LightSidecar::Find(const RE::NiLight& a_light) const

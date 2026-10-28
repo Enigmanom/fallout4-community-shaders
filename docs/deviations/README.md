@@ -22,7 +22,7 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 | Forced | Linear Lighting is optional | Shaders always compile with `ENABLE_LL`; b6 publishes identity diffuse decode and no pi on sun radiance | FO4 deferred HDR and sun inputs are already linear |
 | Divergence | b7 LLF block; zero `cubemapCreatorSettings` semantics | One FO4-only 112-byte b7 holds debug-view state, `DeltaTime`, per-feature enable flags and DALC rows; b6 `cubemapCreatorSettings` stays zero | Single-substrate ABI |
 | Forced | `Util::IsInterior()`: interior cell, or `kNoSky`/`kFixedDimensions` worldspace | `engine::IsInterior()`: interior cell, `kNoSky`, or `Sky::mode != kFull`; shared by Skylighting, Dynamic Cubemaps | FO4 sets `kFixedDimensions` on open-sky worldspaces such as Diamond City |
-| Pending | FrameParams, celestial/HDR/map/shadow fields | Zero or absent | No FO4 source is consumed yet |
+| Pending | FrameParams (except y), celestial/HDR/map/shadow fields | Zero or absent; FrameParams.y is 1 | No FO4 source is consumed yet |
 | Divergence | Water refraction samples the offset texel | Shore blend falls back to the mask-accepted sample above the water plane | Stock reads the unmasked texel, fringing first-person hands and weapons into water |
 | Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; menu and Interface3D effects are not separated | FO4 `BSEffect` PS has no world position or per-draw flags |
 | Forced | Skyrim point-light term in `Effect.hlsl` | FO4's four-light term stays | FO4 `PerGeometry` layout |

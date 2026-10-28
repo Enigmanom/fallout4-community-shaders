@@ -15,17 +15,12 @@ namespace cs::features::light_limit_fix
 		constexpr auto kBuildPath = L"Data\\Shaders\\LightLimitFix\\ClusterBuildingCS.hlsl";
 		constexpr auto kCullPath = L"Data\\Shaders\\LightLimitFix\\ClusterCullingCS.hlsl";
 
-		std::unique_ptr<buffer::StructuredBuffer> MakeBuffer(std::string_view a_name, std::uint32_t a_stride,
-			std::uint32_t a_count, bool a_dynamic)
+		template <class T>
+		std::unique_ptr<buffer::StructuredBuffer> MakeBuffer(std::string_view a_name, std::uint32_t a_count,
+			bool a_dynamic)
 		{
-			D3D11_BUFFER_DESC desc{};
-			desc.Usage = a_dynamic ? D3D11_USAGE_DYNAMIC : D3D11_USAGE_DEFAULT;
-			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | (a_dynamic ? 0 : D3D11_BIND_UNORDERED_ACCESS);
-			desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-			desc.CPUAccessFlags = a_dynamic ? D3D11_CPU_ACCESS_WRITE : 0;
-			desc.StructureByteStride = a_stride;
-			desc.ByteWidth = a_stride * a_count;
-			auto result = std::make_unique<buffer::StructuredBuffer>(desc, a_count);
+			auto result = std::make_unique<buffer::StructuredBuffer>(
+				buffer::StructuredBufferDesc<T>(a_count, !a_dynamic, a_dynamic), a_count);
 			result->CreateSRV();
 			if (!a_dynamic)
 				result->CreateUAV();
@@ -73,12 +68,12 @@ namespace cs::features::light_limit_fix
 		_buildCB->SetName("LLF Cluster Building CB");
 		_cullCB->SetName("LLF Cluster Culling CB");
 
-		_lights = MakeBuffer("LLF Lights", sizeof(LightData), kMaxLights, true);
-		_cones = MakeBuffer("LLF Cones", sizeof(ConeData), kMaxLights, true);
-		_clusters = MakeBuffer("LLF Clusters", sizeof(ClusterAABB), _capacity, false);
-		_lightIndexCounter = MakeBuffer("LLF Light Index Counter", sizeof(std::uint32_t), 1, false);
-		_lightIndexList = MakeBuffer("LLF Light Index List", sizeof(std::uint32_t), _capacity * kMaxClusterLights, false);
-		_lightGrid = MakeBuffer("LLF Light Grid", sizeof(LightGrid), _capacity, false);
+		_lights = MakeBuffer<LightData>("LLF Lights", kMaxLights, true);
+		_cones = MakeBuffer<ConeData>("LLF Cones", kMaxLights, true);
+		_clusters = MakeBuffer<ClusterAABB>("LLF Clusters", _capacity, false);
+		_lightIndexCounter = MakeBuffer<std::uint32_t>("LLF Light Index Counter", 1, false);
+		_lightIndexList = MakeBuffer<std::uint32_t>("LLF Light Index List", _capacity * kMaxClusterLights, false);
+		_lightGrid = MakeBuffer<LightGrid>("LLF Light Grid", _capacity, false);
 	}
 
 	bool ClusterGrid::Build(const LightGather& a_gather, const engine::WorldCameraRecord& a_camera)

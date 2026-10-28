@@ -26,7 +26,6 @@ namespace cs::features::light_limit_fix
 		std::uint32_t dropped = 0;
 	};
 
-	// Collects the visible scene lights into the upstream record, camera-relative.
 	class LightGather
 	{
 	public:

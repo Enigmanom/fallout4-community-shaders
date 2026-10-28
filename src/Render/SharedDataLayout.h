@@ -146,7 +146,7 @@ namespace cs::render
 		data.CameraPosAdjust = a_camera.PosAdjust;
 		data.CameraPreviousPosAdjust = a_camera.PreviousPosAdjust;
 		data.CameraPreviousPosAdjust.w = a_clampOffset;
-		// FO4 has no validated inverse-gamma or Skyrim frame-flag source.
+		// FO4 has no validated inverse-gamma source; x, z and w stay 0.
 		data.FrameParams = {};
 		// FO4: world view only; LLF GetClusterIndex collapses uv to 0.5 when y is 0.
 		data.FrameParams.y = 1.0f;
