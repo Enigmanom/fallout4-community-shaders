@@ -333,6 +333,8 @@ target(plugin_name, function()
     add_installfiles("features/Upscaling/(Shaders/Upscaling/Streamline/**)",
         { prefixdir = "." })
     add_installfiles("LICENSE", "EXCEPTIONS.md", { prefixdir = "." })
+    add_installfiles("extern/AntiLag2-SDK/LICENSE-AMD-AntiLag2-MIT.txt",
+        { prefixdir = "F4SE/Plugins/FO4CommunityShaders/Licenses" })
 end)
 
 -- Host tests remain ordinary, non-default C++ executable targets.
