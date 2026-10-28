@@ -40,7 +40,7 @@ Status: **Pt** partial, **NS** not started; finished features leave the map. Pay
 | Effects11 | Core | `.fx` host and effect chain, color correction, editor, weather/light controls, volumetric rays, water shore fade/sun specular | N/A: ENB preset/binary compatibility | NS | H | L | Med |
 | Exponential Height Fog | Core | Deferred until upstream releases it | — | NS | — | — | — |
 | [Extended Materials](deviations/ExtendedMaterials.md) | Mixed | Object POM + contact refinement, warping fix, terrain POM/height blend (height from `_s` alpha); parallax material gate pending | Ext: complex envmask material; sun parallax soft shadows (done). N/A: point-light parallax shadows | Pt | H | M | Med |
-| Extended Translucency | Mixed | Alpha models on an existing alpha route* | Ext: per-mesh NIF metadata, world translucent coverage | NS | M | S | Low |
+| Extended Translucency | N/A | — | N/A: FO4 never forward-renders lit alpha-blended world geometry; vanilla has no translucent lit fabric | — | L | — | High |
 | Grass Collision | Core | Contact field, blade deformation/motion, optimized-grass consumer | — | NS | H | M | Med |
 | Grass Lighting | Mixed | Brightness/facing, complex-atlas decode, LOD brightness | Ext: exact specular/transmission/AO, PBR grass. N/A: forward activation | NS | M | S/M | Med |
 | Grass Optimizations | Mixed | Culling policy, HiZ, complex detection (no standalone payoff) | Ext: instance/bucket renderer + indirect submission, mesh LOD | NS | H | L | Med |
@@ -93,6 +93,10 @@ are FO4-only rule-4 core features.
   lights are N/A: upstream lights only texture stems listed in `Data\ParticleLights\*.ini`, which no FO4
   content ships; lighting vanilla glow cards by shader flags would be an FO4-original extension. The
   light-limit visualization (tiles at 127, per-tile count) ships with it.
+- **Extended Translucency.** Forward BSLightingShader draws only Interface3D and cube captures. Blended
+  lit world geometry renders only when decal-flagged, through the `DFPrepass` BLEND variant; material alpha
+  below 1 becomes a 4×4 dither. Vanilla skinned blended content is hair/lash head parts (upstream excludes
+  them) and decals; glass and see-through fabric are BSEffect.
 - **Grass.** Grass wind/collision/placement is already reconstructed in `DFPrepass.hlsl`; remaining stock
   grass variants are port work.
 - **Shadow receivers** (fallout4-re `docs/cloud-volumetric-shadows-contract.md`). FO4 Effect LIGHTING carries
@@ -112,7 +116,7 @@ Ordered by user value over effort, respecting dependencies.
 4. **Parallax:** Extended Materials object/terrain POM + TruePBR surface POM, reading `_s` alpha (M).
 5. **Mid-size, few dependencies:** Cloud Shadows (L); Subsurface Scattering (M); Volumetric
    Shadows producer + DFLight (M); Hair Specular opaque slices (M); Grass Collision (M, actor-bounds RE).
-6. **RE-gated:** Interior Sun; Extended Translucency alpha models.
+6. **RE-gated:** Interior Sun.
 7. **Providers:** LLF light-limit visualization; then provider adapters in DC/SSGI.
 8. **Remaining core:** Skin detail/default response; Sky Sync; Grass Lighting basics; CS Editor; Screenshot (then Remote Control screenshot capture); Remote Control NvPerf; HDR Display (L).
 
@@ -123,4 +127,4 @@ a resolution fix for pixelated godrays and night-time (moon) godrays; RE first (
 parameters, night gating). Not planned: DC authored reflectance/material workflow; LLF vanilla glow-card particle lights. Candidates: TruePBR
 full materials; Extended Materials complex materials (envmask-alpha height, RGB metal/colour); Grass Optimizations renderer;
 Terrain Helper ESP; Skin RFAOS; SSS profiles; Hair Kajiya-Kay and blended hair; LLF capacity/shadow
-redesign; full raymarched Volumetric Lighting renderer; Extended Translucency world coverage.
+redesign; full raymarched Volumetric Lighting renderer.
