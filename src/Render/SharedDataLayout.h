@@ -151,7 +151,7 @@ namespace cs::render
 		data.CameraPreviousPosAdjust.w = a_clampOffset;
 		// FO4 has no validated inverse-gamma source; x, z and w stay 0.
 		data.FrameParams = {};
-		// FO4: world view only; LLF GetClusterIndex collapses uv to 0.5 when y is 0.
+		// FO4: world view only; LLF GetClusterIndex collapses uv at y == 0.
 		data.FrameParams.y = 1.0f;
 		data.DynamicResolutionParams1 = { a_ratio.x, a_ratio.y, a_previousRatio.x, a_previousRatio.y };
 		data.DynamicResolutionParams2 = { 1.0f / a_ratio.x, 1.0f / a_ratio.y,

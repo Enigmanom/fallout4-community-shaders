@@ -3,7 +3,7 @@
 
 #ifdef LIGHT_LIMIT_FIX
 #	include "FO4/LightLimitFixConsumer.hlsli"
-// FO4: native raster local lights publish per-draw metadata rather than LLF lists.
+// FO4: raster local lights read per-draw b11, not LLF lists.
 cbuffer LightLimitFixDraw : register(b11)
 {
 	LightLimitFix::Light LightLimitFixLight;

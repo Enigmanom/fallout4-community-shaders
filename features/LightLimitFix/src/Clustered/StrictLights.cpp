@@ -12,7 +12,7 @@ namespace cs::features::light_limit_fix
 {
 	namespace
 	{
-		// FO4: the engine reads only the fade node's direct parent for its room.
+		// FO4: the engine reads only the fade node's direct parent as room.
 		const RE::NiNode* GetRoomNode(const RE::BSRenderPass& a_pass) noexcept
 		{
 			static REL::Relocation<const RE::NiRTTI*> roomRtti{ RE::BSMultiBoundRoom::Ni_RTTI };

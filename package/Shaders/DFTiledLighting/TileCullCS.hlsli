@@ -111,7 +111,7 @@ groupshared uint VisibleCount;
 			uint slot;
 			InterlockedAdd(VisibleCount, 1, slot);
 #ifdef LIGHT_LIMIT_FIX
-			// FO4: bounds native's unguarded 127-index tile against enlarged radii.
+			// FO4: bounds native's unguarded 127-index tile vs enlarged radii.
 			if (slot < 127)
 #endif
 				TileLists[tileIndex].Indices[slot] = lightIndex;

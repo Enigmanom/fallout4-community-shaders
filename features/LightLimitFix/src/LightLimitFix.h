@@ -16,7 +16,7 @@ namespace cs::features
 		std::string GetCategory() const override { return FeatureCategories::kLighting; }
 		std::string GetFeatureSummary() const override
 		{
-			return "Inverse-square light falloff; clustered forward lighting follows.";
+			return "Every nearby light on effects and water; inverse-square falloff for authored lights.";
 		}
 		bool Configure(const toml::table& a_config, std::string& a_error) override;
 		void Load() override;

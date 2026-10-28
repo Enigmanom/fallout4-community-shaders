@@ -187,7 +187,7 @@ float3 GetLightingColor(float3 msPosition
 	color = FO4EffectLighting::GetLightingColor(color, screenPosition);
 #		endif
 #		if defined(LIGHT_LIMIT_FIX)
-	// FO4: the cluster loop in main replaces the native lanes while LLF is healthy.
+	// FO4: the cluster loop in main replaces native lanes while LLF is healthy.
 	[branch] if (FO4LightLimitFix::UseClusteredLights()) return color;
 #		endif
 	color.x += dot(PLightColorR * lightFadeMul, 1.0.xxxx);

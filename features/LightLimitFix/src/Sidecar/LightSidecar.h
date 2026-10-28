@@ -26,7 +26,6 @@ namespace cs::features::light_limit_fix
 		bool derived = false;
 	};
 
-	// Unauthored light record: native color, dimmer fade and radius.
 	LightData NativeLightData(const RE::NiLight& a_light, float a_radius);
 
 	// FO4: a typed sidecar preserves native fields and owns identities through publication.

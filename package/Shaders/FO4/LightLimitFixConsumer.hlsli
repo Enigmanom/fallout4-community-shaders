@@ -25,7 +25,7 @@ namespace FO4LightLimitFix
 		if ((data.lightFlags & LightLimitFix::LightFlags::InverseSquare) == 0)
 			return nativeColor;
 		float3 color = GetLinearColor(data.color, data.lightFlags);
-		// FO4: native local BRDF lacks upstream's Lambert 1/pi, so apply it where inverse-square radiance enters.
+		// FO4: native local BRDF lacks upstream's 1/pi; apply it here.
 		return Color::PointLight(color) * data.fade * Color::BRDFScale;
 	}
 
@@ -34,7 +34,7 @@ namespace FO4LightLimitFix
 		[branch] if (FO4SharedData::EnabledLightLimitFix == 0) return nativeAttenuation;
 		if ((data.lightFlags & LightLimitFix::LightFlags::Disabled) != 0)
 			return 0.0;
-		// FO4: unflagged lights retain the native radial curve, not LLF's regular curve.
+		// FO4: unflagged lights keep the native radial curve.
 		if ((data.lightFlags & LightLimitFix::LightFlags::InverseSquare) == 0)
 			return nativeAttenuation;
 		return LightLimitFix::GetAttenuation(distance, data);

@@ -57,7 +57,7 @@ namespace cs::features::light_limit_fix
 		const double nativeEnergy = WeightedEnergy(nativeCurve);
 		if (!(a_light.fade * nativeEnergy > 0))
 			return std::nullopt;
-		// Inverse-square halves at d = sqrt(K * size^2 / 2); match the native half-value distance.
+		// Match native half-value distance: d = sqrt(K * size^2 / 2).
 		const float size = std::clamp(
 			static_cast<float>(HalfValuePoint(nativeCurve) * a_light.radius * std::sqrt(2.0 / kScaledUnitsSq)),
 			kMinSize, kMaxSize);

@@ -16,7 +16,7 @@ namespace cs::features::light_limit_fix
 {
 	inline constexpr std::uint32_t kMaxLights = 1024;
 
-	// Sidecar record for a light; flags lack kInitialised when it is not authored.
+	// Sidecar record; flags lack kInitialised when the light is not authored.
 	using SidecarSnapshot = LightData (*)(RE::BSLight*, bool a_renderFade);
 
 	struct GatherStats

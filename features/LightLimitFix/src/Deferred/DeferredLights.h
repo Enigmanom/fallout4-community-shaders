@@ -12,7 +12,7 @@
 
 namespace cs::features::light_limit_fix
 {
-	// FO4: per-light records for native deferred consumers (t8 tiled, b11 raster).
+	// FO4: per-light records for native consumers (t8 tiled, b11 raster).
 	class DeferredLights
 	{
 	public:
@@ -24,7 +24,7 @@ namespace cs::features::light_limit_fix
 		// Throws when the D3D11 upload fails.
 		void UploadTiled(std::uint32_t a_side, std::uint32_t a_count);
 		ID3D11ShaderResourceView* TiledView() const;
-		// Throws when the D3D11 upload fails; unchanged records are not re-uploaded.
+		// Throws on D3D11 upload failure; unchanged records are skipped.
 		ID3D11Buffer* RasterBuffer(const LightData& a_light);
 
 	private:
