@@ -432,7 +432,7 @@ local shader_cache_sources = {
     "src/Utils/ShaderCache/SourceCompile.cpp"
 }
 
--- Local runs reuse compiles; an explicit FO4CS_SHADER_TEST_CACHE (CI) wins.
+-- Local default; an explicit FO4CS_SHADER_TEST_CACHE wins.
 local function use_shader_test_cache()
     if not os.getenv("FO4CS_SHADER_TEST_CACHE") then
         set_runenv("FO4CS_SHADER_TEST_CACHE", path.join(os.projectdir(), ".shader-test-cache"))
