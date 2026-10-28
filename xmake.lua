@@ -190,7 +190,6 @@ target(plugin_name .. "Version", function()
                 "release_identity must be a stable or dev release tag")
             describe = identity
         end
-        local content = io.readfile("xmake/Plugin.h.in")
         local variables = {
             BUILD_DESCRIBE = describe,
             BUILD_GIT_SHA = sha,
@@ -200,14 +199,18 @@ target(plugin_name .. "Version", function()
             PROJECT_VERSION_PATCH = plugin_version_patch
         }
 
-        for name, value in pairs(variables) do
-            content = content:gsub("@" .. name .. "@", value)
-        end
+        -- BuildIdentity.h changes every commit; only the TUs that print it include it.
+        for _, header in ipairs({ "Plugin.h", "BuildIdentity.h" }) do
+            local content = io.readfile(path.join("xmake", header .. ".in"))
+            for name, value in pairs(variables) do
+                content = content:gsub("@" .. name .. "@", value)
+            end
 
-        local output = path.join(generated_include, "Plugin.h")
-        if not os.isfile(output) or io.readfile(output) ~= content then
-            os.mkdir(path.directory(output))
-            io.writefile(output, content)
+            local output = path.join(generated_include, header)
+            if not os.isfile(output) or io.readfile(output) ~= content then
+                os.mkdir(path.directory(output))
+                io.writefile(output, content)
+            end
         end
     end)
 end)
@@ -316,7 +319,9 @@ target(plugin_name, function()
         "COMMONLIB_RUNTIMECOUNT=3"
     )
     if is_mode("release", "releasedbg") then
-        set_policy("build.optimization.lto", true)
+        -- The LTO policy appends a full -LTCG that overrides incremental codegen.
+        add_cxflags("/GL", { force = true })
+        add_shflags("/LTCG:INCREMENTAL", { force = true })
     end
 
     set_pcxxheader("src/PCH.h")
@@ -428,6 +433,13 @@ local shader_cache_sources = {
     "src/Utils/ShaderCache/SourceCompile.cpp"
 }
 
+-- Local default; an explicit FO4CS_SHADER_TEST_CACHE wins.
+local function use_shader_test_cache()
+    if not os.getenv("FO4CS_SHADER_TEST_CACHE") then
+        set_runenv("FO4CS_SHADER_TEST_CACHE", path.join(os.projectdir(), ".shader-test-cache"))
+    end
+end
+
 -- One gate binary per compiler: d3dcompiler_47.dll resolves from the executable directory.
 -- A nil compiler selects the pinned Windows SDK copy; otherwise it is a project-relative path.
 local function stock_shader_identity_target(name, compiler, tests)
@@ -437,6 +449,7 @@ local function stock_shader_identity_target(name, compiler, tests)
         set_group("shaders")
         set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/" .. name)
         add_deps("ShaderStage")
+        use_shader_test_cache()
         add_files(
             "tests/StockShaderIdentityTests.cpp",
             "tests/ShaderABIChecks.cpp",
@@ -487,6 +500,7 @@ target("RuntimeShaderTests", function()
     set_group("shaders")
     set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/RuntimeShaderTests")
     add_deps("ShaderStage")
+    use_shader_test_cache()
     add_files("tests/RuntimeShaderTests.cpp", "src/Utils/ShaderCompile.cpp")
     add_files(shader_cache_sources)
     add_packages("vcpkg::directxmath")

@@ -68,11 +68,11 @@ For clangd, generate a compile database with `pwsh scripts\gen-compile-commands.
 ## Test
 
 ```powershell
-xmake test
+xmake test --output-on-failure
 ```
 
-Set `FO4CS_SHADER_TEST_CACHE` to a directory to reuse compiled blobs across `xmake test -g shaders`
-runs; entries are revalidated against source, includes, and compiler on every hit.
+Shader suites reuse compiled blobs from `.shader-test-cache` (override with
+`FO4CS_SHADER_TEST_CACHE`); entries are revalidated against source, includes, and compiler on every hit.
 
 Add regression tests for critical behavior and real failure modes, not implementation
 details. Validate rendering and hook changes in game before claiming they work.
