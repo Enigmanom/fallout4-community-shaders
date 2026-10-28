@@ -174,14 +174,17 @@ namespace cs
 
 	void ProfilingRenderer::RenderTimingModeToggle()
 	{
-		// FO4: DmUI has no RadioButton; two selectables pick the mode.
+		// FO4: DmUI has no RadioButton; a two-button toggle picks the mode.
 		dmui::ui::PushID("ProfilingTimingMode");
 		const auto option = [](const char* a_label, TimingMode a_mode) {
-			const Vec2 size{ dmui::ui::CalcTextSize(a_label).x, 0.0f };
-			if (dmui::ui::Selectable(a_label, timingMode == a_mode, dmui::ui::SelectableFlags::kNone, size) && timingMode != a_mode) {
+			const bool selected = timingMode == a_mode;
+			const auto fill = selected ? dmui::ui::Color::kButtonActive : dmui::ui::Color::kFrameBg;
+			dmui::ui::PushStyleColor(dmui::ui::Color::kButton, dmui::ui::GetStyleColor(fill));
+			if (dmui::ui::Button(a_label) && !selected) {
 				timingMode = a_mode;
 				timeSinceLastUpdate = kStatsRefreshSeconds;
 			}
+			dmui::ui::PopStyleColor();
 		};
 		option("GPU", TimingMode::GPU);
 		dmui::ui::SameLine();
