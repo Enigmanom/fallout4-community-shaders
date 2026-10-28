@@ -77,6 +77,8 @@ namespace cs::features
 		// Draws the selected fullscreen view over the final scene image.
 		void RenderOverlay();
 		void BuildOverlayResources(ID3D11Device* a_device);
+		// Unit direction to the drawn sun disc in w=1, else zero.
+		void UpdateOverlayConstants(ID3D11DeviceContext* a_context);
 		FeatureDebugTexture GetOcclusionDebugTexture() const;
 
 		Settings _settings;
@@ -101,6 +103,7 @@ namespace cs::features
 		std::array<winrt::com_ptr<ID3D11PixelShader>, 2> _overlayPS;
 		winrt::com_ptr<ID3D11BlendState> _overlayBlend;
 		winrt::com_ptr<ID3D11RasterizerState> _overlayRasterizer;
+		winrt::com_ptr<ID3D11Buffer> _overlayConstants;
 		std::atomic_bool _overlayReady{ false };
 
 		std::atomic_bool _registrationsReady{ false };

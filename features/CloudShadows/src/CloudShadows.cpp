@@ -3,6 +3,8 @@
 #include <DearModdingUI/Client.h>
 
 #include <array>
+#include <cmath>
+#include <cstring>
 #include <format>
 #include <optional>
 #include <string>
@@ -33,6 +35,8 @@
 
 #include "RE/B/BSGeometry.h"
 #include "RE/B/BSRenderPass.h"
+#include "RE/N/NiNode.h"
+#include "RE/S/Sun.h"
 
 namespace cs::features
 {
@@ -46,6 +50,8 @@ namespace cs::features
 		// RT0 color, RT1 motion; the capture cube takes the next free slot.
 		constexpr std::uint32_t kCaptureTargetSlot = 2;
 		constexpr std::uint32_t kTargetSlots = 8;
+		// b4 to b7 are the substrate; the overlay's own constants follow.
+		constexpr std::uint32_t kOverlayConstantsSlot = 8;
 
 		// Clouds.nif's FogRing layer is opaque fill below the horizon, not cloud.
 		bool IsHorizonFill(const RE::BSRenderPass* a_pass) noexcept
@@ -352,7 +358,35 @@ namespace cs::features
 		rasterizer.CullMode = D3D11_CULL_NONE;
 		rasterizer.DepthClipEnable = TRUE;
 		DX::ThrowIfFailed(a_device->CreateRasterizerState(&rasterizer, _overlayRasterizer.put()));
+		D3D11_BUFFER_DESC constants{};
+		constants.ByteWidth = sizeof(float) * 4;
+		constants.Usage = D3D11_USAGE_DYNAMIC;
+		constants.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		constants.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		DX::ThrowIfFailed(a_device->CreateBuffer(&constants, nullptr, _overlayConstants.put()));
 		_overlayReady.store(_overlayVS && _overlayPS[0] && _overlayPS[1], std::memory_order_release);
+	}
+
+	void CloudShadows::UpdateOverlayConstants(ID3D11DeviceContext* a_context)
+	{
+		float sun[4]{};
+		const auto* sky = RE::Sky::GetSingleton();
+		if (sky && sky->root && sky->sun && sky->sun->root) {
+			// The sky root sits at the camera, so the sun root's offset from it is the disc direction.
+			const auto offset = sky->sun->root->world.translate - sky->root->world.translate;
+			const float length = std::sqrt(offset.SqrLength());
+			if (length > 0.0f && std::isfinite(length)) {
+				sun[0] = offset.x / length;
+				sun[1] = offset.y / length;
+				sun[2] = offset.z / length;
+				sun[3] = 1.0f;
+			}
+		}
+		D3D11_MAPPED_SUBRESOURCE mapped{};
+		if (FAILED(a_context->Map(_overlayConstants.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+			return;
+		std::memcpy(mapped.pData, sun, sizeof(sun));
+		a_context->Unmap(_overlayConstants.get(), 0);
 	}
 
 	void CloudShadows::RenderOverlay()
@@ -380,6 +414,8 @@ namespace cs::features
 		D3D11_TEXTURE2D_DESC desc{};
 		texture->GetDesc(&desc);
 
+		UpdateOverlayConstants(context);
+
 		// The engine caches its bindings, so the pass runs in an isolated context state.
 		cs::render::ScopedContextState state(context, _overlayState.get());
 		if (!state.IsActive())
@@ -401,6 +437,8 @@ namespace cs::features
 		context->PSSetShaderResources(cloud_shadows_shader::kCloudShadowsSlot, 1, &cube);
 		ID3D11SamplerState* const sampler = cs::render::GetLinearClampSampler();
 		context->PSSetSamplers(cs::render::kLinearClampSamplerSlot, 1, &sampler);
+		ID3D11Buffer* const constants = _overlayConstants.get();
+		context->PSSetConstantBuffers(kOverlayConstantsSlot, 1, &constants);
 		context->Draw(3, 0);
 		_counters.overlayFrames.fetch_add(1, std::memory_order_relaxed);
 	}
