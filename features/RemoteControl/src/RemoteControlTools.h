@@ -45,13 +45,11 @@ namespace cs::features::remote_control
 	void SubscribeCaptureEvents();
 	void SubscribeNvPerfEvents();
 
-	// Host settings page section for the Nsight Perf profiler.
 	void DrawNvPerfPanel();
 
 	std::vector<std::string_view> RegisterTools(DevBenchAPI::IDevBenchInterface001& a_host);
 
 	[[nodiscard]] Feature* FindFeature(std::string_view a_shortName, bool a_loadedOnly);
 	[[nodiscard]] Json Error(std::string a_message, Json a_details = Json::object());
-	[[nodiscard]] std::string PathToUtf8(const std::filesystem::path& a_path);
 	[[nodiscard]] Json OnFrame(std::function<Json()> a_task);
 }

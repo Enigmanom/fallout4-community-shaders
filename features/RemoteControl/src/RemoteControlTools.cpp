@@ -86,12 +86,6 @@ namespace cs::features::remote_control
 		return result;
 	}
 
-	std::string PathToUtf8(const std::filesystem::path& a_path)
-	{
-		const auto text = a_path.u8string();
-		return { text.begin(), text.end() };
-	}
-
 	Json OnFrame(std::function<Json()> a_task)
 	{
 		auto result = render::GetFrameDispatcher().RunOnFrame<Json>(std::move(a_task));

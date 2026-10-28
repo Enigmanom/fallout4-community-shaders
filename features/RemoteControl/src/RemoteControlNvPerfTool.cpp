@@ -3,6 +3,7 @@
 
 #include "Features/RemoteControl/NvPerf.h"
 #include "Render/FrameProfiler.h"
+#include "Utils/PathUtf8.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,7 +41,7 @@ namespace cs::features::remote_control
 			return { { "metric", NvPerf::FormatMetric(a_metric) }, { "label", NvPerf::MetricLabel(a_metric) } };
 		}
 
-		// Summary values are per frame, keyed by metric label; an incomplete value is null.
+		// Per-frame values keyed by metric label; incomplete values are null.
 		Json CaptureResultJson(const NvPerf::CaptureResult& a_result, bool a_detail)
 		{
 			auto metrics = Json::array();
@@ -66,7 +67,7 @@ namespace cs::features::remote_control
 				{ "startFrame", a_result.startFrame }, { "endFrame", a_result.endFrame }, { "samples", a_result.samples },
 				{ "passesPerSample", a_result.passesPerSample }, { "droppedRanges", a_result.droppedRanges },
 				{ "droppedTraceBytes", a_result.droppedTraceBytes }, { "ranges", a_result.ranges }, { "metrics", std::move(metrics) },
-				{ "unsupportedMetrics", std::move(unsupported) }, { "summary", std::move(summary) }, { "csvPath", PathToUtf8(a_result.csvPath) } };
+				{ "unsupportedMetrics", std::move(unsupported) }, { "summary", std::move(summary) }, { "csvPath", util::PathToUtf8(a_result.csvPath) } };
 			if (a_detail) {
 				auto ranges = Json::array();
 				for (const auto& range : a_result.rangeResults)
@@ -77,7 +78,7 @@ namespace cs::features::remote_control
 			return out;
 		}
 
-		// Captures run over the next frames on the render thread, so no call here marshals to the frame.
+		// Captures run on the render thread over later frames; nothing marshals here.
 		Json Handle(const Json& a_args)
 		{
 			const auto action = a_args.value("action", std::string{});
@@ -89,7 +90,7 @@ namespace cs::features::remote_control
 				const auto device = NvPerf::GetDeviceInfo();
 				return { { "built", device.built }, { "available", device.available }, { "gpuSupported", device.gpuSupported },
 					{ "device", device.deviceName }, { "chip", device.chipName }, { "deviceError", device.error },
-					{ "library", PathToUtf8(device.libraryPath) }, { "capture", StatusJson(NvPerf::GetStatus()) } };
+					{ "library", util::PathToUtf8(device.libraryPath) }, { "capture", StatusJson(NvPerf::GetStatus()) } };
 			}
 
 			if (action == "metrics") {

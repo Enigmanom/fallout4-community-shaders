@@ -5,6 +5,7 @@
 #include "Host/HostClient.h"
 #include "Log.h"
 #include "Menu/Section.h"
+#include "Utils/PathUtf8.h"
 
 #include <DearModdingUI/Client.h>
 #include <DearModdingUI/UI.h>
@@ -153,15 +154,14 @@ namespace cs::features::remote_control
 
 			if (!a_result.summary.empty())
 				DrawSummary(a_result);
-			const auto csv = PathToUtf8(a_result.csvPath);
+			const auto csv = util::PathToUtf8(a_result.csvPath);
 			dmui::ui::TextDisabled("Every range of every sample: %s", csv.c_str());
 			if (dmui::ui::Button("Copy path"))
 				dmui::ui::SetClipboardText(csv.c_str());
 		}
 	}
 
-	// The library is probed the first time the section opens; a capture runs over the next
-	// frames on the render thread, so this only requests it and reads its status.
+	// Probe on first open; the capture itself runs on the render thread later.
 	void DrawNvPerfPanel()
 	{
 		const ui::Section section{ "nvperf", "Nsight Perf (DX11)" };
@@ -182,7 +182,7 @@ namespace cs::features::remote_control
 		}
 		if (!device.gpuSupported) {
 			Draw(std::format("Nsight Perf is unavailable: {}", device.error), dmui::TextTone::kStatusWarning);
-			dmui::ui::TextDisabled("Library: %s", PathToUtf8(device.libraryPath).c_str());
+			dmui::ui::TextDisabled("Library: %s", util::PathToUtf8(device.libraryPath).c_str());
 			return;
 		}
 		Draw(std::format("{} (chip {})", device.deviceName, device.chipName), dmui::TextTone::kStatusSuccess);
