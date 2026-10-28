@@ -366,16 +366,42 @@ namespace
 		return {};
 	}
 	// Namespace-scoped resources reflect with their qualified name.
-	UINT BindPoint(ID3D11ShaderReflection* a_reflection, std::string_view a_name)
+	std::optional<D3D11_SHADER_INPUT_BIND_DESC> FindBinding(ID3D11ShaderReflection* a_reflection, std::string_view a_name)
 	{
 		D3D11_SHADER_DESC shader{};
 		a_reflection->GetDesc(&shader);
 		for (UINT i = 0; i < shader.BoundResources; ++i) {
 			D3D11_SHADER_INPUT_BIND_DESC binding{};
 			if (SUCCEEDED(a_reflection->GetResourceBindingDesc(i, &binding)) && std::string_view(binding.Name).ends_with(a_name))
-				return binding.BindPoint;
+				return binding;
 		}
-		return UINT_MAX;
+		return std::nullopt;
+	}
+	UINT BindPoint(ID3D11ShaderReflection* a_reflection, std::string_view a_name)
+	{
+		const auto binding = FindBinding(a_reflection, a_name);
+		return binding ? binding->BindPoint : UINT_MAX;
+	}
+	struct StructuredBufferABI
+	{
+		const char* name;
+		UINT slot;
+		std::size_t stride;
+		std::span<const ABIField> element{};
+	};
+	std::string CheckStructuredBuffer(ID3D11ShaderReflection* a_reflection, const StructuredBufferABI& a_buffer)
+	{
+		const auto binding = FindBinding(a_reflection, a_buffer.name);
+		if (!binding || binding->BindPoint != a_buffer.slot)
+			return std::string(a_buffer.name) + ": ABI slot mismatch";
+		if (binding->NumSamples != a_buffer.stride)
+			return std::string(a_buffer.name) + ": ABI structure stride mismatch";
+		if (!a_buffer.element.empty()) {
+			auto* element = a_reflection->GetConstantBufferByName(binding->Name)->GetVariableByName("$Element");
+			if (auto layout = CheckStructLayout(element->GetType(), a_buffer.element); !layout.empty())
+				return std::string(a_buffer.name) + ": " + layout;
+		}
+		return {};
 	}
 	std::string VerifyIBLABI(const std::filesystem::path& a_root)
 	{
@@ -438,39 +464,19 @@ namespace
 		const auto tiled = Reflect(a_root, "DFTiledLighting.hlsl", { { "DFTILEDLIGHTING_VARIANT", "2" }, { "LIGHT_LIMIT_FIX", "1" }, { "CSHADER", "1" } }, "cs_5_0", error);
 		if (!tiled)
 			return error;
-		D3D11_SHADER_INPUT_BIND_DESC lights{};
-		if (FAILED(tiled->GetResourceBindingDescByName("LightLimitFixLights", &lights)) || lights.BindPoint != 8)
-			return "LightLimitFixLights: ABI slot mismatch";
-		if (lights.NumSamples != sizeof(LightData))
-			return "LightLimitFixLights: ABI structure stride mismatch";
-		auto* element = tiled->GetConstantBufferByName("LightLimitFixLights")->GetVariableByName("$Element");
-		if (auto layout = CheckStructLayout(element->GetType(), fields); !layout.empty())
-			return "LightLimitFixLights: " + layout;
+		if (const auto mismatch = CheckStructuredBuffer(tiled.Get(), { "LightLimitFixLights", 8, sizeof(LightData), fields }); !mismatch.empty())
+			return mismatch;
 		const auto raster = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "LIGHT_LIMIT_FIX", "1" } }, "ps_5_0", error);
 		if (!raster)
 			return error;
-		D3D11_SHADER_INPUT_BIND_DESC binding{};
-		if (FAILED(raster->GetResourceBindingDescByName("LightLimitFixDraw", &binding)) || binding.BindPoint != 11)
-			return "LightLimitFixDraw: ABI slot mismatch";
-		auto* cb = raster->GetConstantBufferByName("LightLimitFixDraw");
-		D3D11_SHADER_BUFFER_DESC desc{};
-		if (FAILED(cb->GetDesc(&desc)) || desc.Size != sizeof(LightData))
-			return "LightLimitFixDraw: ABI buffer size mismatch";
-		if (auto layout = CheckStructLayout(cb->GetVariableByName("LightLimitFixLight")->GetType(), fields); !layout.empty())
-			return "LightLimitFixDraw: " + layout;
+		const ABIField drawFields[]{ { "LightLimitFixLight", 0, sizeof(LightData) } };
+		if (const auto mismatch = CheckConstantBuffer(raster.Get(), { "LightLimitFixDraw", 11, sizeof(LightData), drawFields, "LightLimitFixLight", fields }); !mismatch.empty())
+			return mismatch;
 		const auto forward = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "LIGHT_LIMIT_FIX_FORWARD", "1" } }, "ps_5_0", error);
 		if (!forward)
 			return error;
-		if (BindPoint(forward.Get(), "Cones") != 34)
-			return "FO4LightLimitFix::Cones: ABI slot mismatch";
-		D3D11_SHADER_DESC forwardDesc{};
-		forward->GetDesc(&forwardDesc);
-		for (UINT i = 0; i < forwardDesc.BoundResources; ++i) {
-			D3D11_SHADER_INPUT_BIND_DESC cones{};
-			if (SUCCEEDED(forward->GetResourceBindingDesc(i, &cones)) && std::string_view(cones.Name).ends_with("Cones") &&
-				cones.NumSamples != sizeof(cs::features::light_limit_fix::ConeData))
-				return "FO4LightLimitFix::Cones: ABI structure stride mismatch";
-		}
+		if (const auto mismatch = CheckStructuredBuffer(forward.Get(), { "Cones", 34, sizeof(cs::features::light_limit_fix::ConeData) }); !mismatch.empty())
+			return mismatch;
 		using cs::features::light_limit_fix::StrictLightDataCB;
 		const auto strict = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "LIGHT_LIMIT_FIX_STRICT", "1" } }, "ps_5_0", error);
 		if (!strict)
@@ -510,18 +516,8 @@ namespace
 			const auto reflection = Reflect(a_root, compute.file, {}, "cs_5_0", error);
 			if (!reflection)
 				return error;
-			D3D11_SHADER_INPUT_BIND_DESC buffer{};
-			if (FAILED(reflection->GetResourceBindingDescByName("PerFrame", &buffer)) || buffer.BindPoint != 0)
-				return std::string(compute.file) + ": PerFrame ABI slot mismatch";
-			auto* constants = reflection->GetConstantBufferByName("PerFrame");
-			D3D11_SHADER_BUFFER_DESC bufferDesc{};
-			if (FAILED(constants->GetDesc(&bufferDesc)) || bufferDesc.Size != compute.size || bufferDesc.Variables != compute.fields.size())
-				return std::string(compute.file) + ": PerFrame ABI buffer size/member count mismatch";
-			for (const auto& field : compute.fields) {
-				D3D11_SHADER_VARIABLE_DESC value{};
-				if (FAILED(constants->GetVariableByName(field.name)->GetDesc(&value)) || value.StartOffset != field.offset || value.Size != field.size)
-					return std::string(compute.file) + "." + field.name + ": ABI offset/size mismatch";
-			}
+			if (const auto mismatch = CheckConstantBuffer(reflection.Get(), { "PerFrame", 0, compute.size, compute.fields }); !mismatch.empty())
+				return std::string(compute.file) + ": " + mismatch;
 		}
 		return {};
 	}
