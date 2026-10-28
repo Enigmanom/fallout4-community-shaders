@@ -39,7 +39,6 @@ namespace cs::features
 		constexpr std::uint32_t kRasterSlot = 11;
 		constexpr std::uint32_t kTiledSlot = 8;
 		constexpr std::uint32_t kStrictSlot = 3;
-		// Cone, lights, light list and light grid: t34 to t37.
 		constexpr std::uint32_t kForwardSlot = 34;
 		constexpr auto kDirectory = "Data\\F4SE\\Plugins\\FO4CommunityShaders\\Lights";
 
@@ -53,7 +52,7 @@ namespace cs::features
 			LightGather gather;
 			ClusterGrid grid;
 			buffer::CachedConstantBuffer<StrictLightDataCB> strict;
-			std::atomic<bool> gridReady{ false };
+			std::atomic<bool> gridReady{ false }, gridBuilt{ false };
 			std::atomic<std::uint64_t> clusterDispatches{ 0 }, clusterSkips{ 0 };
 			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 }, clusterStrictLights{ 0 };
 			std::atomic<std::uint32_t> clusterDropped{ 0 }, clusterX{ 0 }, clusterY{ 0 }, clusterZ{ 0 };
@@ -432,7 +431,7 @@ namespace cs::features
 				case engine::ShaderInjectionTarget::kEffect:
 				case engine::ShaderInjectionTarget::kBsWater:
 					registration.bind = [](ID3D11DeviceContext* context) {
-						const bool ready = Enabled() && g_state.gridReady.load();
+						const bool ready = Enabled() && g_state.gridBuilt.load();
 						ID3D11ShaderResourceView* views[]{
 							ready ? g_state.grid.ConesView() : nullptr, ready ? g_state.grid.LightsView() : nullptr,
 							ready ? g_state.grid.IndexListView() : nullptr, ready ? g_state.grid.GridView() : nullptr
@@ -506,12 +505,13 @@ namespace cs::features
 	{
 		g_state.validated = false;
 		std::scoped_lock lock(g_state.mutex);
+		g_state.gridBuilt = false;
 		g_state.sidecar.RestoreNativeRadii();
 		g_state.deferred.Clear();
 	}
 	void LightLimitFix::WriteSharedData(render::SharedFeatureDataCB& a_feature, render::FO4SharedDataCB& a_fo4)
 	{
-		a_fo4.EnabledLightLimitFix = Enabled() ? 1u : 0u;
+		a_fo4.EnabledLightLimitFix = Enabled() && g_state.gridBuilt.load() ? 1u : 0u;
 		if (g_state.gridReady.load()) {
 			const auto size = ClusterGrid::ActiveDimensions();
 			std::ranges::copy(size, std::begin(a_feature.lightLimitFixSettings.ClusterSize));
@@ -527,6 +527,7 @@ namespace cs::features
 	}
 	void LightLimitFix::Prepass()
 	{
+		g_state.gridBuilt = false;
 		if (!Enabled() || !g_state.gridReady.load())
 			return;
 		const auto* graphics = engine::GetGraphicsState();
@@ -539,6 +540,7 @@ namespace cs::features
 			++g_state.clusterSkips;
 			return;
 		}
+		g_state.gridBuilt = true;
 		const auto& stats = g_state.gather.Stats();
 		const auto size = ClusterGrid::ActiveDimensions();
 		g_state.clusterLights = stats.lights;
