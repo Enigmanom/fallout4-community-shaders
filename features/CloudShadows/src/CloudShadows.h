@@ -116,6 +116,7 @@ namespace cs::features
 			std::atomic<std::uint64_t> extraTargetsUnbound{ 0 };
 			std::atomic<std::uint64_t> skippedNoCube{ 0 };
 			std::atomic<std::uint64_t> skippedNoDepth{ 0 };
+			std::atomic<std::uint64_t> horizonFillSkipped{ 0 };
 			std::atomic<std::uint64_t> overlayFrames{ 0 };
 			std::atomic<std::uint64_t> overlaySkipped{ 0 };
 			std::atomic<std::uint32_t> cubeSize{ 0 };

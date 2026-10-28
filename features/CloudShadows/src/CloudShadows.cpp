@@ -23,12 +23,16 @@
 #include "Render/RenderHooks.h"
 #include "Render/ScopedContextState.h"
 #include "Render/ShaderInjection.h"
+#include "Render/ShaderSubclassHooks.h"
 #include "Render/SharedData.h"
 #include "Render/SkyReflectionCube.h"
 #include "Render/SubstrateSlots.h"
 #include "Settings/SettingsPersistence.h"
 #include "Telemetry/Telemetry.h"
 #include "Utils/CSUtil.h"
+
+#include "RE/B/BSGeometry.h"
+#include "RE/B/BSRenderPass.h"
 
 namespace cs::features
 {
@@ -42,6 +46,18 @@ namespace cs::features
 		// RT0 color, RT1 motion; the capture cube takes the next free slot.
 		constexpr std::uint32_t kCaptureTargetSlot = 2;
 		constexpr std::uint32_t kTargetSlots = 8;
+
+		// Clouds.nif's FogRing layer is opaque fill below the horizon, not cloud.
+		bool IsHorizonFill(const RE::BSRenderPass* a_pass) noexcept
+		{
+			const auto* sky = RE::Sky::GetSingleton();
+			const auto* clouds = sky ? sky->clouds : nullptr;
+			const auto* geometry = a_pass ? a_pass->geometry : nullptr;
+			if (!clouds || !clouds->root || !geometry)
+				return false;
+			// A layer centered at or below the cloud node's origin is below the horizon.
+			return geometry->worldBound.center.z <= clouds->root->world.translate.z;
+		}
 	}
 
 	CloudShadows* CloudShadows::GetSingleton()
@@ -219,7 +235,10 @@ namespace cs::features
 		if (!a_context || !cs::engine::ActiveShaderInjectionVariantHasDefine(cs::engine::ShaderInjectionTarget::kBsSky, "CLOUDS"))
 			return;
 		const bool capturing = IsHealthy() && IsEnabled() && _injectionsOperational.load(std::memory_order_acquire);
-		if (capturing && CaptureCloudDraw(a_context))
+		const bool skirt = capturing && cs::engine::GetSkyReflectionCubeCapture() && IsHorizonFill(cs::engine::GetCurrentSkyPass());
+		if (skirt)
+			_counters.horizonFillSkipped.fetch_add(1, std::memory_order_relaxed);
+		if (capturing && !skirt && CaptureCloudDraw(a_context))
 			return;
 		UnbindExtraTarget(a_context);
 	}
@@ -460,6 +479,7 @@ namespace cs::features
 			.Field("extra_targets_unbound", count(_counters.extraTargetsUnbound))
 			.Field("skipped_no_cube", count(_counters.skippedNoCube))
 			.Field("skipped_no_depth", count(_counters.skippedNoDepth))
+			.Field("horizon_fill_skipped", count(_counters.horizonFillSkipped))
 			.Field("overlay_frames", count(_counters.overlayFrames))
 			.Field("overlay_skipped", count(_counters.overlaySkipped))
 			.Dimensions("cube", size, size)

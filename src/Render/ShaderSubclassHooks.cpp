@@ -317,6 +317,22 @@ namespace cs::engine
 			return request;
 		}
 
+		thread_local const RE::BSRenderPass* t_skyPass = nullptr;
+
+		// Sky draws follow their pass's SetupGeometry, so the draw hooks can read the pass.
+		struct SkySetupGeometryHook
+		{
+			static constexpr std::size_t size = 0x07;
+
+			static void thunk(RE::BSShader* a_self, RE::BSRenderPass* a_pass)
+			{
+				t_skyPass = a_pass;
+				func(a_self, a_pass);
+			}
+
+			static inline REL::Relocation<decltype(thunk)> func;
+		};
+
 		// Immediate draws fill cb2 inside SetupGeometry: write the lane at the map on NG/AE, at the pre-unmap flush on OG (each inlines the other).
 		struct PrepassSetupGeometryHook
 		{
@@ -453,6 +469,11 @@ namespace cs::engine
 	TryInstallSetupTechnique<RE::klass, Tag_##klass>()
 	}
 
+	const RE::BSRenderPass* GetCurrentSkyPass() noexcept
+	{
+		return t_skyPass;
+	}
+
 	bool RegisterPrepassDrawClassifier(PrepassLaneComponent a_component, PrepassDrawClassifier a_classifier)
 	{
 		static const bool installed =
@@ -524,6 +545,7 @@ namespace cs::engine
 				static void BeforeSetupTechnique() noexcept { ReselectSkyReflectionCubeCull(); }
 			};
 			TryInstallSetupTechnique<RE::BSSkyShader, Tag_BSSkyShader>();
+			TryPatch("BSSkyShader SetupGeometry pass", [] { stl::write_vfunc<RE::BSSkyShader, SkySetupGeometryHook>(); });
 			CS_HOOK_SHADER_SUBCLASS(BSUtilityShader, kUtility);
 			CS_HOOK_SHADER_SUBCLASS(BSWaterShader, kBsWater);
 
