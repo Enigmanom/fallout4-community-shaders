@@ -235,7 +235,7 @@ namespace cs::features
 		if (!std::filesystem::is_regular_file(a_path, ec) || ec)
 			return;
 		const auto extension = a_path.extension().string();
-		if (!ts::EqualsIgnoreCase(extension, ".dds"))
+		if (!util::EqualsIgnoreCase(extension, ".dds"))
 			return;
 
 		const auto stem = a_path.stem().string();
