@@ -1,6 +1,7 @@
 #pragma once
 
-#include "LightAuthoring.h"
+#include "Authoring/LightAuthoring.h"
+#include "LightData.h"
 
 #include <RE/N/NiLight.h>
 #include <RE/N/NiPointer.h>
@@ -11,38 +12,9 @@
 
 namespace cs::features::light_limit_fix
 {
-	enum class LightFlags : std::uint32_t
-	{
-		kPortalStrict = 1 << 0,
-		kShadow = 1 << 1,
-		kSimple = 1 << 2,
-		kShadowCaster = 1 << 3,
-		kLocalShadow = 1 << 4,
-		kInitialised = 1 << 8,
-		kDisabled = 1 << 9,
-		kInverseSquare = 1 << 10,
-		kLinear = 1 << 11
-	};
-
-	struct PerLightData
-	{
-		RE::NiColor color{};
-		float fade = 0;
-		float radius = 0;
-		float invRadius = 0;
-		float fadeZone = 0;
-		float sizeBias = 0;
-		std::uint32_t lightFlags = 0;
-		std::uint32_t pad0[3]{};
-	};
-	static_assert(sizeof(PerLightData) == 48);
-	static_assert(offsetof(PerLightData, fade) == 12);
-	static_assert(offsetof(PerLightData, radius) == 16);
-	static_assert(offsetof(PerLightData, lightFlags) == 32);
-
 	struct RuntimeLightData
 	{
-		PerLightData shaderData;
+		LightData shaderData;
 		RE::TESFormID formID = 0;
 		RE::TESFormID referenceID = 0;
 		float cutoffOverride = 1;

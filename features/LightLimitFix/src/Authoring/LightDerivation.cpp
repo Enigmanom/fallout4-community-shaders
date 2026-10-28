@@ -1,7 +1,7 @@
 #include "LightDerivation.h"
 
-#include "InverseSquareMath.h"
 #include "Render/LocalLights.h"
+#include "Sidecar/InverseSquareMath.h"
 
 #include <algorithm>
 #include <cmath>

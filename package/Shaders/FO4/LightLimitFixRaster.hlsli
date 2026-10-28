@@ -6,7 +6,7 @@
 // FO4: native raster local lights publish per-draw metadata rather than LLF lists.
 cbuffer LightLimitFixDraw : register(b11)
 {
-	FO4LightLimitFix::PerLightData LightLimitFixLight;
+	LightLimitFix::Light LightLimitFixLight;
 };
 #endif
 

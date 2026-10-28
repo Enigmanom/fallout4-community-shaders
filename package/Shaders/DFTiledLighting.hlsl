@@ -14,7 +14,7 @@
 
 #	ifdef LIGHT_LIMIT_FIX
 #		include "FO4/LightLimitFixConsumer.hlsli"
-StructuredBuffer<FO4LightLimitFix::PerLightData> LightLimitFixLights : register(t8);
+StructuredBuffer<LightLimitFix::Light> LightLimitFixLights : register(t8);
 #	endif
 
 cbuffer TiledLightingParameters : register(b0)
@@ -249,7 +249,7 @@ void ShadeTiledPixel(uint tileIndex, uint2 pixel)
 		{
 			TiledLight light = Lights[TileLists[tileIndex].Indices[i]];
 #	ifdef LIGHT_LIMIT_FIX
-			FO4LightLimitFix::PerLightData lightData = (FO4LightLimitFix::PerLightData)0;
+			LightLimitFix::Light lightData = (LightLimitFix::Light)0;
 			[branch] if (FO4SharedData::EnabledLightLimitFix != 0)
 			{
 				lightData = LightLimitFixLights[TileLists[tileIndex].Indices[i]];

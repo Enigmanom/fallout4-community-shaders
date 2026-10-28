@@ -318,7 +318,7 @@ target("FeatureConfigTests", function()
     set_group("unit")
     add_files(
         "tests/FeatureConfigTests.cpp",
-        "features/LightLimitFix/src/LightAuthoring.cpp",
+        "features/LightLimitFix/src/Authoring/LightAuthoring.cpp",
         "src/Settings/FeatureConfig.cpp"
     )
     add_headerfiles(

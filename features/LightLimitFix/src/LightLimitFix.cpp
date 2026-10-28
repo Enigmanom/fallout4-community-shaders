@@ -1,15 +1,14 @@
 #include "LightLimitFix.h"
-#include "InverseSquareMath.h"
-#include "LightDerivation.h"
-#include "LightSidecar.h"
+#include "Authoring/LightDerivation.h"
+#include "Deferred/DeferredLights.h"
 #include "RE/B/BSDFTiledLighting.h"
+#include "Sidecar/InverseSquareMath.h"
+#include "Sidecar/LightSidecar.h"
 
 #include <DearModdingUI/Client.h>
-#include <winrt/base.h>
 
 #include <array>
 #include <atomic>
-#include <cstring>
 #include <mutex>
 #include <utility>
 
@@ -39,13 +38,7 @@ namespace cs::features
 			LightSidecar sidecar;
 			std::vector<LightDefinition> definitions;
 			std::unordered_map<RE::TESFormID, AuthoredLight> forms, references;
-			std::array<std::array<PerLightData, RE::BSDFTiledLighting::MAX_LIGHTS>, 2> snapshots{};
-			std::array<winrt::com_ptr<ID3D11Buffer>, 2> buffers;
-			std::array<winrt::com_ptr<ID3D11ShaderResourceView>, 2> views;
-			winrt::com_ptr<ID3D11Buffer> raster;
-			std::optional<PerLightData> uploadedRaster;
-			winrt::com_ptr<ID3D11DeviceContext> context;
-			std::uint32_t uploadedSide = 0;
+			DeferredLights deferred;
 			std::atomic<bool> resources{ false }, validated{ false }, hooks{ false }, dataLoaded{ false };
 			std::atomic<std::uint64_t> authored{ 0 }, created{ 0 }, removed{ 0 };
 			std::atomic<std::uint64_t> removedLights{ 0 }, orphaned{ 0 };
@@ -57,18 +50,18 @@ namespace cs::features
 		State g_state;
 		thread_local RE::BSLight* g_appendingLight = nullptr;
 		thread_local RE::BSLight* g_createdLight = nullptr;
-		thread_local PerLightData g_rasterData{};
+		thread_local LightData g_rasterData{};
 
 		bool Enabled()
 		{
 			return g_state.validated.load() && g_state.dataLoaded.load() &&
 			       LightLimitFix::GetSingleton()->IsActive();
 		}
-		bool IsInverseSquare(const PerLightData& a_data)
+		bool IsInverseSquare(const LightData& a_data)
 		{
 			return (a_data.lightFlags & static_cast<std::uint32_t>(LightFlags::kInverseSquare)) != 0;
 		}
-		PerLightData Snapshot(RE::BSLight* a_light, bool a_renderFade)
+		LightData Snapshot(RE::BSLight* a_light, bool a_renderFade)
 		{
 			if (!a_light || !Enabled())
 				return {};
@@ -264,8 +257,8 @@ namespace cs::features
 				const auto index = side < 2 ? RE::BSDFTiledLighting::GetLightCounts()[side] : static_cast<std::uint32_t>(RE::BSDFTiledLighting::MAX_LIGHTS);
 				const auto data = Snapshot(g_appendingLight, true);
 				if (side < 2 && index < RE::BSDFTiledLighting::MAX_LIGHTS) {
+					g_state.deferred.Record(side, index, data);
 					std::scoped_lock lock(g_state.mutex);
-					g_state.snapshots[side][index] = data;
 					if (IsInverseSquare(data)) {
 						++g_state.appended;
 						const auto* light = g_appendingLight->GetSourceLight();
@@ -284,19 +277,11 @@ namespace cs::features
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		bool WriteBuffer(ID3D11DeviceContext* a_context, ID3D11Buffer* a_buffer,
-			const void* a_data, std::size_t a_size)
+		void QuarantineUpload()
 		{
-			D3D11_MAPPED_SUBRESOURCE mapped{};
-			if (FAILED(a_context->Map(a_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped))) {
-				++g_state.uploadFailures;
-				FeatureManager::Get().QuarantineRuntimeCallback(*LightLimitFix::GetSingleton(),
-					"LLF metadata upload", "D3D11 Map failed");
-				return false;
-			}
-			std::memcpy(mapped.pData, a_data, a_size);
-			a_context->Unmap(a_buffer, 0);
-			return true;
+			++g_state.uploadFailures;
+			FeatureManager::Get().QuarantineRuntimeCallback(*LightLimitFix::GetSingleton(),
+				"LLF metadata upload", "D3D11 Map failed");
 		}
 		struct UploadLights
 		{
@@ -307,18 +292,13 @@ namespace cs::features
 					for (std::uint32_t side = 0; side < 2; ++side) {
 						if (a_data != RE::BSDFTiledLighting::GetLightRecords()[side])
 							continue;
-						std::array<PerLightData, RE::BSDFTiledLighting::MAX_LIGHTS> snapshot;
-						{
-							std::scoped_lock lock(g_state.mutex);
-							snapshot = g_state.snapshots[side];
-						}
-						const auto count = a_count == 0 ? RE::BSDFTiledLighting::MAX_LIGHTS : a_count;
-						if (count <= RE::BSDFTiledLighting::MAX_LIGHTS &&
-							WriteBuffer(g_state.context.get(), g_state.buffers[side].get(),
-								snapshot.data(), count * sizeof(PerLightData))) {
-							g_state.uploadedSide = side;
+						const std::uint32_t count = a_count == 0 ? DeferredLights::kMaxLights : a_count;
+						if (count > DeferredLights::kMaxLights)
+							continue;
+						if (g_state.deferred.UploadTiled(side, count))
 							++g_state.uploads;
-						}
+						else
+							QuarantineUpload();
 					}
 				}
 				func(a_renderer, a_buffer, a_data, a_stride, a_count);
@@ -366,7 +346,7 @@ namespace cs::features
 				const auto delta = light->world.translate - *a_position;
 				const float distance = std::sqrt(delta.x * delta.x + delta.y * delta.y + delta.z * delta.z);
 				const float size = std::sqrt(data.sizeBias * 2 / kScaledUnitsSq);
-				const float value = (data.color.r + data.color.g + data.color.b) *
+				const float value = (data.color.x + data.color.y + data.color.z) *
 				                    data.fade * GetAttenuation(distance, data.radius, size) * (1.0f / 3.0f) *
 				                    native::ShapeAttenuation(*a_light, *a_position);
 				a_light->luminance = value;
@@ -422,21 +402,16 @@ namespace cs::features
 				const bool compute = registration.targetId == engine::ShaderInjectionTarget::kDfTiledLighting;
 				registration.bind = [compute](ID3D11DeviceContext* context) {
 						if (compute) {
-							auto* view = Enabled() ? g_state.views[g_state.uploadedSide].get() : nullptr;
+							auto* view = Enabled() ? g_state.deferred.TiledView() : nullptr;
 							engine::BindInjectionShaderResources(context, kTiledSlot, 1, &view);
 						} else {
-							const PerLightData data = Enabled() ? g_rasterData : PerLightData{};
-							if ((g_state.uploadedRaster && std::memcmp(&*g_state.uploadedRaster, &data, sizeof(data)) == 0) ||
-								WriteBuffer(context, g_state.raster.get(), &data, sizeof(data))) {
-								g_state.uploadedRaster = data;
-								auto* buffer = g_state.raster.get();
-								engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
-								if (IsInverseSquare(data))
-									++g_state.rasterDraws;
-							} else {
-								ID3D11Buffer* empty = nullptr;
-								engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &empty);
-							}
+							const LightData data = Enabled() ? g_rasterData : LightData{};
+							auto* buffer = g_state.deferred.RasterBuffer(data);
+							if (!buffer)
+								QuarantineUpload();
+							engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
+							if (buffer && IsInverseSquare(data))
+								++g_state.rasterDraws;
 						} };
 			})) {
 			FailLoad("Unable to register the LLF consumers");
@@ -481,36 +456,15 @@ namespace cs::features
 		g_state.validated = false;
 		std::scoped_lock lock(g_state.mutex);
 		g_state.sidecar.RestoreNativeRadii();
-		g_state.snapshots = {};
+		g_state.deferred.Clear();
 	}
 	void LightLimitFix::WriteSharedData(render::SharedFeatureDataCB&, render::FO4SharedDataCB& a_fo4)
 	{
 		a_fo4.EnabledLightLimitFix = Enabled() ? 1u : 0u;
 	}
-	void LightLimitFix::OnD3D11Ready(IDXGIAdapter*, ID3D11Device* a_device)
+	void LightLimitFix::OnD3D11Ready(IDXGIAdapter*, ID3D11Device*)
 	{
-		a_device->GetImmediateContext(g_state.context.put());
-		D3D11_BUFFER_DESC desc{};
-		desc.ByteWidth = sizeof(PerLightData) * RE::BSDFTiledLighting::MAX_LIGHTS;
-		desc.Usage = D3D11_USAGE_DYNAMIC;
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		desc.StructureByteStride = sizeof(PerLightData);
-		for (std::uint32_t side = 0; side < 2; ++side) {
-			D3D11_SUBRESOURCE_DATA initial{ g_state.snapshots[side].data(), 0, 0 };
-			if (FAILED(a_device->CreateBuffer(&desc, &initial, g_state.buffers[side].put())) ||
-				FAILED(a_device->CreateShaderResourceView(g_state.buffers[side].get(),
-					nullptr, g_state.views[side].put())))
-				throw std::runtime_error("Unable to create LLF tiled metadata resources");
-		}
-		desc.ByteWidth = sizeof(PerLightData);
-		g_state.uploadedRaster.reset();
-		desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		desc.MiscFlags = 0;
-		desc.StructureByteStride = 0;
-		if (FAILED(a_device->CreateBuffer(&desc, nullptr, g_state.raster.put())))
-			throw std::runtime_error("Unable to create LLF raster metadata buffer");
+		g_state.deferred.Create();
 		g_state.resources = true;
 	}
 	bool LightLimitFix::ValidateShaderInjections(std::string& a_error)

@@ -1,5 +1,6 @@
 #include "ShaderABIChecks.h"
 
+#include "../features/LightLimitFix/src/LightData.h"
 #include "../features/VolumetricShadows/src/ShaderDefines.h"
 #include "Render/DirectionalShadowLightData.h"
 #include "Render/SharedDataLayout.h"
@@ -408,6 +409,43 @@ namespace
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
+	std::string VerifyLightLimitFixABI(const std::filesystem::path& a_root)
+	{
+		using cs::features::light_limit_fix::LightData;
+		// HLSL names the shadow channel shadowLightIndex.
+		const ABIField fields[]{
+			ABI(LightData, color), ABI(LightData, fade), ABI(LightData, radius), ABI(LightData, invRadius),
+			ABI(LightData, fadeZone), ABI(LightData, sizeBias), ABI(LightData, positionWS), ABI(LightData, roomFlags),
+			ABI(LightData, lightFlags), ABIField{ "shadowLightIndex", offsetof(LightData, shadowMaskIndex), sizeof(LightData::shadowMaskIndex) },
+			ABI(LightData, localShadowIndex), ABI(LightData, pad1)
+		};
+		std::string error;
+		// The host binds the tiled records at t8 and the raster record at b11.
+		const auto tiled = Reflect(a_root, "DFTiledLighting.hlsl", { { "DFTILEDLIGHTING_VARIANT", "2" }, { "LIGHT_LIMIT_FIX", "1" }, { "CSHADER", "1" } }, "cs_5_0", error);
+		if (!tiled)
+			return error;
+		D3D11_SHADER_INPUT_BIND_DESC lights{};
+		if (FAILED(tiled->GetResourceBindingDescByName("LightLimitFixLights", &lights)) || lights.BindPoint != 8)
+			return "LightLimitFixLights: ABI slot mismatch";
+		if (lights.NumSamples != sizeof(LightData))
+			return "LightLimitFixLights: ABI structure stride mismatch";
+		auto* element = tiled->GetConstantBufferByName("LightLimitFixLights")->GetVariableByName("$Element");
+		if (auto layout = CheckStructLayout(element->GetType(), fields); !layout.empty())
+			return "LightLimitFixLights: " + layout;
+		const auto raster = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "LIGHT_LIMIT_FIX", "1" } }, "ps_5_0", error);
+		if (!raster)
+			return error;
+		D3D11_SHADER_INPUT_BIND_DESC binding{};
+		if (FAILED(raster->GetResourceBindingDescByName("LightLimitFixDraw", &binding)) || binding.BindPoint != 11)
+			return "LightLimitFixDraw: ABI slot mismatch";
+		auto* cb = raster->GetConstantBufferByName("LightLimitFixDraw");
+		D3D11_SHADER_BUFFER_DESC desc{};
+		if (FAILED(cb->GetDesc(&desc)) || desc.Size != sizeof(LightData))
+			return "LightLimitFixDraw: ABI buffer size mismatch";
+		if (auto layout = CheckStructLayout(cb->GetVariableByName("LightLimitFixLight")->GetType(), fields); !layout.empty())
+			return "LightLimitFixDraw: " + layout;
+		return {};
+	}
 #undef ABI
 }
 
@@ -417,6 +455,8 @@ std::string VerifyShaderABI(const std::filesystem::path& a_root)
 		return "substrate ABI: " + error;
 	if (auto error = VerifySSGIABI(a_root); !error.empty())
 		return "SSGI ABI: " + error;
+	if (auto error = VerifyLightLimitFixABI(a_root); !error.empty())
+		return "Light Limit Fix ABI: " + error;
 	if (auto error = VerifySkylightingABI(a_root); !error.empty())
 		return "Skylighting ABI: " + error;
 	if (auto error = VerifyIBLABI(a_root); !error.empty())

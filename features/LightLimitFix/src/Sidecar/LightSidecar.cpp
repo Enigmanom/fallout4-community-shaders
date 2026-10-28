@@ -1,6 +1,6 @@
 #include "LightSidecar.h"
 
-#include "InverseSquareMath.h"
+#include "Sidecar/InverseSquareMath.h"
 
 #include <algorithm>
 
@@ -11,7 +11,7 @@ namespace cs::features::light_limit_fix
 		void UpdateShaderData(RuntimeLightData& a_data, const RE::NiLight& a_light)
 		{
 			auto& light = a_data.shaderData;
-			light.color = a_light.diff;
+			light.color = { a_light.diff.r, a_light.diff.g, a_light.diff.b };
 			light.radius = a_data.nativeRadius;
 			light.fade = a_light.dimmer;
 			if ((light.lightFlags & static_cast<std::uint32_t>(LightFlags::kInverseSquare)) != 0) {
