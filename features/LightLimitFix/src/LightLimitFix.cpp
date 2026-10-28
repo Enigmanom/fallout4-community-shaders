@@ -38,6 +38,9 @@ namespace cs::features
 		namespace native = engine::local_lights;
 		constexpr std::uint32_t kRasterSlot = 11;
 		constexpr std::uint32_t kTiledSlot = 8;
+		constexpr std::uint32_t kStrictSlot = 3;
+		// Cone, lights, light list and light grid: t34 to t37.
+		constexpr std::uint32_t kForwardSlot = 34;
 		constexpr auto kDirectory = "Data\\F4SE\\Plugins\\FO4CommunityShaders\\Lights";
 
 		struct State
@@ -419,24 +422,42 @@ namespace cs::features
 		}
 		render::forward_draw::Subscribe(this, "LLF strict lights", &OnForwardDraw);
 		if (!engine::RegisterFeatureShaderBindings("LightLimitFix", *this, [](engine::ShaderReplacementRegistration& registration) {
-				const bool compute = registration.targetId == engine::ShaderInjectionTarget::kDfTiledLighting;
-				registration.bind = [compute](ID3D11DeviceContext* context) {
-						if (compute) {
-							auto* view = Enabled() ? g_state.deferred.TiledView() : nullptr;
-							engine::BindInjectionShaderResources(context, kTiledSlot, 1, &view);
-						} else {
-							const LightData data = Enabled() ? g_rasterData : LightData{};
-							ID3D11Buffer* buffer = nullptr;
-							try {
-								buffer = g_state.deferred.RasterBuffer(data);
-							} catch (...) {
-								engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
-								throw;
-							}
+				switch (registration.targetId) {
+				case engine::ShaderInjectionTarget::kDfTiledLighting:
+					registration.bind = [](ID3D11DeviceContext* context) {
+						auto* view = Enabled() ? g_state.deferred.TiledView() : nullptr;
+						engine::BindInjectionShaderResources(context, kTiledSlot, 1, &view);
+					};
+					break;
+				case engine::ShaderInjectionTarget::kEffect:
+				case engine::ShaderInjectionTarget::kBsWater:
+					registration.bind = [](ID3D11DeviceContext* context) {
+						const bool ready = Enabled() && g_state.gridReady.load();
+						ID3D11ShaderResourceView* views[]{
+							ready ? g_state.grid.ConesView() : nullptr, ready ? g_state.grid.LightsView() : nullptr,
+							ready ? g_state.grid.IndexListView() : nullptr, ready ? g_state.grid.GridView() : nullptr
+						};
+						engine::BindInjectionShaderResources(context, kForwardSlot, std::size(views), views);
+						auto* strict = ready ? g_state.strict.CB() : nullptr;
+						engine::BindInjectionConstantBuffers(context, kStrictSlot, 1, &strict);
+					};
+					break;
+				default:
+					registration.bind = [](ID3D11DeviceContext* context) {
+						const LightData data = Enabled() ? g_rasterData : LightData{};
+						ID3D11Buffer* buffer = nullptr;
+						try {
+							buffer = g_state.deferred.RasterBuffer(data);
+						} catch (...) {
 							engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
-							if (IsInverseSquare(data))
-								++g_state.rasterDraws;
-						} };
+							throw;
+						}
+						engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
+						if (IsInverseSquare(data))
+							++g_state.rasterDraws;
+					};
+					break;
+				}
 			})) {
 			FailLoad("Unable to register the LLF consumers");
 			return;
