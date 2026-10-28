@@ -21,6 +21,7 @@ namespace cs::features::light_limit_fix
 	{
 		_lights.clear();
 		_cones.clear();
+		_strict.Clear();
 		_stats = {};
 	}
 
@@ -48,6 +49,9 @@ namespace cs::features::light_limit_fix
 				++_stats.dropped;
 				return;
 			}
+
+			if (_strict.Mark(*a_light, light))
+				++_stats.strictLights;
 
 			ConeData cone;
 			if (a_light->GetShape() == RE::BSLight::Shape::kCone) {

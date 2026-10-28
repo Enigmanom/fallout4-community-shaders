@@ -56,6 +56,21 @@ namespace cs::features::light_limit_fix
 	static_assert(offsetof(LightData, localShadowIndex) == 72);
 	static_assert(offsetof(LightData, pad1) == 76);
 
+	// Mirrors cbuffer StrictLightData (b3) in LightLimitFix.hlsli.
+	struct alignas(16) StrictLightDataCB
+	{
+		std::uint32_t numStrictLights = 0;
+		std::int32_t roomIndex = -1;
+		std::uint32_t shadowBitMask = 0;
+		std::uint32_t firstPerson = 0;
+		DirectX::XMFLOAT4 worldEyePosition{};
+		std::array<LightData, 15> strictLights{};
+	};
+	static_assert(sizeof(StrictLightDataCB) == 32 + 15 * sizeof(LightData));
+	static_assert(offsetof(StrictLightDataCB, roomIndex) == 4);
+	static_assert(offsetof(StrictLightDataCB, worldEyePosition) == 16);
+	static_assert(offsetof(StrictLightDataCB, strictLights) == 32);
+
 	// FO4: spot cone beside each gathered light; exponent 0 means no cone.
 	struct alignas(16) ConeData
 	{

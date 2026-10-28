@@ -409,6 +409,19 @@ namespace
 			return "DirectionalShadowLights: ABI structure stride mismatch";
 		return {};
 	}
+	ID3D11ShaderReflectionConstantBuffer* FindConstantBuffer(ID3D11ShaderReflection* a_reflection, std::string_view a_name, UINT a_slot)
+	{
+		D3D11_SHADER_DESC desc{};
+		a_reflection->GetDesc(&desc);
+		for (UINT i = 0; i < desc.BoundResources; ++i) {
+			D3D11_SHADER_INPUT_BIND_DESC binding{};
+			if (SUCCEEDED(a_reflection->GetResourceBindingDesc(i, &binding)) && binding.Type == D3D_SIT_CBUFFER &&
+				binding.BindPoint == a_slot && std::string_view(binding.Name).ends_with(a_name))
+				return a_reflection->GetConstantBufferByName(binding.Name);
+		}
+		return nullptr;
+	}
+
 	std::string VerifyLightLimitFixABI(const std::filesystem::path& a_root)
 	{
 		using cs::features::light_limit_fix::LightData;
@@ -456,6 +469,46 @@ namespace
 				cones.NumSamples != sizeof(cs::features::light_limit_fix::ConeData))
 				return "FO4LightLimitFix::Cones: ABI structure stride mismatch";
 		}
+		using cs::features::light_limit_fix::StrictLightDataCB;
+		const auto strict = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "LIGHT_LIMIT_FIX_STRICT", "1" } }, "ps_5_0", error);
+		if (!strict)
+			return error;
+		// Namespaced buffers and members reflect with their qualified names.
+		auto* strictBuffer = FindConstantBuffer(strict.Get(), "StrictLightData", 3);
+		D3D11_SHADER_BUFFER_DESC strictDesc{};
+		if (!strictBuffer)
+			return "StrictLightData: ABI slot mismatch";
+		if (FAILED(strictBuffer->GetDesc(&strictDesc)) || strictDesc.Size != sizeof(StrictLightDataCB))
+			return "StrictLightData: ABI buffer size mismatch";
+		const ABIField strictFields[]{ { "NumStrictLights", offsetof(StrictLightDataCB, numStrictLights), 4 },
+			{ "RoomIndex", offsetof(StrictLightDataCB, roomIndex), 4 }, { "ShadowBitMask", offsetof(StrictLightDataCB, shadowBitMask), 4 },
+			{ "FirstPerson", offsetof(StrictLightDataCB, firstPerson), 4 }, { "WorldEyePosition", offsetof(StrictLightDataCB, worldEyePosition), 16 },
+			{ "StrictLights", offsetof(StrictLightDataCB, strictLights), sizeof(StrictLightDataCB::strictLights) } };
+		if (strictDesc.Variables != std::size(strictFields))
+			return "StrictLightData: ABI member count mismatch";
+		for (UINT i = 0; i < strictDesc.Variables; ++i) {
+			D3D11_SHADER_VARIABLE_DESC value{};
+			if (FAILED(strictBuffer->GetVariableByIndex(i)->GetDesc(&value)))
+				return "StrictLightData: ABI member unreadable";
+			const auto expected = std::ranges::find_if(strictFields, [&](const auto& a_field) { return std::string_view(value.Name).ends_with(a_field.name); });
+			if (expected == std::end(strictFields) || value.StartOffset != expected->offset)
+				return std::string("StrictLightData.") + value.Name + ": ABI offset mismatch";
+			if (std::string_view(expected->name) == "StrictLights") {
+				if (auto layout = CheckStructLayout(strictBuffer->GetVariableByIndex(i)->GetType(), fields); !layout.empty())
+					return "StrictLightData.StrictLights: " + layout;
+			}
+		}
+
+		const auto descriptor = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "FORWARD_DRAW_DESCRIPTOR", "1" } }, "ps_5_0", error);
+		if (!descriptor)
+			return error;
+		auto* descriptorBuffer = FindConstantBuffer(descriptor.Get(), "PerShader", cs::render::kForwardDrawSlot);
+		D3D11_SHADER_BUFFER_DESC descriptorDesc{};
+		if (!descriptorBuffer)
+			return "Permutation::PerShader: ABI slot mismatch";
+		if (FAILED(descriptorBuffer->GetDesc(&descriptorDesc)) || descriptorDesc.Size != 16)
+			return "Permutation::PerShader: ABI buffer size mismatch";
+
 		using cs::features::light_limit_fix::LightBuildingCB;
 		using cs::features::light_limit_fix::LightCullingCB;
 		const ABIField building[]{ ABI(LightBuildingCB, LightsNear), ABI(LightBuildingCB, LightsFar),

@@ -2,6 +2,7 @@
 #include "Authoring/LightDerivation.h"
 #include "Clustered/ClusterGrid.h"
 #include "Clustered/LightGather.h"
+#include "Clustered/StrictLights.h"
 #include "Deferred/DeferredLights.h"
 #include "RE/B/BSDFTiledLighting.h"
 #include "Sidecar/InverseSquareMath.h"
@@ -20,6 +21,7 @@
 #include "Menu/SettingsEdit.h"
 #include "Render/Engine.h"
 #include "Render/FeatureShaderBindings.h"
+#include "Render/ForwardDraw.h"
 #include "Render/LocalLights.h"
 #include "Render/RuntimeCallback.h"
 #include "Render/ShaderFamilyDescriptor.h"
@@ -47,9 +49,10 @@ namespace cs::features
 			DeferredLights deferred;
 			LightGather gather;
 			ClusterGrid grid;
+			StrictLightBuffer strict;
 			std::atomic<bool> gridReady{ false };
 			std::atomic<std::uint64_t> clusterDispatches{ 0 }, clusterSkips{ 0 };
-			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 };
+			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 }, clusterStrictLights{ 0 };
 			std::atomic<std::uint32_t> clusterDropped{ 0 }, clusterX{ 0 }, clusterY{ 0 }, clusterZ{ 0 };
 			std::atomic<bool> resources{ false }, validated{ false }, hooks{ false }, dataLoaded{ false };
 			std::atomic<std::uint64_t> authored{ 0 }, created{ 0 }, removed{ 0 };
@@ -313,6 +316,16 @@ namespace cs::features
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
+		// Effect and water draws pick their room before the engine sets up the pass.
+		void OnForwardDraw(const render::forward_draw::Draw& a_draw)
+		{
+			if (!Enabled() || !g_state.gridReady.load() || !a_draw.pass)
+				return;
+			StrictLightDataCB data;
+			data.roomIndex = g_state.gather.Strict().RoomIndex(*a_draw.pass);
+			g_state.strict.Update(data);
+		}
+
 		// FO4: raster draws use pass-local b11 instead of LLF's clustered light buffer.
 		struct SetupGeometry
 		{
@@ -405,6 +418,7 @@ namespace cs::features
 			FailLoad(error);
 			return;
 		}
+		render::forward_draw::Subscribe(this, "LLF strict lights", &OnForwardDraw);
 		if (!engine::RegisterFeatureShaderBindings("LightLimitFix", *this, [](engine::ShaderReplacementRegistration& registration) {
 				const bool compute = registration.targetId == engine::ShaderInjectionTarget::kDfTiledLighting;
 				registration.bind = [compute](ID3D11DeviceContext* context) {
@@ -486,6 +500,7 @@ namespace cs::features
 		g_state.deferred.Create();
 		g_state.resources = true;
 		g_state.grid.Create();
+		g_state.strict.Create();
 		g_state.gridReady = true;
 	}
 	void LightLimitFix::Prepass()
@@ -507,6 +522,7 @@ namespace cs::features
 		g_state.clusterLights = stats.lights;
 		g_state.clusterShadowLights = stats.shadowLights;
 		g_state.clusterConeLights = stats.coneLights;
+		g_state.clusterStrictLights = stats.strictLights;
 		g_state.clusterDropped = stats.dropped;
 		g_state.clusterX = size[0];
 		g_state.clusterY = size[1];
@@ -557,6 +573,7 @@ namespace cs::features
 			.Field("cluster_lights", g_state.clusterLights.load())
 			.Field("cluster_shadow_lights", g_state.clusterShadowLights.load())
 			.Field("cluster_cone_lights", g_state.clusterConeLights.load())
+			.Field("cluster_strict_lights", g_state.clusterStrictLights.load())
 			.Field("cluster_dropped_lights", g_state.clusterDropped.load())
 			.Field("cluster_dim_x", g_state.clusterX.load())
 			.Field("cluster_dim_y", g_state.clusterY.load())
