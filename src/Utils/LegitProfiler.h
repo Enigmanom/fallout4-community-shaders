@@ -9,8 +9,8 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <map>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -222,11 +222,13 @@ namespace ImGuiUtils
 			float markerRigthRectMargin = 3.0f * uiScale;
 			float markerRightRectHeight = 10.0f * uiScale;
 			float markerRightRectSpacing = 4.0f * uiScale;
-			float nameOffset = 30.0f * uiScale;
-			Vec2 textMargin{ 5.0f * uiScale, -3.0f * uiScale };
+			// FO4: DmUI's font is far taller than ImGui's 13px; rows space by it.
+			const float fontSize = dmui::ui::GetFontSize();
+			const float rowPitch = std::max(markerRightRectHeight, fontSize) + markerRightRectSpacing;
+			float textMarginX = 5.0f * uiScale;
 
 			auto& currFrame = frames[GetCurrFrameIndex(frameIndexOffset)];
-			size_t maxTasksCount = size_t(legendSize.y / (markerRightRectHeight + markerRightRectSpacing));
+			size_t maxTasksCount = size_t(legendSize.y / rowPitch);
 
 			for (auto& taskStat : taskStats)
 				taskStat.onScreenIndex = size_t(-1);
@@ -253,19 +255,16 @@ namespace ImGuiUtils
 				markerLeftRectMin.y -= taskStartHeight;
 				markerLeftRectMax.y -= taskEndHeight;
 
-				Vec2 markerRightRectMin{ legendPos.x + markerLeftRectMargin + markerLeftRectWidth + markerMidWidth, legendPos.y + legendSize.y - markerRigthRectMargin - (markerRightRectHeight + markerRightRectSpacing) * float(stat.onScreenIndex) };
+				Vec2 markerRightRectMin{ legendPos.x + markerLeftRectMargin + markerLeftRectWidth + markerMidWidth, legendPos.y + legendSize.y - markerRigthRectMargin - rowPitch * float(stat.onScreenIndex) };
 				Vec2 markerRightRectMax{ markerRightRectMin.x + markerRightRectWidth, markerRightRectMin.y - markerRightRectHeight };
 				RenderTaskMarker(drawList, markerLeftRectMin, markerLeftRectMax, markerRightRectMin, markerRightRectMax, task.color);
 
 				uint32_t textColor = useColoredLegendText ? task.color : legit::Colors::imguiText;
 
 				float taskTimeMs = float(task.endTime - task.startTime);
-				std::ostringstream timeText;
-				timeText.precision(2);
-				timeText << std::fixed << std::string("[") << (taskTimeMs * 1000.0f);
-
-				Text(drawList, Vec2{ markerRightRectMax.x + textMargin.x, markerRightRectMax.y + textMargin.y }, textColor, timeText.str());
-				Text(drawList, Vec2{ markerRightRectMax.x + textMargin.x + nameOffset, markerRightRectMax.y + textMargin.y }, textColor, std::string("ms] ") + task.name);
+				// FO4: one string; a fixed name offset overlaps DmUI's wider digits.
+				const float textY = (markerRightRectMin.y + markerRightRectMax.y - fontSize) * 0.5f;
+				Text(drawList, Vec2{ markerRightRectMax.x + textMarginX, textY }, textColor, std::format("[{:.2f}ms] {}", taskTimeMs * 1000.0f, task.name));
 			}
 		}
 
