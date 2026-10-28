@@ -93,7 +93,7 @@ namespace
 			{ "FO4/ZPrePass.hlsl", "vs_5_0", { { "OFFSET_DEPTH", "" } } },
 
 			{ "FO4/CloudShadows/DebugOverlay.hlsl", "vs_5_0" },
-			{ "FO4/CloudShadows/DebugOverlay.hlsl", "ps_5_0", { { "FO4CS_SUBSTRATE", "1" }, { "CLOUD_SHADOWS", "1" } }, { Toggle("CLOUD_SKY_OVERLAY", "1") } },
+			{ "FO4/CloudShadows/DebugOverlay.hlsl", "ps_5_0", { { "FO4CS_SUBSTRATE", "1" }, { "CLOUD_SHADOWS", "1" } }, { { { {}, { { "CLOUD_SKY_OVERLAY", "1" } }, { { "CLOUD_LAYERS", "1" } } } } } },
 			{ "FO4/WaterEffects/Debug.hlsl", "vs_5_0" },
 			{ "FO4/WaterEffects/Debug.hlsl", "ps_5_0", { { "FO4CS_SUBSTRATE", "1" } }, { Toggle("WATER_SUBMERSION_DEBUG", "1") } }
 		};

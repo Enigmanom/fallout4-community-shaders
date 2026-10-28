@@ -13,9 +13,11 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <winrt/base.h>
 
@@ -70,13 +72,18 @@ namespace cs::features
 
 		// Per cloud draw of the sky shader.
 		void BindSkyDraw(ID3D11DeviceContext* a_context);
-		bool CaptureCloudDraw(ID3D11DeviceContext* a_context);
+		bool CaptureCloudDraw(ID3D11DeviceContext* a_context, bool a_skirt);
 		void UnbindExtraTarget(ID3D11DeviceContext* a_context);
 
 		void RenderDebugPreview(ID3D11DeviceContext* a_context);
 		// Draws the selected fullscreen view over the final scene image.
 		void RenderOverlay();
 		void BuildOverlayResources(ID3D11Device* a_device);
+		// Debug-only per-layer cube, created the first time the layers view captures.
+		bool EnsureLayerCube();
+		void WriteLayerColor(ID3D11DeviceContext* a_context, bool a_skirt);
+		void RefreshLegend();
+		void DrawLegend();
 		// Unit direction to the drawn sun disc in w=1, else zero.
 		void UpdateOverlayConstants(ID3D11DeviceContext* a_context);
 		FeatureDebugTexture GetOcclusionDebugTexture() const;
@@ -96,14 +103,36 @@ namespace cs::features
 		cs::render::RgbaPreview _preview;
 		winrt::com_ptr<ID3D11ComputeShader> _previewCS;
 		std::atomic_bool _previewSelected{ false };
-		// 0 off, 1 sky overlay, 2 shadow term.
+		// 0 off, 1 sky overlay, 2 shadow term, 3 cloud layers.
 		std::atomic<std::uint32_t> _overlayMode{ 0 };
 		winrt::com_ptr<ID3DDeviceContextState> _overlayState;
 		winrt::com_ptr<ID3D11VertexShader> _overlayVS;
-		std::array<winrt::com_ptr<ID3D11PixelShader>, 2> _overlayPS;
+		std::array<winrt::com_ptr<ID3D11PixelShader>, 3> _overlayPS;
 		winrt::com_ptr<ID3D11BlendState> _overlayBlend;
 		winrt::com_ptr<ID3D11RasterizerState> _overlayRasterizer;
 		winrt::com_ptr<ID3D11Buffer> _overlayConstants;
+
+		// Render thread only.
+		winrt::com_ptr<ID3D11Texture2D> _layerCube;
+		winrt::com_ptr<ID3D11ShaderResourceView> _layerCubeSRV;
+		std::array<winrt::com_ptr<ID3D11RenderTargetView>, kFaceCount> _layerFaceRTV;
+		winrt::com_ptr<ID3D11BlendState> _layerBlend;
+		winrt::com_ptr<ID3D11Buffer> _layerConstants;
+		std::uint64_t _layerClearedSerial = 0;
+		std::uint32_t _legendFrame = 0;
+		std::atomic_bool _logLegend{ false };
+
+		struct LegendRow
+		{
+			std::uint32_t slot = 0;
+			std::string name;
+			std::string texture;
+			float alpha = 0.0f;
+			std::array<float, 3> color{};
+			bool skirt = false;
+		};
+		mutable std::mutex _legendMutex;
+		std::vector<LegendRow> _legend;
 		std::atomic_bool _overlayReady{ false };
 
 		std::atomic_bool _registrationsReady{ false };
@@ -122,6 +151,7 @@ namespace cs::features
 			std::atomic<std::uint64_t> horizonFillSkipped{ 0 };
 			std::atomic<std::uint64_t> overlayFrames{ 0 };
 			std::atomic<std::uint64_t> overlaySkipped{ 0 };
+			std::atomic<std::uint64_t> layerDraws{ 0 };
 			std::atomic<std::uint32_t> cubeSize{ 0 };
 			std::atomic<std::uint32_t> cubeMips{ 0 };
 		} _counters;

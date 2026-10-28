@@ -416,7 +416,7 @@ namespace
 			return error;
 		D3D11_SHADER_DESC desc{};
 		sky->GetDesc(&desc);
-		if (BindPoint(sky.Get(), "TexDepthSampler") != slots::kCloudDepthSlot || desc.OutputParameters != 3)
+		if (BindPoint(sky.Get(), "TexDepthSampler") != slots::kCloudDepthSlot || desc.OutputParameters != 4)
 			return "Sky: ABI depth slot or output count mismatch";
 		const auto consumer = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "CLOUD_SHADOWS", "1" } }, "ps_5_0", error);
 		if (!consumer)
