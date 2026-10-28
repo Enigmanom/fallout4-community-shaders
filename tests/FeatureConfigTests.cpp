@@ -1,3 +1,4 @@
+#include "CloudShadowsSettings.h"
 #include "Authoring/LightAuthoring.h"
 #include "DynamicCubemapsSettings.h"
 #include "ExtendedMaterialsSettings.h"
@@ -14,6 +15,7 @@
 #include "Settings/FeatureKeys.h"
 #include "Settings/LiveSettings.h"
 #include "Settings/SettingsRegistry.h"
+#include "SkySyncSettings.h"
 #include "SkylightingSettings.h"
 #include "TerrainVariationSettings.h"
 #include "World/WeatherVariableRegistry.h"
@@ -45,6 +47,7 @@ namespace
 		float thickness = 0.02f;
 		Target target = Target::kEngine;
 		Float2 span{ 1.0f, 2.0f };
+		StringList worlds;
 
 		bool operator==(const TestSettings&) const = default;
 	};
@@ -59,7 +62,8 @@ namespace
 			Field{ "count", "Count.", &TestSettings::count, Range{ 1u, 4u }, ApplyTiming::kNextLaunch },
 			Field{ "thickness", "Thickness.", &TestSettings::thickness, Range{ 0.005f, 0.05f } },
 			ChoiceField{ "target", "Target.", &TestSettings::target, kTargets },
-			Float2Field<TestSettings>{ "span", "Span.", &TestSettings::span } }
+			Float2Field<TestSettings>{ "span", "Span.", &TestSettings::span },
+			StringListField<TestSettings>{ "worlds", "Worlds.", &TestSettings::worlds } }
 	};
 
 	Registry BuildFullRegistry()
@@ -76,7 +80,9 @@ namespace
 			std::pair{ "UnifiedWater", SchemaView{} },
 			std::pair{ "ScreenSpaceShadows", MakeSchemaView(sss_settings::kSchema) },
 			std::pair{ "TerrainShadows", SchemaView{} },
+			std::pair{ "SkySync", MakeSchemaView(sky_sync::kSchema) },
 			std::pair{ "VolumetricShadows", SchemaView{} },
+			std::pair{ "CloudShadows", MakeSchemaView(cloud_shadows::kSchema) },
 			std::pair{ "LODBlending", MakeSchemaView(lod_blending::kSchema) },
 			std::pair{ "TerrainVariation", MakeSchemaView(terrain_variation::kSchema) },
 			std::pair{ "TerrainBlending", SchemaView{} },
@@ -163,6 +169,18 @@ namespace
 			CHECK(!Parse(kTestSchema, toml::parse(document), candidate, error));
 			CHECK(error == message);
 			CHECK(candidate == expected);
+		}
+		auto listed = expected;
+		CHECK(Parse(kTestSchema, toml::parse("[settings]\nworlds = ['Commonwealth', 'DiamondCity']\n"), listed, error));
+		CHECK((listed.worlds == StringList{ "Commonwealth", "DiamondCity" }));
+		TestSettings listRoundTrip;
+		CHECK(Parse(kTestSchema, toml::table{ { "settings", SerializeDelta(kTestSchema, listed, expected) } }, listRoundTrip, error));
+		CHECK(listRoundTrip.worlds == listed.worlds);
+		for (const auto document : { "[settings]\nworlds = 'Commonwealth'\n", "[settings]\nworlds = ['Commonwealth', 1]\n" }) {
+			auto candidate = listed;
+			CHECK(!Parse(kTestSchema, toml::parse(document), candidate, error));
+			CHECK(error == "settings.worlds: expected array of strings");
+			CHECK(candidate.worlds == listed.worlds);
 		}
 		auto kept = spanned;
 		CHECK(!Parse(kTestSchema, toml::parse("[settings]\nspan = [10000, nan]\n"), kept, error));

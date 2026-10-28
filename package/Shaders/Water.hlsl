@@ -194,21 +194,19 @@ VS_OUTPUT main(VS_INPUT input)
 
 #ifdef BSWATER_PIXEL_SHADER
 #	include "FO4/FogConsumer.hlsli"
-#	ifdef TERRAIN_SHADOWS
-#		include "FO4/TerrainShadowsConsumer.hlsli"
-#	endif
+#	include "FO4/WorldShadowConsumer.hlsli"
 #	ifdef VOLUMETRIC_SHADOWS
 #		include "FO4/VolumetricShadowsConsumer.hlsli"
 #	endif
-#	if defined(VOLUMETRIC_SHADOWS) || defined(TERRAIN_SHADOWS)
-// FO4: a disabled VSM falls back to the terrain term it adds to.
+#	if defined(VOLUMETRIC_SHADOWS) || defined(FO4_WORLD_SHADOW)
+// FO4: a disabled VSM falls back to the world term it adds to.
 float FO4WaterSunShadow(float3 worldPosition, float2 screenPosition)
 {
 #		ifdef VOLUMETRIC_SHADOWS
 	[branch] if (FO4SharedData::EnabledVolumetricShadows != 0) return FO4VolumetricShadows::GetWaterSurfaceShadow(worldPosition, screenPosition);
 #		endif
-#		ifdef TERRAIN_SHADOWS
-	return TerrainShadows::GetTerrainShadowMultFromWorldPosition(worldPosition);
+#		ifdef FO4_WORLD_SHADOW
+	return WorldShadow::GetMultFromWorldPosition(worldPosition);
 #		else
 	return 1.0;
 #		endif

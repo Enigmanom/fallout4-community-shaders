@@ -1,3 +1,4 @@
+#include "BuildIdentity.h"
 #include "Env.h"
 #include "Feature.h"
 #include "Host/HostClient.h"

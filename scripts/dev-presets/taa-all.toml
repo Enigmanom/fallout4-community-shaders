@@ -34,6 +34,9 @@ load = true
 [features.VolumetricShadows]
 load = true
 
+[features.CloudShadows]
+load = true
+
 [features.LODBlending]
 load = true
 

@@ -14,6 +14,9 @@
 #ifdef FORWARD_DRAW_DESCRIPTOR
 #	include "FO4/Permutation.hlsli"
 #endif
+#ifdef CLOUD_SHADOWS
+#	include "FO4/WorldShadowConsumer.hlsli"
+#endif
 #ifdef ABI_SLOT_COLLISION
 cbuffer Collision : register(ABI_SLOT_COLLISION)
 {
@@ -44,6 +47,9 @@ float4 main(float4 position : SV_Position) : SV_Target
 #	endif
 #	ifdef FORWARD_DRAW_DESCRIPTOR
 	value += Permutation::ExtraShaderDescriptor + Permutation::EffectRadius;
+#	endif
+#	ifdef CLOUD_SHADOWS
+	value += WorldShadow::GetMultFromViewPosition(position.xyz);
 #	endif
 #	ifdef ABI_SLOT_COLLISION
 	value += CollisionValue;

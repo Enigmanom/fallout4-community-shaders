@@ -102,8 +102,10 @@ namespace cs::render
 		std::uint32_t EnabledVolumetricShadows = 0, EnabledLODBlending = 0;
 		std::uint32_t EnabledLightLimitFix = 0;
 		std::uint32_t pad0 = 0;
+		// Unit direction to the drawn sun disc; the light's if unavailable.
+		DirectX::XMFLOAT4 SunDiscDirection{};
 	};
-	static_assert(sizeof(FO4SharedDataCB) == 128);
+	static_assert(sizeof(FO4SharedDataCB) == 144);
 	static_assert(offsetof(FO4SharedDataCB, DebugOwner) == 0);
 	static_assert(offsetof(FO4SharedDataCB, DebugMode) == 4);
 	static_assert(offsetof(FO4SharedDataCB, EnabledSSR) == 8);
@@ -122,6 +124,7 @@ namespace cs::render
 	static_assert(offsetof(FO4SharedDataCB, EnabledLODBlending) == 116);
 	static_assert(offsetof(FO4SharedDataCB, EnabledLightLimitFix) == 120);
 	static_assert(offsetof(FO4SharedDataCB, pad0) == 124);
+	static_assert(offsetof(FO4SharedDataCB, SunDiscDirection) == 128);
 
 	[[nodiscard]] inline FrameDataCB PackFrameData(
 		const engine::WorldCameraRecord& a_camera, DirectX::XMFLOAT2 a_ratio,

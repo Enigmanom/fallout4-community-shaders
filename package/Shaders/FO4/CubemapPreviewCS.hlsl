@@ -23,7 +23,12 @@ static const float Pi = 3.14159265358979323846;
 	float3 color = max(InputCubemap.SampleLevel(
 						   LinearSampler, direction, 0.0),
 		0.0);
+#ifdef SINGLE_CHANNEL
+	// A coverage mask is shown as stored.
+	color = color.xxx;
+#else
 	color = color / (1.0 + color);
 	color = pow(color, 1.0 / 1.6);
+#endif
 	OutputTexture[dispatchThreadId.xy] = float4(color, 1.0);
 }
