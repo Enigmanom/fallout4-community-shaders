@@ -442,7 +442,7 @@ namespace cs::features
 						engine::BindInjectionConstantBuffers(context, kStrictSlot, 1, &strict);
 					};
 					break;
-				default:
+				case engine::ShaderInjectionTarget::kBsdfLight:
 					registration.bind = [](ID3D11DeviceContext* context) {
 						const LightData data = Enabled() ? g_rasterData : LightData{};
 						ID3D11Buffer* buffer = nullptr;
@@ -456,6 +456,8 @@ namespace cs::features
 						if (IsInverseSquare(data))
 							++g_state.rasterDraws;
 					};
+					break;
+				default:
 					break;
 				}
 			})) {

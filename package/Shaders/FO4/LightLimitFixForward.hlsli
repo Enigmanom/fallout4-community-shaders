@@ -19,7 +19,7 @@ namespace FO4LightLimitFix
 
 	StructuredBuffer<Cone> Cones : register(t34);
 
-	// FO4: the health-gated flag reverts every forward consumer to its native lanes.
+	// FO4: health-gated; otherwise forward consumers keep native lanes.
 	bool UseClusteredLights()
 	{
 		return FO4SharedData::EnabledLightLimitFix != 0 &&
@@ -36,43 +36,47 @@ namespace FO4LightLimitFix
 		return min(pow(t, cone.exponent), 1.0);
 	}
 
-	// FO4: unflagged lights keep the native effect curve; inverse-square lights use LLF's.
-	float GetEffectAttenuation(float distance, LightLimitFix::Light light)
-	{
-		if ((light.lightFlags & LightLimitFix::LightFlags::InverseSquare) != 0)
-			return LightLimitFix::GetAttenuation(distance, light);
-		if ((light.lightFlags & LightLimitFix::LightFlags::Disabled) != 0)
-			return 0.0;
-		float intensityFactor = saturate(distance * light.invRadius);
-		return pow(1.0 - intensityFactor * intensityFactor, 2.2);
-	}
-
-	// FO4: the native effect point-light lane, without upstream's pi and 0.5.
+	// FO4: native effect point-light lane, without upstream's pi and 0.5.
 	float3 GetEffectLightColor(uint lightIndex, LightLimitFix::Light light, float3 worldPosition)
 	{
 		float3 lightPosition = light.positionWS.xyz;
-		float attenuation = GetEffectAttenuation(length(lightPosition - worldPosition), light);
+		float distance = length(lightPosition - worldPosition);
+		float x = saturate(distance * light.invRadius);
+		float attenuation = GetAttenuation(light, distance, pow(1.0 - x * x, 2.2));
 		return GetLinearColor(light.color, light.lightFlags) * light.fade * attenuation *
 		       GetConeAttenuation(lightIndex, lightPosition, worldPosition);
+	}
+
+	bool GetClusterLights(float3 viewPosition, out uint lightOffset, out uint lightCount)
+	{
+		uint clusterIndex = 0;
+		lightOffset = 0;
+		lightCount = 0;
+		if (!LightLimitFix::GetClusterIndex(FrameBuffer::ViewToUV(viewPosition), viewPosition.z, clusterIndex))
+			return false;
+		lightCount = LightLimitFix::lightGrid[clusterIndex].lightCount;
+		lightOffset = LightLimitFix::lightGrid[clusterIndex].offset;
+		return true;
+	}
+
+	// FO4: forward consumers have no local shadow sampler, so casters are skipped.
+	bool IsClusterLightSkipped(LightLimitFix::Light light)
+	{
+		return LightLimitFix::IsLightIgnored(light) || (light.lightFlags & LightLimitFix::LightFlags::ShadowCaster) != 0;
 	}
 
 	float3 GetEffectLighting(float3 viewPosition, float3 worldPosition, out uint lightCount)
 	{
 		float3 result = 0.0;
-		lightCount = 0;
-		uint clusterIndex = 0;
-		if (LightLimitFix::GetClusterIndex(FrameBuffer::ViewToUV(viewPosition), viewPosition.z, clusterIndex)) {
-			lightCount = LightLimitFix::lightGrid[clusterIndex].lightCount;
-			uint lightOffset = LightLimitFix::lightGrid[clusterIndex].offset;
-			[loop] for (uint i = 0; i < lightCount; i++)
-			{
-				uint clusteredLightIndex = LightLimitFix::lightList[lightOffset + i];
-				LightLimitFix::Light light = LightLimitFix::lights[clusteredLightIndex];
-				if (LightLimitFix::IsLightIgnored(light) || light.lightFlags & LightLimitFix::LightFlags::ShadowCaster) {
-					continue;
-				}
-				result += GetEffectLightColor(clusteredLightIndex, light, worldPosition);
-			}
+		uint lightOffset;
+		GetClusterLights(viewPosition, lightOffset, lightCount);
+		[loop] for (uint i = 0; i < lightCount; i++)
+		{
+			uint clusteredLightIndex = LightLimitFix::lightList[lightOffset + i];
+			LightLimitFix::Light light = LightLimitFix::lights[clusteredLightIndex];
+			if (IsClusterLightSkipped(light))
+				continue;
+			result += GetEffectLightColor(clusteredLightIndex, light, worldPosition);
 		}
 		return result;
 	}
@@ -82,24 +86,19 @@ namespace FO4LightLimitFix
 	{
 		float3 viewDirection = normalize(worldPosition);
 		float3 result = 0.0;
-		uint clusterIndex = 0;
-		if (LightLimitFix::GetClusterIndex(FrameBuffer::ViewToUV(viewPosition), viewPosition.z, clusterIndex)) {
-			uint lightCount = LightLimitFix::lightGrid[clusterIndex].lightCount;
-			uint lightOffset = LightLimitFix::lightGrid[clusterIndex].offset;
-			[loop] for (uint i = 0; i < lightCount; i++)
-			{
-				uint clusteredLightIndex = LightLimitFix::lightList[lightOffset + i];
-				LightLimitFix::Light light = LightLimitFix::lights[clusteredLightIndex];
-				// FO4: water has no local shadow sampler, so shadow casters are skipped.
-				if (LightLimitFix::IsLightIgnored(light) || light.lightFlags & LightLimitFix::LightFlags::ShadowCaster) {
-					continue;
-				}
-				float3 lightDirection = light.positionWS.xyz - worldPosition;
-				float intensityMultiplier = LightLimitFix::GetAttenuation(length(lightDirection), light);
-				float3 H = normalize(normalize(lightDirection) - viewDirection);
-				float HdotN = saturate(dot(H, normal));
-				result += GetLinearColor(light.color, light.lightFlags) * pow(HdotN, specularPower) * light.fade * intensityMultiplier;
-			}
+		uint lightOffset, lightCount;
+		GetClusterLights(viewPosition, lightOffset, lightCount);
+		[loop] for (uint i = 0; i < lightCount; i++)
+		{
+			LightLimitFix::Light light = LightLimitFix::lights[LightLimitFix::lightList[lightOffset + i]];
+			if (IsClusterLightSkipped(light))
+				continue;
+			float3 lightDirection = light.positionWS.xyz - worldPosition;
+			float distance = length(lightDirection);
+			float x = saturate(distance * light.invRadius);
+			float attenuation = GetAttenuation(light, distance, 1.0 - x * x);
+			float3 H = normalize(normalize(lightDirection) - viewDirection);
+			result += GetLinearColor(light.color, light.lightFlags) * pow(saturate(dot(H, normal)), specularPower) * light.fade * attenuation;
 		}
 		return result * 3;
 	}

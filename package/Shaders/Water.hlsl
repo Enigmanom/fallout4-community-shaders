@@ -679,7 +679,7 @@ float4 main(PS_INPUT input) : SV_Target0
 
 	float3 specular = 0.0;
 #		ifdef LIGHT_LIMIT_FIX
-	// FO4: the clustered loop in the surface shader replaces these lights while LLF is healthy.
+	// FO4: the surface shader's cluster loop replaces these lights.
 	[branch] if (FO4LightLimitFix::UseClusteredLights()) return float4(0.0, 0.0, 0.0, 1.0);
 #		endif
 	for (int i = 0; i < NUM_SPECULAR_LIGHTS; i++) {
@@ -731,7 +731,7 @@ float4 main(PS_INPUT input) : SV_Target0
 	float3 water = lerp(perMaterial[0].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, eyeDirection, normal, reflectionDirection, input.eyeVector.w, WaterDistanceBlendFactor(fade), skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), 0.5);
 #		ifdef LIGHT_LIMIT_FIX
 	[branch] if (FO4LightLimitFix::UseClusteredLights())
-		water += FO4LightLimitFix::GetWaterSpecularLighting(input.eyeToPosition, FrameBuffer::ViewToWorld(input.eyeToPosition), normal, perMaterial[13].w);
+		water += 0.5 * FO4LightLimitFix::GetWaterSpecularLighting(input.eyeToPosition, FrameBuffer::ViewToWorld(input.eyeToPosition), normal, perMaterial[13].w);
 #		endif
 	return float4(lerp(water, refraction, 1.0 - fresnelTerm(grazing)), 0.0);
 }
