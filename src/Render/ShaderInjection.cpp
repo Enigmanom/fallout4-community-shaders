@@ -5,6 +5,7 @@
 #include "LogThrottle.h"
 #include "Render/Engine.h"
 #include "Render/EngineCallSite.h"
+#include "Render/ForwardDraw.h"
 #include "Render/NativeShaderFamily.h"
 #include "Render/RenderHooks.h"
 #include "Render/RendererContext.h"
@@ -1849,6 +1850,8 @@ namespace cs::engine
 			auto* sampler = render::GetLinearClampSampler();
 			BindInjectionSamplers(a_context, render::kLinearClampSamplerSlot, 1, &sampler);
 		}
+		if (a_target == ShaderInjectionTarget::kEffect || a_target == ShaderInjectionTarget::kBsWater)
+			render::forward_draw::BindDescriptor(a_context);
 		DispatchPublishedTarget(*target, ShaderStage::kPixel, a_context);
 		t_samplerMask = previousMask;
 	}
