@@ -218,6 +218,9 @@ float FO4WaterSunShadow(float3 worldPosition, float2 screenPosition)
 #	ifdef UNIFIED_WATER
 #		include "FO4/FO4ShaderData.hlsli"
 #	endif
+#	ifdef LIGHT_LIMIT_FIX
+#		include "FO4/LightLimitFixForward.hlsli"
+#	endif
 
 #	ifdef DYNAMIC_CUBEMAPS
 // FO4 water compiles without upstream's WATER permutation define.
@@ -675,6 +678,10 @@ float4 main(PS_INPUT input) : SV_Target0
 	float fresnel = fresnelTerm(grazing);
 
 	float3 specular = 0.0;
+#		ifdef LIGHT_LIMIT_FIX
+	// FO4: the clustered loop in the surface shader replaces these lights while LLF is healthy.
+	[branch] if (FO4LightLimitFix::UseClusteredLights()) return float4(0.0, 0.0, 0.0, 1.0);
+#		endif
 	for (int i = 0; i < NUM_SPECULAR_LIGHTS; i++) {
 		float3 delta = perTechnique[i + 6].xyz - PosAdjust.xyz;
 		float3 halfVector = normalize(normalize(delta) - eyeDirection);
@@ -722,6 +729,10 @@ float4 main(PS_INPUT input) : SV_Target0
 	float slope = reflectionDirection.z;
 	float grazing = 1.0 - saturate(dot(-eyeDirection, -normal));
 	float3 water = lerp(perMaterial[0].xyz, surfaceColor(slope, input.screenPosition.xy * perGeometry[0].xy, eyeDirection, normal, reflectionDirection, input.eyeVector.w, WaterDistanceBlendFactor(fade), skylightingSpecularVisibility(input.eyeVector.xyz, normal, eyeDirection)), 0.5);
+#		ifdef LIGHT_LIMIT_FIX
+	[branch] if (FO4LightLimitFix::UseClusteredLights())
+		water += FO4LightLimitFix::GetWaterSpecularLighting(input.eyeToPosition, FrameBuffer::ViewToWorld(input.eyeToPosition), normal, perMaterial[13].w);
+#		endif
 	return float4(lerp(water, refraction, 1.0 - fresnelTerm(grazing)), 0.0);
 }
 
@@ -983,6 +994,10 @@ float4 main(PS_INPUT input) : SV_Target0
 #		endif
 	float3 color = lerp(refraction, water, reflectionWeight);
 	color = lerp(tinted, color, WaterDistanceBlendFactor(fade));
+#		ifdef LIGHT_LIMIT_FIX
+	[branch] if (FO4LightLimitFix::UseClusteredLights())
+		color += fresnel * FO4LightLimitFix::GetWaterSpecularLighting(input.eyeToPosition, FrameBuffer::ViewToWorld(input.eyeToPosition), normal, perMaterial[13].w);
+#		endif
 #		ifndef INTERIOR
 	color = color + lighting;
 #		endif

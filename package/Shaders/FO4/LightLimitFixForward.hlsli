@@ -76,5 +76,32 @@ namespace FO4LightLimitFix
 		}
 		return result;
 	}
+
+	// FO4: 3x the native water specular lane; the caller applies Fresnel.
+	float3 GetWaterSpecularLighting(float3 viewPosition, float3 worldPosition, float3 normal, float specularPower)
+	{
+		float3 viewDirection = normalize(worldPosition);
+		float3 result = 0.0;
+		uint clusterIndex = 0;
+		if (LightLimitFix::GetClusterIndex(FrameBuffer::ViewToUV(viewPosition), viewPosition.z, clusterIndex)) {
+			uint lightCount = LightLimitFix::lightGrid[clusterIndex].lightCount;
+			uint lightOffset = LightLimitFix::lightGrid[clusterIndex].offset;
+			[loop] for (uint i = 0; i < lightCount; i++)
+			{
+				uint clusteredLightIndex = LightLimitFix::lightList[lightOffset + i];
+				LightLimitFix::Light light = LightLimitFix::lights[clusteredLightIndex];
+				// FO4: water has no local shadow sampler, so shadow casters are skipped.
+				if (LightLimitFix::IsLightIgnored(light) || light.lightFlags & LightLimitFix::LightFlags::ShadowCaster) {
+					continue;
+				}
+				float3 lightDirection = light.positionWS.xyz - worldPosition;
+				float intensityMultiplier = LightLimitFix::GetAttenuation(length(lightDirection), light);
+				float3 H = normalize(normalize(lightDirection) - viewDirection);
+				float HdotN = saturate(dot(H, normal));
+				result += GetLinearColor(light.color, light.lightFlags) * pow(HdotN, specularPower) * light.fade * intensityMultiplier;
+			}
+		}
+		return result * 3;
+	}
 }
 #endif
