@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <cstring>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -74,6 +76,37 @@ namespace cs::buffer
 	private:
 		winrt::com_ptr<ID3D11Buffer> resource;
 		D3D11_BUFFER_DESC desc;
+	};
+
+	// Constant buffer that maps only when the bytes differ from the last upload.
+	template <typename T>
+	class CachedConstantBuffer
+	{
+	public:
+		void Create(std::string_view a_name)
+		{
+			_buffer = std::make_unique<ConstantBuffer>(ConstantBufferDesc<T>());
+			_buffer->SetName(a_name);
+			_uploaded.reset();
+		}
+
+		ID3D11Buffer* CB() const { return _buffer ? _buffer->CB() : nullptr; }
+
+		ID3D11Buffer* Update(const T& a_next)
+		{
+			if (!_buffer)
+				return nullptr;
+			if (!_uploaded || std::memcmp(&*_uploaded, &a_next, sizeof(T)) != 0) {
+				_uploaded.reset();  // a throwing Map must not leave a stale cache
+				_buffer->Update(a_next);
+				_uploaded = a_next;
+			}
+			return _buffer->CB();
+		}
+
+	private:
+		std::unique_ptr<ConstantBuffer> _buffer;
+		std::optional<T> _uploaded;
 	};
 
 	template <typename T>

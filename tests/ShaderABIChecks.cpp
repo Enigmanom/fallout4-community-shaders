@@ -486,8 +486,9 @@ namespace
 		const auto descriptor = Reflect(a_root, "SharedDataProbe.hlsl", { { "FO4CS_SUBSTRATE", "1" }, { "FORWARD_DRAW_DESCRIPTOR", "1" } }, "ps_5_0", error);
 		if (!descriptor)
 			return error;
-		const ABIField descriptorFields[]{ { "ExtraShaderDescriptor", 0, sizeof(std::uint32_t) }, { "PerShaderPad", sizeof(std::uint32_t), 3 * sizeof(std::uint32_t) } };
-		if (const auto mismatch = CheckConstantBuffer(descriptor.Get(), { "PerShader", cs::render::kForwardDrawSlot, cs::render::forward_draw::kDescriptorSize, descriptorFields }); !mismatch.empty())
+		using cs::render::forward_draw::ForwardDrawCB;
+		const ABIField descriptorFields[]{ ABI(ForwardDrawCB, ExtraShaderDescriptor), ABI(ForwardDrawCB, PerShaderPad) };
+		if (const auto mismatch = CheckConstantBuffer(descriptor.Get(), { "PerShader", cs::render::kForwardDrawSlot, sizeof(ForwardDrawCB), descriptorFields }); !mismatch.empty())
 			return mismatch;
 
 		using cs::features::light_limit_fix::LightBuildingCB;

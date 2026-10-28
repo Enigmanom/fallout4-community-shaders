@@ -49,7 +49,7 @@ namespace cs::features
 			DeferredLights deferred;
 			LightGather gather;
 			ClusterGrid grid;
-			StrictLightBuffer strict;
+			buffer::CachedConstantBuffer<StrictLightDataCB> strict;
 			std::atomic<bool> gridReady{ false };
 			std::atomic<std::uint64_t> clusterDispatches{ 0 }, clusterSkips{ 0 };
 			std::atomic<std::uint32_t> clusterLights{ 0 }, clusterShadowLights{ 0 }, clusterConeLights{ 0 }, clusterStrictLights{ 0 };
@@ -499,7 +499,7 @@ namespace cs::features
 		g_state.deferred.Create();
 		g_state.resources = true;
 		g_state.grid.Create();
-		g_state.strict.Create();
+		g_state.strict.Create("LLF StrictLightData");
 		g_state.gridReady = true;
 	}
 	void LightLimitFix::Prepass()

@@ -1,10 +1,8 @@
 #pragma once
 
 #include "LightData.h"
-#include "Utils/CSBuffer.h"
 
 #include <cstdint>
-#include <memory>
 #include <unordered_map>
 
 namespace RE
@@ -31,18 +29,5 @@ namespace cs::features::light_limit_fix
 		void AddRoom(const RE::NiNode* a_node, LightData& a_data);
 
 		std::unordered_map<const RE::NiNode*, std::uint8_t> _rooms;
-	};
-
-	class StrictLightBuffer
-	{
-	public:
-		void Create();
-		void Update(const StrictLightDataCB& a_next);
-		ID3D11Buffer* Buffer() const { return _buffer ? _buffer->CB() : nullptr; }
-
-	private:
-		std::unique_ptr<buffer::ConstantBuffer> _buffer;
-		StrictLightDataCB _uploaded;
-		bool _hasUploaded = false;
 	};
 }

@@ -29,8 +29,12 @@ namespace cs::render::forward_draw
 		kInWorld = 1u << 0
 	};
 
-	// Size of cbuffer PerShader; the test compares it with the HLSL layout.
-	inline constexpr std::size_t kDescriptorSize = 16;
+	// Mirrors cbuffer PerShader in FO4\Permutation.hlsli.
+	struct alignas(16) ForwardDrawCB
+	{
+		std::uint32_t ExtraShaderDescriptor = 0;
+		std::uint32_t PerShaderPad[3]{};
+	};
 
 	inline constexpr std::array kTargets{ engine::ShaderInjectionTarget::kEffect, engine::ShaderInjectionTarget::kBsWater };
 

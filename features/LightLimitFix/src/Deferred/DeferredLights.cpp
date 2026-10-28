@@ -1,7 +1,5 @@
 #include "DeferredLights.h"
 
-#include <cstring>
-
 namespace cs::features::light_limit_fix
 {
 	void DeferredLights::Create()
@@ -12,9 +10,7 @@ namespace cs::features::light_limit_fix
 			_tiled[side]->CreateSRV();
 			_tiled[side]->SetName(side == 0 ? "LLF Tiled Lights 0" : "LLF Tiled Lights 1");
 		}
-		_raster = std::make_unique<buffer::ConstantBuffer>(buffer::ConstantBufferDesc<LightData>());
-		_raster->SetName("LLF Raster Light");
-		_uploadedRaster.reset();
+		_raster.Create("LLF Raster Light");
 	}
 
 	void DeferredLights::Record(std::uint32_t a_side, std::uint32_t a_index, const LightData& a_light)
@@ -45,11 +41,6 @@ namespace cs::features::light_limit_fix
 
 	ID3D11Buffer* DeferredLights::RasterBuffer(const LightData& a_light)
 	{
-		if (!_uploadedRaster || std::memcmp(&*_uploadedRaster, &a_light, sizeof(LightData)) != 0) {
-			_uploadedRaster.reset();
-			_raster->Update(a_light);
-			_uploadedRaster = a_light;
-		}
-		return _raster->CB();
+		return _raster.Update(a_light);
 	}
 }

@@ -13,7 +13,6 @@
 #include "RE/B/BSShaderAccumulator.h"
 #include "RE/B/BSShaderManager.h"
 
-#include <memory>
 #include <vector>
 
 namespace cs::render::forward_draw
@@ -27,20 +26,11 @@ namespace cs::render::forward_draw
 			Observer observer;
 		};
 
-		struct alignas(16) Descriptor
-		{
-			std::uint32_t extraShaderDescriptor = 0;
-			std::uint32_t pad[3]{};
-		};
-		static_assert(sizeof(Descriptor) == kDescriptorSize);
-
 		std::vector<Subscription> g_subscriptions;
 		thread_local Draw t_draw;
 		thread_local bool t_active = false;
 
-		std::unique_ptr<buffer::ConstantBuffer> g_buffer;
-		Descriptor g_uploaded;
-		bool g_hasUploaded = false;
+		buffer::CachedConstantBuffer<ForwardDrawCB> g_buffer;
 
 		// MainRenderSetup may store 13 on the world accumulators.
 		[[nodiscard]] bool IsWorldAccumulator(const RE::BSShaderAccumulator* a_accumulator) noexcept
@@ -91,27 +81,17 @@ namespace cs::render::forward_draw
 	{
 		if (!a_device)
 			return;
-		g_buffer = std::make_unique<buffer::ConstantBuffer>(buffer::ConstantBufferDesc<Descriptor>());
-		g_buffer->SetName("Render/ForwardDraw.Descriptor");
-		g_hasUploaded = false;
+		g_buffer.Create("Render/ForwardDraw.Descriptor");
 	}
 
 	void BindDescriptor(ID3D11DeviceContext* a_context) noexcept
 	{
 		ID3D11Buffer* bound = nullptr;
 		RunRenderCallback(nullptr, "forward draw descriptor", [&] {
-			Descriptor next;
+			ForwardDrawCB next;
 			if (t_active && t_draw.inWorld)
-				next.extraShaderDescriptor |= kInWorld;
-			if (!g_buffer)
-				return;
-			if (!g_hasUploaded || g_uploaded.extraShaderDescriptor != next.extraShaderDescriptor) {
-				g_hasUploaded = false;
-				g_buffer->Update(next);
-				g_uploaded = next;
-				g_hasUploaded = true;
-			}
-			bound = g_buffer->CB();
+				next.ExtraShaderDescriptor |= kInWorld;
+			bound = g_buffer.Update(next);
 		});
 		engine::BindInjectionConstantBuffers(a_context, kForwardDrawSlot, 1, &bound);
 	}

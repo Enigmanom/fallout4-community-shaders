@@ -31,8 +31,7 @@ namespace cs::features::light_limit_fix
 		std::mutex _mutex;
 		std::array<std::array<LightData, kMaxLights>, 2> _records{};
 		std::array<std::unique_ptr<buffer::StructuredBuffer>, 2> _tiled;
-		std::unique_ptr<buffer::ConstantBuffer> _raster;
-		std::optional<LightData> _uploadedRaster;
+		buffer::CachedConstantBuffer<LightData> _raster;
 		std::uint32_t _uploadedSide = 0;
 	};
 }

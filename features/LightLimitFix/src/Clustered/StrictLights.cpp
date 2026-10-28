@@ -8,8 +8,6 @@
 #include "RE/B/BSPortalSharedNode.h"
 #include "RE/B/BSRenderPass.h"
 
-#include <cstring>
-
 namespace cs::features::light_limit_fix
 {
 	namespace
@@ -72,24 +70,5 @@ namespace cs::features::light_limit_fix
 			return -1;
 		const auto it = _rooms.find(GetRoomNode(a_pass));
 		return it == _rooms.end() ? -1 : it->second;
-	}
-
-	void StrictLightBuffer::Create()
-	{
-		_buffer = std::make_unique<buffer::ConstantBuffer>(buffer::ConstantBufferDesc<StrictLightDataCB>());
-		_buffer->SetName("LLF StrictLightData");
-		_hasUploaded = false;
-	}
-
-	void StrictLightBuffer::Update(const StrictLightDataCB& a_next)
-	{
-		if (!_buffer)
-			return;
-		if (_hasUploaded && std::memcmp(&_uploaded, &a_next, offsetof(StrictLightDataCB, strictLights)) == 0)
-			return;
-		_hasUploaded = false;
-		_buffer->Update(a_next);
-		_uploaded = a_next;
-		_hasUploaded = true;
 	}
 }
