@@ -173,9 +173,22 @@ namespace cs::engine::water
 
 	void RegisterTileWater(TerrainChunk* a_chunk, std::span<const TileWater> a_tiles)
 	{
+		const auto flags = [](const TileWater& a_tile) -> std::uint32_t* {
+			const auto geometry = a_tile.geometry ? a_tile.geometry->IsGeometry() : nullptr;
+			const auto property = geometry ? geometry->properties[1].get() : nullptr;
+			return property ? &static_cast<RE::BSWaterShaderProperty*>(property)->waterFlags : nullptr;
+		};
+		// FO4: AddWater reads Prepare's LOD mask 0x2; restore it to re-register.
+		for (const auto& tile : a_tiles)
+			if (const auto value = flags(tile))
+				*value |= 0x2u;
 		const auto previous = std::exchange(t_tiles, a_tiles);
 		RegisterVanillaWater(a_chunk);
 		t_tiles = previous;
+		// FO4: preserve native reflections; no CUBEMAP technique exists.
+		for (const auto& tile : a_tiles)
+			if (const auto value = flags(tile))
+				*value = (*value & ~0x2u) | 0xC4u;
 	}
 
 	RE::NiNode* GetWaterLOD()
@@ -247,15 +260,6 @@ namespace cs::engine::water
 			root->DetachChild(a_chunk->water.get());
 	}
 
-	void ConfigureTileProperty(RE::BSGeometry* a_shape)
-	{
-		if (const auto property = a_shape->properties[1].get()) {
-			// FO4: preserve native reflections; no CUBEMAP technique exists.
-			auto& flags = static_cast<RE::BSWaterShaderProperty*>(property)->waterFlags;
-			flags = (flags & ~0x2u) | 0xC4u;
-		}
-	}
-
 	void RemoveWater(RE::NiAVObject* a_shape)
 	{
 		if (const auto system = RE::TESWaterSystem::GetSingleton(); system && a_shape)
@@ -267,7 +271,7 @@ namespace cs::engine::water
 		if (!a_node || !a_parent)
 			return;
 		const auto tes = RE::TES::GetSingleton();
-		const bool intersects = tes && a_node->IsInLoadedRange();
+		const bool intersects = tes && !tes->interiorCell && a_node->IsInLoadedRange();
 		RE::BSScrapArray<RE::TESObjectCELL*> cells;
 		if (intersects) {
 			a_node->BuildCellCache(cells);

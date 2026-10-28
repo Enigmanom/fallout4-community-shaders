@@ -224,8 +224,6 @@ namespace cs::features
 		self._managed.insert_or_assign(parent, std::move(managed));
 		// FO4: terrain water is drawn only once AddLODWater registers it.
 		self.RegisterChunkWater(a_chunk);
-		for (const auto& [shape, instruction] : built)
-			engine::water::ConfigureTileProperty(shape);
 		RE::NiUpdateData update{};
 		parent->Update(update);
 		self._tilesBuilt.fetch_add(built.size());

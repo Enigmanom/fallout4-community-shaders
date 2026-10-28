@@ -43,7 +43,6 @@ namespace cs::engine::water
 	bool InstallWaterMaterialIdentity();
 	std::uint64_t TileWaterOverrides() noexcept;
 	void UnregisterVanillaWater(TerrainChunk* a_chunk);
-	void ConfigureTileProperty(RE::BSGeometry* a_shape);
 	void RemoveWater(RE::NiAVObject* a_shape);
 	void UpdateVisibility(TerrainNode* a_node, RE::NiNode* a_parent, std::span<const TileCell> a_tiles, bool a_hideTiles);
 
