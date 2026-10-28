@@ -1,7 +1,7 @@
 # Light Limit Fix
 
-Enable `[features.LightLimitFix] load = true` and the `bsdf_light` and
-`df_tiled_lighting` `[shader_ownership]` targets, then restart.
+Enable `[features.LightLimitFix] load = true` and the `bsdf_light`,
+`df_tiled_lighting`, `effect` and `bswater` `[shader_ownership]` targets, then restart.
 
 Place authoring files in `Data\F4SE\Plugins\FO4CommunityShaders\Lights\*.toml`.
 The FO4 format replaces Skyrim's LIGH extension bits and repurposed spot fields;

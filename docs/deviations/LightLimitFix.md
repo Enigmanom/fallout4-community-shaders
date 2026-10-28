@@ -12,7 +12,8 @@
 | Forced | Room index from the owning node's ancestors | Room is the owning fade node's direct parent | Engine association rule |
 | Pending | First-person effects lit from their own depth | Lit at background depth | Needs a view-space reconstruction |
 | N/A | Particle lights | | FO4 has no particle lights |
-| N/A | Effects11 overrides, ACEScg and color-mode cache key | | No FO4 counterpart |
+| Pending | Effects11 point-light color override | Not applied | Effects11 not ported |
+| N/A | ACEScg and color-mode cache key | | FO4 has no color management |
 | N/A | Local shadow cache and scheduler | | FO4 has no shadow-caster cap |
 | N/A | Surface clustered shading | | Opaque lighting is native tiled |
 | N/A | Shadow Mask visualization | | No FO4 shadow mask |
