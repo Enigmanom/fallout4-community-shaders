@@ -72,8 +72,7 @@ xmake test --output-on-failure
 ```
 
 Shader suites reuse compiled blobs from `.shader-test-cache` (override with
-`FO4CS_SHADER_TEST_CACHE`); entries are revalidated against source, includes, and compiler on every
-hit, so only changed variants recompile.
+`FO4CS_SHADER_TEST_CACHE`); entries are revalidated against source, includes, and compiler on every hit.
 
 Add regression tests for critical behavior and real failure modes, not implementation
 details. Validate rendering and hook changes in game before claiming they work.
