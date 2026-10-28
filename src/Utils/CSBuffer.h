@@ -78,7 +78,7 @@ namespace cs::buffer
 		D3D11_BUFFER_DESC desc;
 	};
 
-	// Constant buffer that maps only when the bytes differ from the last upload.
+	// Constant buffer that maps only when bytes differ from the last upload.
 	template <typename T>
 	class CachedConstantBuffer
 	{
@@ -172,7 +172,7 @@ namespace cs::buffer
 			uavs.push_back(std::move(view));
 		}
 
-		// Write-discard upload of the first a_size bytes; the buffer must be dynamic.
+		// Write-discard upload of a_size bytes; buffer must be dynamic.
 		void Update(void const* a_srcData, std::size_t a_size)
 		{
 			auto* ctx = reinterpret_cast<ID3D11DeviceContext*>(RE::BSGraphics::GetRendererData()->context);
@@ -188,42 +188,6 @@ namespace cs::buffer
 		std::vector<winrt::com_ptr<ID3D11UnorderedAccessView>> uavs;
 		D3D11_BUFFER_DESC desc;
 		std::uint32_t count;
-	};
-
-	class Buffer
-	{
-	public:
-		explicit Buffer(D3D11_BUFFER_DESC const& a_desc) :
-			desc(a_desc)
-		{
-			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
-			DX::ThrowIfFailed(device->CreateBuffer(&desc, nullptr, resource.put()));
-		}
-
-		void SetName(std::string_view a_name) const
-		{
-			const std::string name(a_name);
-			cs::render::annotation::SetName(resource.get(), name);
-			cs::render::annotation::SetName(srv.get(), name + " SRV");
-			cs::render::annotation::SetName(uav.get(), name + " UAV");
-		}
-
-		void CreateSRV(D3D11_SHADER_RESOURCE_VIEW_DESC const& a_desc)
-		{
-			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
-			DX::ThrowIfFailed(device->CreateShaderResourceView(resource.get(), &a_desc, srv.put()));
-		}
-
-		void CreateUAV(D3D11_UNORDERED_ACCESS_VIEW_DESC const& a_desc)
-		{
-			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
-			DX::ThrowIfFailed(device->CreateUnorderedAccessView(resource.get(), &a_desc, uav.put()));
-		}
-
-		D3D11_BUFFER_DESC desc;
-		winrt::com_ptr<ID3D11Buffer> resource;
-		winrt::com_ptr<ID3D11ShaderResourceView> srv;
-		winrt::com_ptr<ID3D11UnorderedAccessView> uav;
 	};
 
 	class Texture3D

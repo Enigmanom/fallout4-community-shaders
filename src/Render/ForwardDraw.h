@@ -50,12 +50,8 @@ namespace cs::render::forward_draw
 	struct Draw
 	{
 		RE::BSRenderPass* pass = nullptr;
-		RE::BSShaderAccumulator* accumulator = nullptr;
 		bool inWorld = false;
 	};
-
-	// Valid from SetupGeometry to RestoreGeometry; null otherwise.
-	[[nodiscard]] const Draw* Current() noexcept;
 
 	using Observer = void (*)(const Draw&);
 	// Startup only; runs before the engine SetupGeometry, quarantined.

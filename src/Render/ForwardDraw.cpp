@@ -48,7 +48,7 @@ namespace cs::render::forward_draw
 		void SetupGeometry(RE::BSShader*, RE::BSRenderPass* a_pass) noexcept
 		{
 			auto* accumulator = RE::BSShaderManager::GetCurrentAccumulator();
-			t_draw = { a_pass, accumulator, IsWorldAccumulator(accumulator) };
+			t_draw = { a_pass, IsWorldAccumulator(accumulator) };
 			t_active = true;
 			for (const auto& subscription : g_subscriptions)
 				RunRenderCallback(subscription.owner, subscription.label, [&] { subscription.observer(t_draw); });
@@ -59,11 +59,6 @@ namespace cs::render::forward_draw
 			t_active = false;
 			t_draw = {};
 		}
-	}
-
-	const Draw* Current() noexcept
-	{
-		return t_active ? &t_draw : nullptr;
 	}
 
 	void Subscribe(Feature* a_owner, std::string_view a_label, Observer a_observer)
