@@ -24,7 +24,3 @@
 | Divergence | Lights are inverse-square only when authored | `derive_unauthored_lights` (default off, restart) fits `inverse_square`, `size` and an intensity scale per instance to the native falloff and radius; native radius kept; a TOML entry is authoritative | Gives every light inverse-square falloff without authoring |
 | Divergence | Authored radius recomputed from the animated dimmer | Derived lights keep the native radius and the dimmer scales only fade | `LIGH::Update` writes only the dimmer for flicker/pulse; recomputing reach would slide the fade window |
 | Pending | CSEditor per-light overrides, hide-regular/hide-ISL diagnostics, Light Placer override API | TOML supplies authored semantics; authoring is restart-only | |
-
-## Upstream bugs
-
-- `lightIndexList` is sized `clusterCount * 128` while `ClusterCullingCS` stores up to 256 indices per cluster.
