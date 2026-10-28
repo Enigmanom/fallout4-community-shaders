@@ -92,12 +92,21 @@ namespace cs::buffer
 	class StructuredBuffer
 	{
 	public:
-		StructuredBuffer(D3D11_BUFFER_DESC const& a_desc, std::uint32_t a_count, std::string_view a_name = {}) :
-			desc(a_desc), count(a_count), name(a_name)
+		StructuredBuffer(D3D11_BUFFER_DESC const& a_desc, std::uint32_t a_count) :
+			desc(a_desc), count(a_count)
 		{
 			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
 			DX::ThrowIfFailed(device->CreateBuffer(&desc, nullptr, resource.put()));
+		}
+
+		void SetName(std::string_view a_name) const
+		{
+			const std::string name(a_name);
 			cs::render::annotation::SetName(resource.get(), name);
+			for (auto& view : srvs)
+				cs::render::annotation::SetName(view.get(), name + " SRV");
+			for (auto& view : uavs)
+				cs::render::annotation::SetName(view.get(), name + " UAV");
 		}
 
 		ID3D11Buffer* Resource() const { return resource.get(); }
@@ -114,7 +123,6 @@ namespace cs::buffer
 			viewDesc.BufferEx.NumElements = count;
 			winrt::com_ptr<ID3D11ShaderResourceView> view;
 			DX::ThrowIfFailed(device->CreateShaderResourceView(resource.get(), &viewDesc, view.put()));
-			cs::render::annotation::SetName(view.get(), name + " SRV");
 			srvs.push_back(std::move(view));
 		}
 
@@ -128,7 +136,6 @@ namespace cs::buffer
 			viewDesc.Buffer.NumElements = count;
 			winrt::com_ptr<ID3D11UnorderedAccessView> view;
 			DX::ThrowIfFailed(device->CreateUnorderedAccessView(resource.get(), &viewDesc, view.put()));
-			cs::render::annotation::SetName(view.get(), name + " UAV");
 			uavs.push_back(std::move(view));
 		}
 
@@ -148,41 +155,42 @@ namespace cs::buffer
 		std::vector<winrt::com_ptr<ID3D11UnorderedAccessView>> uavs;
 		D3D11_BUFFER_DESC desc;
 		std::uint32_t count;
-		std::string name;
 	};
 
 	class Buffer
 	{
 	public:
-		explicit Buffer(D3D11_BUFFER_DESC const& a_desc, std::string_view a_name = {}) :
-			desc(a_desc), name(a_name)
+		explicit Buffer(D3D11_BUFFER_DESC const& a_desc) :
+			desc(a_desc)
 		{
 			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
 			DX::ThrowIfFailed(device->CreateBuffer(&desc, nullptr, resource.put()));
+		}
+
+		void SetName(std::string_view a_name) const
+		{
+			const std::string name(a_name);
 			cs::render::annotation::SetName(resource.get(), name);
+			cs::render::annotation::SetName(srv.get(), name + " SRV");
+			cs::render::annotation::SetName(uav.get(), name + " UAV");
 		}
 
 		void CreateSRV(D3D11_SHADER_RESOURCE_VIEW_DESC const& a_desc)
 		{
 			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
 			DX::ThrowIfFailed(device->CreateShaderResourceView(resource.get(), &a_desc, srv.put()));
-			cs::render::annotation::SetName(srv.get(), name + " SRV");
 		}
 
 		void CreateUAV(D3D11_UNORDERED_ACCESS_VIEW_DESC const& a_desc)
 		{
 			auto* device = reinterpret_cast<ID3D11Device*>(RE::BSGraphics::GetRendererData()->device);
 			DX::ThrowIfFailed(device->CreateUnorderedAccessView(resource.get(), &a_desc, uav.put()));
-			cs::render::annotation::SetName(uav.get(), name + " UAV");
 		}
 
 		D3D11_BUFFER_DESC desc;
 		winrt::com_ptr<ID3D11Buffer> resource;
 		winrt::com_ptr<ID3D11ShaderResourceView> srv;
 		winrt::com_ptr<ID3D11UnorderedAccessView> uav;
-
-	private:
-		std::string name;
 	};
 
 	class Texture3D

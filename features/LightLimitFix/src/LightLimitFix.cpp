@@ -16,6 +16,7 @@
 #include "Menu/SettingsEdit.h"
 #include "Render/FeatureShaderBindings.h"
 #include "Render/LocalLights.h"
+#include "Render/RuntimeCallback.h"
 #include "Render/ShaderFamilyDescriptor.h"
 #include "Render/SharedDataLayout.h"
 #include "Settings/SettingsPersistence.h"
@@ -277,12 +278,6 @@ namespace cs::features
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
 
-		void QuarantineUpload()
-		{
-			++g_state.uploadFailures;
-			FeatureManager::Get().QuarantineRuntimeCallback(*LightLimitFix::GetSingleton(),
-				"LLF metadata upload", "D3D11 Map failed");
-		}
 		struct UploadLights
 		{
 			static void thunk(void* a_renderer, void* a_buffer, void* a_data,
@@ -295,10 +290,11 @@ namespace cs::features
 						const std::uint32_t count = a_count == 0 ? DeferredLights::kMaxLights : a_count;
 						if (count > DeferredLights::kMaxLights)
 							continue;
-						if (g_state.deferred.UploadTiled(side, count))
+						if (render::RunRenderCallback(LightLimitFix::GetSingleton(), "LLF metadata upload",
+								[&] { g_state.deferred.UploadTiled(side, count); }))
 							++g_state.uploads;
 						else
-							QuarantineUpload();
+							++g_state.uploadFailures;
 					}
 				}
 				func(a_renderer, a_buffer, a_data, a_stride, a_count);
@@ -406,11 +402,11 @@ namespace cs::features
 							engine::BindInjectionShaderResources(context, kTiledSlot, 1, &view);
 						} else {
 							const LightData data = Enabled() ? g_rasterData : LightData{};
-							auto* buffer = g_state.deferred.RasterBuffer(data);
-							if (!buffer)
-								QuarantineUpload();
+							ID3D11Buffer* buffer = nullptr;
 							engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
-							if (buffer && IsInverseSquare(data))
+							buffer = g_state.deferred.RasterBuffer(data);
+							engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
+							if (IsInverseSquare(data))
 								++g_state.rasterDraws;
 						} };
 			})) {

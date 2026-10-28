@@ -21,10 +21,10 @@ namespace cs::features::light_limit_fix
 		void Create();
 		void Record(std::uint32_t a_side, std::uint32_t a_index, const LightData& a_light);
 		void Clear();
-		// False when the D3D11 upload failed.
-		bool UploadTiled(std::uint32_t a_side, std::uint32_t a_count);
+		// Throws when the D3D11 upload fails.
+		void UploadTiled(std::uint32_t a_side, std::uint32_t a_count);
 		ID3D11ShaderResourceView* TiledView() const;
-		// Null when the D3D11 upload failed; unchanged records are not re-uploaded.
+		// Throws when the D3D11 upload fails; unchanged records are not re-uploaded.
 		ID3D11Buffer* RasterBuffer(const LightData& a_light);
 
 	private:
