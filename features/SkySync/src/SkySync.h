@@ -56,6 +56,9 @@ namespace cs::features
 		// After Sky::GetGodraysSettings: scales or rebuilds the godrays.
 		void OnGodraySettings(RE::Sky* a_sky, RE::NVGodrays::MediumSettings& a_medium, RE::NVGodrays::PostprocessSettings& a_postprocess);
 
+		bool ProducesTelemetry() const override { return true; }
+		void CollectTelemetry(telemetry::Sink& a_sink) const override;
+
 	private:
 		SkySync() = default;
 
@@ -136,6 +139,21 @@ namespace cs::features
 		bool _sunBelowHorizon = false;
 		ShadowFader _shadowFader;
 
+		// Game-thread snapshot for telemetry.
+		struct TelemetryState
+		{
+			std::atomic_bool active{ false };
+			std::atomic<Caster> caster{ Caster::kSun };
+			std::atomic_bool transitioning{ false };
+			std::atomic<float> elevationDegrees{ 0.0f };
+			std::atomic<float> headingDegrees{ 0.0f };
+			std::atomic<float> dim{ 1.0f };
+			std::atomic<float> skyRotationDegrees{ 0.0f };
+			std::atomic_uint64_t updates{ 0 };
+			std::atomic_uint64_t completedTransitions{ 0 };
+		};
+		TelemetryState _telemetry;
+
 		mutable std::mutex _worldspaceMutex;
 
 		void PreparePendingTransitions();
@@ -190,6 +208,7 @@ namespace cs::features
 		// Unit direction on the alternate arc, tilted by the sun angle.
 		static RE::NiPoint3 CalculateAlternateSunDirection(float a_hour, float a_sunrise, float a_sunset, float a_sunAngle);
 
+		void PublishTelemetry(bool a_completedTransition);
 		void DrawDebug();
 	};
 }

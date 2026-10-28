@@ -7,6 +7,7 @@
 #include "Menu/SettingsEdit.h"
 #include "Render/HookRegistry.h"
 #include "Settings/SettingsPersistence.h"
+#include "Telemetry/Telemetry.h"
 #include "Utils/CSUtil.h"
 #include "World/CelestialTransition.h"
 #include "World/Moon.h"
@@ -186,8 +187,10 @@ namespace cs::features
 		bool ran = false;
 		FeatureManager::Get().RunRuntimeCallback(*this, "Sky::Update", [&] {
 			PreparePendingTransitions();
-			if (Update(a_sky))
+			const bool completed = Update(a_sky);
+			if (completed)
 				engine::CompleteCelestialTransition();
+			PublishTelemetry(completed);
 			ran = true;
 		});
 		if (!ran) {
@@ -195,6 +198,37 @@ namespace cs::features
 			_active = false;
 			engine::SetCelestialTransitionHandlerAvailable(false);
 		}
+	}
+
+	void SkySync::PublishTelemetry(bool a_completedTransition)
+	{
+		const auto& dir = _shadowFader.currentDir;
+		_telemetry.active.store(_active, std::memory_order_relaxed);
+		_telemetry.caster.store(_shadowFader.target, std::memory_order_relaxed);
+		_telemetry.transitioning.store(_shadowFader.transitioning, std::memory_order_relaxed);
+		_telemetry.elevationDegrees.store(DirectX::XMConvertToDegrees(std::asin(std::clamp(dir.z, -1.0f, 1.0f))), std::memory_order_relaxed);
+		_telemetry.headingDegrees.store(DirectX::XMConvertToDegrees(std::atan2(dir.x, dir.y)), std::memory_order_relaxed);
+		_telemetry.dim.store(_currentDim, std::memory_order_relaxed);
+		_telemetry.skyRotationDegrees.store(_currentSkyRotation == FLT_MAX ? 0.0f : DirectX::XMConvertToDegrees(_currentSkyRotation), std::memory_order_relaxed);
+		_telemetry.updates.fetch_add(1, std::memory_order_relaxed);
+		if (a_completedTransition)
+			_telemetry.completedTransitions.fetch_add(1, std::memory_order_relaxed);
+	}
+
+	void SkySync::CollectTelemetry(telemetry::Sink& a_sink) const
+	{
+		static constexpr std::array<std::string_view, 4> kCasterNames{ "sun", "masser", "secunda", "zenith" };
+		a_sink
+			.Field("active", _telemetry.active.load(std::memory_order_relaxed))
+			.Field("caster", kCasterNames[static_cast<size_t>(_telemetry.caster.load(std::memory_order_relaxed))])
+			.Field("transitioning", _telemetry.transitioning.load(std::memory_order_relaxed))
+			.Field("light_elevation_deg", static_cast<double>(_telemetry.elevationDegrees.load(std::memory_order_relaxed)))
+			.Field("light_heading_deg", static_cast<double>(_telemetry.headingDegrees.load(std::memory_order_relaxed)))
+			.Field("dim", static_cast<double>(_telemetry.dim.load(std::memory_order_relaxed)))
+			.Field("sky_rotation_deg", static_cast<double>(_telemetry.skyRotationDegrees.load(std::memory_order_relaxed)))
+			.Field("worldspace_disabled", _worldspaceDisabled.load(std::memory_order_relaxed))
+			.Field("updates", _telemetry.updates.load(std::memory_order_relaxed))
+			.Field("completed_transitions", _telemetry.completedTransitions.load(std::memory_order_relaxed));
 	}
 
 	void SkySync::OnSkyUpdateColors(RE::Sky* a_sky)
