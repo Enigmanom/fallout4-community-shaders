@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Light Limit Fix: replaces Inverse Square Lighting; the config section is now `[features.LightLimitFix]` and `derive_unauthored_lights` now defaults to off, so converting unauthored lights to inverse-square falloff needs opting in.
+- Light Limit Fix: effects (smoke, fire, glow, rain) and water now receive every nearby light instead of at most 4 or none; portal-strict lights respect rooms; the magic light limit is lifted; light limit, strict light count and clustered light count debug views.
+- Pip-Boy and inventory effects no longer sample world sun shadows.
 
 ## 0.5.0
 

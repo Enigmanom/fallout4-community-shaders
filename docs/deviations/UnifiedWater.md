@@ -12,4 +12,5 @@
 | Forced | Material identity folds noise texture names into the CRC | Done at FO4's `TESWaterForm::UpdateWaterMaterial` over three noise textures | FO4 material fill path differs |
 | Forced | Cubemap reflection flag on tiles | Tiles keep native reflection flags | FO4 water has no cubemap technique |
 | N/A | World flowmap generation and flowmap normals | | FO4 has no flowmap path |
+| Forced | Water tiles receive clustered lights as an LLF consumer | Tiles share the replaced BSWater PS, so world draws take the clustered specular term; see [Light Limit Fix](LightLimitFix.md) | FO4 water draws local lights in a separate specular technique |
 | N/A | Tamriel precache | | Skyrim-only data |

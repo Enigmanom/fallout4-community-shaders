@@ -22,11 +22,11 @@ Classification rules live in [FEATURES](../FEATURES.md#classification).
 | Forced | Linear Lighting is optional | Shaders always compile with `ENABLE_LL`; b6 publishes identity diffuse decode and no pi on sun radiance | FO4 deferred HDR and sun inputs are already linear |
 | Divergence | b7 LLF block; zero `cubemapCreatorSettings` semantics | One FO4-only 112-byte b7 holds debug-view state, `DeltaTime`, per-feature enable flags and DALC rows; b6 `cubemapCreatorSettings` stays zero | Single-substrate ABI |
 | Forced | `Util::IsInterior()`: interior cell, or `kNoSky`/`kFixedDimensions` worldspace | `engine::IsInterior()`: interior cell, `kNoSky`, or `Sky::mode != kFull`; shared by Skylighting, Dynamic Cubemaps | FO4 sets `kFixedDimensions` on open-sky worldspaces such as Diamond City |
-| Pending | FrameParams (except y), celestial/HDR/map/shadow fields | Zero or absent; FrameParams.y is 1 | No FO4 source is consumed yet |
+| Pending | FrameParams (except y), celestial/HDR/map/shadow fields | Zero or absent; FrameParams.y is 1 | No FO4 source is consumed yet; y selects the clustered grid's screen UV |
 | Divergence | Water refraction samples the offset texel | Shore blend falls back to the mask-accepted sample above the water plane | Stock reads the unmasked texel, fringing first-person hands and weapons into water |
-| Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; only `InWorld` is carried per draw | FO4 `BSEffect` PS has no world position or per-draw flags |
-| Forced | Skyrim point-light term in `Effect.hlsl` | FO4's four-light term stays | FO4 `PerGeometry` layout |
-| Pending | Effect-lighting `EffectRadius` shadow filter, `CLOUD_SHADOWS`, `LIGHT_LIMIT_FIX`, Interior Sun | Compiled out | Features not ported |
+| Forced | Effect lighting reads `input.WorldPosition` and `ExtraFlags` | Position rebuilt from `SV_POSITION` and depth; `InWorld` is published per draw in a b8 descriptor | FO4 `BSEffect` PS has no world position or per-draw flags |
+| Forced | Skyrim point-light term in `Effect.hlsl` | FO4's four-light term stays for draws outside the world or without a built light grid; world draws add the clustered term | FO4 `PerGeometry` layout |
+| Pending | Effect-lighting `EffectRadius` shadow filter, `CLOUD_SHADOWS`, Interior Sun | Compiled out | Features not ported |
 | Divergence | Stock shader families | Effect and DistantTree are replaced for feature consumers; Utility, Sky, Particle, BloodSplatter and Lighting stay stock | No current feature consumes the stock ones |
 | Forced | Startup shader compilation blocks the main thread at `kDataLoaded` | `Main::GetCanLoad` is deferred so the main menu keeps Continue, Load, and New Game queued behind its own spinner until compilation ends; loads that bypass the menu are not gated | FO4 presents on the main thread, so blocking it freezes the window |
 | Divergence | `D3D11CreateDeviceAndSwapChain` requests `{ 11_1 }` only | Native creation requests `{ 11_1, 11_0 }`; the D3D12 proxy still requires `11_1` | Feature-level 11.0 GPUs crashed at startup |
