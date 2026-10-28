@@ -318,7 +318,9 @@ target(plugin_name, function()
         "COMMONLIB_RUNTIMECOUNT=3"
     )
     if is_mode("release", "releasedbg") then
-        set_policy("build.optimization.lto", true)
+        -- The LTO policy appends a full -LTCG that overrides incremental codegen.
+        add_cxflags("/GL", { force = true })
+        add_shflags("/LTCG:INCREMENTAL", { force = true })
     end
 
     set_pcxxheader("src/PCH.h")
