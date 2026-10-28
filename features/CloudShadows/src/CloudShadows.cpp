@@ -23,8 +23,8 @@
 #include "Render/FeatureShaderBindings.h"
 #include "Render/FrameBindings.h"
 #include "Render/FrameProfiler.h"
+#include "Render/FullscreenPass.h"
 #include "Render/RenderHooks.h"
-#include "Render/ScopedContextState.h"
 #include "Render/ShaderInjection.h"
 #include "Render/ShaderSubclassHooks.h"
 #include "Render/SharedData.h"
@@ -56,8 +56,6 @@ namespace cs::features
 		constexpr std::uint32_t kTargetSlots = 8;
 		// b4 to b7 are the substrate; the overlay's own constants follow.
 		constexpr std::uint32_t kOverlayConstantsSlot = 8;
-		// The cloud pixel shader reads the layer color here; the engine owns only b0 to b2.
-		constexpr std::uint32_t kLayerConstantsSlot = 8;
 		constexpr std::uint32_t kLayerCubeSlot = 26;
 		constexpr std::uint32_t kPaletteSize = 16;
 		constexpr std::uint32_t kModeLayers = 3;
@@ -98,6 +96,13 @@ namespace cs::features
 			return std::nullopt;
 		}
 
+		// An unmatched draw is gray.
+		std::array<float, 3> LayerColor(const RE::BSRenderPass* a_pass) noexcept
+		{
+			const auto slot = a_pass ? FindLayerSlot(a_pass->geometry) : std::nullopt;
+			return slot ? PaletteColor(*slot) : std::array<float, 3>{ 0.5f, 0.5f, 0.5f };
+		}
+
 		// Clouds.nif's FogRing layer is opaque fill below the horizon, not cloud.
 		bool IsHorizonFill(const RE::BSGeometry* a_geometry) noexcept
 		{
@@ -106,7 +111,7 @@ namespace cs::features
 			const auto* geometry = a_geometry;
 			if (!clouds || !clouds->root || !geometry)
 				return false;
-			// A layer centered at or below the cloud node's origin is below the horizon.
+			// A layer centered at or below the node origin is below the horizon.
 			return geometry->worldBound.center.z <= clouds->root->world.translate.z;
 		}
 	}
@@ -268,7 +273,7 @@ namespace cs::features
 		const auto* sky = RE::Sky::GetSingleton();
 		if (!sky || sky->mode.get() != RE::Sky::Mode::kFull || !sky->currentClimate)
 			return;
-		// No cloud layer draws, so nothing would overwrite the last weather's occlusion.
+		// Without cloud draws, the last weather's occlusion would stay.
 		if (sky->clouds && sky->clouds->numLayers != 0) {
 			_clearedWithoutClouds = false;
 			return;
@@ -290,7 +295,7 @@ namespace cs::features
 		const bool skirt = capturing && cs::engine::GetSkyReflectionCubeCapture() && pass && IsHorizonFill(pass->geometry);
 		if (skirt)
 			_counters.horizonFillSkipped.fetch_add(1, std::memory_order_relaxed);
-		// The layers view also captures the skirt, to show it; occlusion never takes it.
+		// The layers view shows the skirt; occlusion never takes it.
 		const bool showSkirt = skirt && _overlayMode.load(std::memory_order_acquire) == kModeLayers;
 		if (capturing && (!skirt || showSkirt) && CaptureCloudDraw(a_context, skirt))
 			return;
@@ -326,24 +331,25 @@ namespace cs::features
 				constexpr float kClear[4]{};
 				a_context->ClearRenderTargetView(_layerFaceRTV[capture->face].get(), kClear);
 			}
-			WriteLayerColor(a_context, a_skirt);
 			_counters.layerDraws.fetch_add(1, std::memory_order_relaxed);
 		}
 
 		// The draw scope restores the targets, blend state and depth slot.
 		cs::engine::CaptureShaderInjectionOutputs(a_context);
-		ID3D11RenderTargetView* color = nullptr;
-		a_context->OMGetRenderTargets(1, &color, nullptr);
-		ID3D11RenderTargetView* const targets[]{
-			color, nullptr, a_skirt ? nullptr : _faceRTV[capture->face].get(), layers ? _layerFaceRTV[capture->face].get() : nullptr
-		};
-		static_assert(kCaptureTargetSlot + 2 == std::size(targets));
-		// FO4: the face depth is read as a texture, so it cannot stay bound for testing.
-		a_context->OMSetRenderTargets(layers ? static_cast<UINT>(std::size(targets)) : kCaptureTargetSlot + 1, targets, nullptr);
-		if (color)
-			color->Release();
-		constexpr float kBlendFactor[4]{ 1.0f, 1.0f, 1.0f, 1.0f };
-		a_context->OMSetBlendState(layers ? _layerBlend.get() : _blend.get(), kBlendFactor, 0xFFFFFFFFu);
+		ID3D11RenderTargetView* targets[kCaptureTargetSlot + 2]{};
+		a_context->OMGetRenderTargets(kCaptureTargetSlot, targets, nullptr);
+		targets[kCaptureTargetSlot] = a_skirt ? nullptr : _faceRTV[capture->face].get();
+		targets[kCaptureTargetSlot + 1] = layers ? _layerFaceRTV[capture->face].get() : nullptr;
+		// FO4: the face depth is sampled, so it cannot stay bound.
+		a_context->OMSetRenderTargets(layers ? kCaptureTargetSlot + 2 : kCaptureTargetSlot + 1, targets, nullptr);
+		for (std::uint32_t slot = 0; slot < kCaptureTargetSlot; ++slot) {
+			if (targets[slot])
+				targets[slot]->Release();
+		}
+		// The layers cube takes its color from the blend factor.
+		const auto layerColor = a_skirt ? kSkirtColor : LayerColor(cs::engine::GetCurrentSkyPass());
+		const float blendFactor[4]{ layerColor[0], layerColor[1], layerColor[2], 1.0f };
+		a_context->OMSetBlendState(layers ? _layerBlend.get() : _blend.get(), blendFactor, 0xFFFFFFFFu);
 		cs::engine::OverrideInjectionFrameShaderResource(a_context, cloud_shadows_shader::kCloudDepthSlot, depth);
 		_counters.cloudDraws.fetch_add(1, std::memory_order_relaxed);
 		return true;
@@ -351,7 +357,7 @@ namespace cs::features
 
 	void CloudShadows::UnbindExtraTarget(ID3D11DeviceContext* a_context)
 	{
-		// The cloud shader declares the capture output; no other draw may receive it.
+		// The cloud shader declares the capture outputs; no other draw takes them.
 		ID3D11RenderTargetView* targets[kTargetSlots]{};
 		ID3D11DepthStencilView* depth = nullptr;
 		a_context->OMGetRenderTargets(kTargetSlots, targets, &depth);
@@ -391,13 +397,7 @@ namespace cs::features
 
 	void CloudShadows::BuildOverlayResources(ID3D11Device* a_device)
 	{
-		winrt::com_ptr<ID3D11Device1> device;
-		DX::ThrowIfFailed(a_device->QueryInterface(IID_PPV_ARGS(device.put())));
-		const auto level = a_device->GetFeatureLevel();
-		D3D_FEATURE_LEVEL selected{};
-		DX::ThrowIfFailed(device->CreateDeviceContextState(
-			0, &level, 1, D3D11_SDK_VERSION, __uuidof(ID3D11Device), &selected, _overlayState.put()));
-		_overlayVS.attach(static_cast<ID3D11VertexShader*>(cs::util::CompileShader(kOverlayPath, {}, "vs_5_0")));
+		_overlayPass.Create(a_device);
 		for (std::size_t index = 0; index < _overlayPS.size(); ++index) {
 			std::vector<std::pair<const char*, const char*>> defines{ { "FO4CS_SUBSTRATE", "1" }, { "CLOUD_SHADOWS", "1" } };
 			if (index == 0)
@@ -419,18 +419,13 @@ namespace cs::features
 		target.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_RED | D3D11_COLOR_WRITE_ENABLE_GREEN | D3D11_COLOR_WRITE_ENABLE_BLUE;
 		DX::ThrowIfFailed(a_device->CreateBlendState(&blendDesc, _overlayBlend.put()));
 
-		D3D11_RASTERIZER_DESC rasterizer{};
-		rasterizer.FillMode = D3D11_FILL_SOLID;
-		rasterizer.CullMode = D3D11_CULL_NONE;
-		rasterizer.DepthClipEnable = TRUE;
-		DX::ThrowIfFailed(a_device->CreateRasterizerState(&rasterizer, _overlayRasterizer.put()));
 		D3D11_BUFFER_DESC constants{};
 		constants.ByteWidth = sizeof(float) * 4;
 		constants.Usage = D3D11_USAGE_DYNAMIC;
 		constants.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 		constants.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		DX::ThrowIfFailed(a_device->CreateBuffer(&constants, nullptr, _overlayConstants.put()));
-		_overlayReady.store(_overlayVS && _overlayPS[0] && _overlayPS[1] && _overlayPS[2], std::memory_order_release);
+		_overlayReady.store(_overlayPass.Ready() && _overlayPS[0] && _overlayPS[1] && _overlayPS[2], std::memory_order_release);
 	}
 
 	bool CloudShadows::EnsureLayerCube()
@@ -465,13 +460,13 @@ namespace cs::features
 			created = SUCCEEDED(device->CreateRenderTargetView(cube.get(), &rtvDesc, faces[face].put()));
 		}
 
-		// Layers draw into RT3 and the first three outputs keep the production blend.
+		// RT3 weights the blend-factor color by the broadcast coverage.
 		D3D11_BLEND_DESC blendDesc{};
 		blendDesc.IndependentBlendEnable = TRUE;
 		for (std::uint32_t slot = 0; slot < 4; ++slot) {
 			auto& target = blendDesc.RenderTarget[slot];
 			target.BlendEnable = TRUE;
-			target.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+			target.SrcBlend = slot == 3 ? D3D11_BLEND_BLEND_FACTOR : D3D11_BLEND_SRC_ALPHA;
 			target.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 			target.BlendOp = D3D11_BLEND_OP_ADD;
 			target.SrcBlendAlpha = slot == 3 ? D3D11_BLEND_ONE : D3D11_BLEND_SRC_ALPHA;
@@ -480,17 +475,8 @@ namespace cs::features
 			target.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 		}
 		winrt::com_ptr<ID3D11BlendState> blend;
-		winrt::com_ptr<ID3D11Buffer> constants;
 		if (created)
 			created = SUCCEEDED(device->CreateBlendState(&blendDesc, blend.put()));
-		if (created) {
-			D3D11_BUFFER_DESC constantsDesc{};
-			constantsDesc.ByteWidth = sizeof(float) * 4;
-			constantsDesc.Usage = D3D11_USAGE_DYNAMIC;
-			constantsDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-			constantsDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-			created = SUCCEEDED(device->CreateBuffer(&constantsDesc, nullptr, constants.put()));
-		}
 		if (!created) {
 			L->error("Cloud layer debug cube creation failed.");
 			return false;
@@ -504,27 +490,9 @@ namespace cs::features
 		_layerCubeSRV = std::move(srv);
 		_layerFaceRTV = std::move(faces);
 		_layerBlend = std::move(blend);
-		_layerConstants = std::move(constants);
 		_layerClearedSerial = 0;
 		L->info("layers debug cube: {0}x{0} R8G8B8A8_UNORM", desc.Width);
 		return true;
-	}
-
-	void CloudShadows::WriteLayerColor(ID3D11DeviceContext* a_context, bool a_skirt)
-	{
-		const auto* pass = cs::engine::GetCurrentSkyPass();
-		const auto slot = pass ? FindLayerSlot(pass->geometry) : std::nullopt;
-		// An unmatched draw is gray; the skirt keeps a fixed color so it reads as not occluding.
-		const auto color = a_skirt ? kSkirtColor : slot ? PaletteColor(*slot) :
-		                                                  std::array<float, 3>{ 0.5f, 0.5f, 0.5f };
-		const float values[4]{ color[0], color[1], color[2], 1.0f };
-		D3D11_MAPPED_SUBRESOURCE mapped{};
-		if (FAILED(a_context->Map(_layerConstants.get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-			return;
-		std::memcpy(mapped.pData, values, sizeof(values));
-		a_context->Unmap(_layerConstants.get(), 0);
-		ID3D11Buffer* const constants = _layerConstants.get();
-		a_context->PSSetConstantBuffers(kLayerConstantsSlot, 1, &constants);
 	}
 
 	void CloudShadows::RefreshLegend()
@@ -620,18 +588,10 @@ namespace cs::features
 
 		UpdateOverlayConstants(context);
 
-		// The engine caches its bindings, so the pass runs in an isolated context state.
-		cs::render::ScopedContextState state(context, _overlayState.get());
-		if (!state.IsActive())
+		const cs::render::FullscreenPass::Scope pass(_overlayPass, context, frameBuffer, desc.Width, desc.Height);
+		if (!pass.IsActive())
 			return;
 		cs::render::annotation::ScopedEvent timing("CloudShadows/Overlay");
-		context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		context->VSSetShader(_overlayVS.get(), nullptr, 0);
-		context->PSSetShader(_overlayPS[mode - 1].get(), nullptr, 0);
-		context->RSSetState(_overlayRasterizer.get());
-		const D3D11_VIEWPORT viewport{ 0, 0, static_cast<float>(desc.Width), static_cast<float>(desc.Height), 0, 1 };
-		context->RSSetViewports(1, &viewport);
-		context->OMSetRenderTargets(1, &frameBuffer, nullptr);
 		constexpr float kBlendFactor[4]{};
 		context->OMSetBlendState(_overlayBlend.get(), kBlendFactor, 0xFFFFFFFFu);
 		cs::render::BindSharedData(context, cs::engine::ShaderStage::kPixel);
@@ -647,7 +607,7 @@ namespace cs::features
 			ID3D11ShaderResourceView* const layerCube = _layerCubeSRV.get();
 			context->PSSetShaderResources(kLayerCubeSlot, 1, &layerCube);
 		}
-		context->Draw(3, 0);
+		pass.Draw(_overlayPS[mode - 1].get());
 		_counters.overlayFrames.fetch_add(1, std::memory_order_relaxed);
 	}
 

@@ -3,6 +3,7 @@
 #include "CloudShadowsSettings.h"
 #include "Feature.h"
 #include "FeatureCategories.h"
+#include "Render/FullscreenPass.h"
 #include "Render/RgbaPreview.h"
 #include "Render/SharedFeatureData.h"
 #include "ShaderDefines.h"
@@ -79,9 +80,8 @@ namespace cs::features
 		// Draws the selected fullscreen view over the final scene image.
 		void RenderOverlay();
 		void BuildOverlayResources(ID3D11Device* a_device);
-		// Debug-only per-layer cube, created the first time the layers view captures.
+		// Debug-only per-layer cube, made when the layers view first captures.
 		bool EnsureLayerCube();
-		void WriteLayerColor(ID3D11DeviceContext* a_context, bool a_skirt);
 		void RefreshLegend();
 		void DrawLegend();
 		// Unit direction to the drawn sun disc in w=1, else zero.
@@ -105,11 +105,9 @@ namespace cs::features
 		std::atomic_bool _previewSelected{ false };
 		// 0 off, 1 sky overlay, 2 shadow term, 3 cloud layers.
 		std::atomic<std::uint32_t> _overlayMode{ 0 };
-		winrt::com_ptr<ID3DDeviceContextState> _overlayState;
-		winrt::com_ptr<ID3D11VertexShader> _overlayVS;
+		cs::render::FullscreenPass _overlayPass;
 		std::array<winrt::com_ptr<ID3D11PixelShader>, 3> _overlayPS;
 		winrt::com_ptr<ID3D11BlendState> _overlayBlend;
-		winrt::com_ptr<ID3D11RasterizerState> _overlayRasterizer;
 		winrt::com_ptr<ID3D11Buffer> _overlayConstants;
 
 		// Render thread only.
@@ -117,7 +115,6 @@ namespace cs::features
 		winrt::com_ptr<ID3D11ShaderResourceView> _layerCubeSRV;
 		std::array<winrt::com_ptr<ID3D11RenderTargetView>, kFaceCount> _layerFaceRTV;
 		winrt::com_ptr<ID3D11BlendState> _layerBlend;
-		winrt::com_ptr<ID3D11Buffer> _layerConstants;
 		std::uint64_t _layerClearedSerial = 0;
 		std::uint32_t _legendFrame = 0;
 		std::atomic_bool _logLegend{ false };

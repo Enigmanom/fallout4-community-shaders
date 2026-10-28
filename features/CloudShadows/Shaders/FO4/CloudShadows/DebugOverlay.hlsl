@@ -1,17 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
-#ifdef VSHADER
-float4 main(uint vertex : SV_VertexID) : SV_Position
-{
-	float2 uv = float2((vertex << 1) & 2, vertex & 2);
-	return float4(uv * float2(2, -2) + float2(-1, 1), 0, 1);
-}
-#else
-#	include "FO4/WorldShadowConsumer.hlsli"
+#include "FO4/WorldShadowConsumer.hlsli"
 
-#	if defined(CLOUD_SKY_OVERLAY) || defined(CLOUD_LAYERS)
-#		ifdef CLOUD_LAYERS
+#if defined(CLOUD_SKY_OVERLAY) || defined(CLOUD_LAYERS)
+#	ifdef CLOUD_LAYERS
 TextureCube<float4> CloudLayerTexture : register(t26);
-#		endif
+#	endif
 cbuffer Overlay : register(b8)
 {
 	// Direction to the visible sun disc; w is zero when it is unavailable.
@@ -23,7 +16,7 @@ bool OnRing(float3 direction, float3 center, float radius)
 {
 	return abs(degrees(acos(saturate(dot(direction, center)))) - radius) < 0.2;
 }
-#	endif
+#endif
 
 // Drawn over the final image, so the value is not tonemapped or fogged.
 float4 main(float4 screenPosition : SV_Position) : SV_Target
@@ -36,25 +29,24 @@ float4 main(float4 screenPosition : SV_Position) : SV_Target
 		float4(uv * float2(2.0, -2.0) + float2(-1.0, 1.0), depth, 1.0));
 	// Same camera-relative position the receivers pass to GetWorldShadow.
 	float3 worldPosition = FrameBuffer::ViewToWorld(view.xyz / view.w);
-#	if defined(CLOUD_SKY_OVERLAY) || defined(CLOUD_LAYERS)
+#if defined(CLOUD_SKY_OVERLAY) || defined(CLOUD_LAYERS)
 	float3 direction = normalize(worldPosition);
-	// Green: the direction the receivers look toward. Yellow: the visible sun disc.
+	// Green: receiver sun direction. Yellow: the visible sun disc.
 	if (OnRing(direction, normalize(SharedData::DirLightDirection.xyz), 1.5))
 		return float4(0.0, 1.0, 0.0, 1.0);
 	if (VisibleSun.w > 0.0 && OnRing(direction, VisibleSun.xyz, 2.5))
 		return float4(1.0, 1.0, 0.0, 1.0);
-#		ifdef CLOUD_LAYERS
-	// The cube accumulates color premultiplied by alpha, with the coverage in alpha.
+#	ifdef CLOUD_LAYERS
+	// Premultiplied color accumulates; alpha holds the coverage.
 	float4 layers = CloudLayerTexture.SampleLevel(LinearSampler, direction, 0);
 	float coverage = saturate(layers.a);
 	return float4(coverage > 0.0 ? layers.rgb / coverage : 0.0, coverage * 0.85);
-#		else
+#	else
 	float occlusion = CloudShadows::CloudShadowsTexture.SampleLevel(LinearSampler, direction, 0);
 	return float4(1.0, 0.0, 0.0, occlusion);
-#		endif
-#	else
+#	endif
+#else
 	float shadow = depth < 1.0 ? CloudShadows::GetCloudShadowMult(worldPosition, LinearSampler) : 0.0;
 	return float4(shadow.xxx, 1.0);
-#	endif
-}
 #endif
+}

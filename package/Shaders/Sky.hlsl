@@ -156,18 +156,13 @@ struct PS_OUTPUT
 #	if defined(CLOUD_SHADOWS) && defined(CLOUDS)
 Texture2D<float> TexDepthSampler : register(t17);
 
-cbuffer CloudLayer : register(b8)
-{
-	float4 CloudLayerColor;
-}
-
 void WriteCloudShadows(inout PS_OUTPUT output, float4 position)
 {
 	// A broadcast alpha would square coverage under SRC_ALPHA blending.
 	// FO4: no alphaTransmittance, the cloud alpha is the coverage.
 	output.cloudShadows = float4(1.0, 1.0, 1.0, output.color.w);
-	// Debug view: the layer color, blended by the cloud alpha.
-	output.cloudLayer = float4(CloudLayerColor.rgb, output.color.w);
+	// Debug view: the blend factor colors this broadcast alpha.
+	output.cloudLayer = output.color.w;
 
 	// Keep sun behind scene depth to prevent halo leaks through geometry.
 	float depth = TexDepthSampler.Load(int3(position.xy, 0));
