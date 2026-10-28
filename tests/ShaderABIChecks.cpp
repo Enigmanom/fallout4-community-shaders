@@ -420,7 +420,6 @@ namespace
 			ABI(LightData, localShadowIndex), ABI(LightData, pad1)
 		};
 		std::string error;
-		// The host binds the tiled records at t8 and the raster record at b11.
 		const auto tiled = Reflect(a_root, "DFTiledLighting.hlsl", { { "DFTILEDLIGHTING_VARIANT", "2" }, { "LIGHT_LIMIT_FIX", "1" }, { "CSHADER", "1" } }, "cs_5_0", error);
 		if (!tiled)
 			return error;

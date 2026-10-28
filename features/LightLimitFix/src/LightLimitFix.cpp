@@ -403,8 +403,12 @@ namespace cs::features
 						} else {
 							const LightData data = Enabled() ? g_rasterData : LightData{};
 							ID3D11Buffer* buffer = nullptr;
-							engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
-							buffer = g_state.deferred.RasterBuffer(data);
+							try {
+								buffer = g_state.deferred.RasterBuffer(data);
+							} catch (...) {
+								engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
+								throw;
+							}
 							engine::BindInjectionConstantBuffers(context, kRasterSlot, 1, &buffer);
 							if (IsInverseSquare(data))
 								++g_state.rasterDraws;
