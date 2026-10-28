@@ -107,7 +107,7 @@ are FO4-only rule-4 core features.
 Ordered by user value over effort, respecting dependencies.
 
 1. **Effects11** (L): highest user value; FO4 users rely on ENB's enbeffect. Starts with tonemap-attachment RE.
-2. **Finish ported features:** Light Limit Fix local shadow copy (M; Rain Refraction and the Effect/Water consumers build on it); DC provider adapters (S/M); Water Effects caustics proof (S).
+2. **Finish ported features:** Light Limit Fix local shadow copy (M); DC provider adapters (S/M); Water Effects caustics proof (S).
 3. **Cheap new features:** LOD Blending (S); Unified Water optical blend and terrain tiles (M); Terrain Variation (M).
 4. **Parallax:** Extended Materials object/terrain POM + TruePBR surface POM, reading `_s` alpha (M).
 5. **Mid-size, few dependencies:** Cloud Shadows (L); Subsurface Scattering (M); Volumetric
